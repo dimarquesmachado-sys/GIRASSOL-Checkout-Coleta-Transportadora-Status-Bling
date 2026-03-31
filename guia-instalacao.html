@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guia de Instalação — Expedição</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F7F6F3;color:#1A1916;font-size:15px;line-height:1.6}
+.wrap{max-width:780px;margin:0 auto;padding:32px 20px 60px}
+
+h1{font-size:26px;font-weight:700;margin-bottom:6px}
+.subtitle{color:#6B6860;font-size:14px;margin-bottom:32px}
+
+/* PHASES */
+.phase{background:#fff;border:1px solid #E4E2DC;border-radius:14px;margin-bottom:14px;overflow:hidden}
+.phase-header{padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;user-select:none}
+.phase-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.phase-title{font-size:16px;font-weight:600;flex:1}
+.phase-time{font-size:12px;color:#9D9B94;background:#F7F6F3;padding:3px 8px;border-radius:10px}
+.phase-arrow{color:#9D9B94;transition:.2s;font-size:12px}
+.phase.open .phase-arrow{transform:rotate(180deg)}
+.phase-body{display:none;padding:0 20px 20px}
+.phase.open .phase-body{display:block}
+
+/* STEPS */
+.step{display:flex;gap:14px;margin-bottom:18px}
+.step:last-child{margin-bottom:0}
+.step-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px}
+.step-content{flex:1}
+.step-title{font-weight:600;font-size:14px;margin-bottom:5px}
+.step-desc{font-size:13px;color:#484644;line-height:1.55}
+
+/* COLORS */
+.ph-green .phase-num{background:#EAF3DE;color:#3B6D11}
+.ph-blue .phase-num{background:#E6F1FB;color:#0C447C}
+.ph-orange .phase-num{background:#FFF3E0;color:#8B4F00}
+.ph-purple .phase-num{background:#F3F0FF;color:#4C1D95}
+.ph-teal .phase-num{background:#E0F5EE;color:#0F6E56}
+
+.ph-green .step-num{background:#EAF3DE;color:#3B6D11}
+.ph-blue .step-num{background:#E6F1FB;color:#0C447C}
+.ph-orange .step-num{background:#FFF3E0;color:#8B4F00}
+.ph-purple .step-num{background:#F3F0FF;color:#4C1D95}
+.ph-teal .step-num{background:#E0F5EE;color:#0F6E56}
+
+/* CALLOUTS */
+.tip{background:#FFF8E6;border-left:3px solid #F0A442;border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:#5C3B00;margin:10px 0}
+.warn{background:#FFF0F0;border-left:3px solid #E05555;border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:#6B1E1E;margin:10px 0}
+.info{background:#EEF6FF;border-left:3px solid #4A9EFF;border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:#0C2D5C;margin:10px 0}
+.success{background:#EAF3DE;border-left:3px solid #2ECC8A;border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:#1A4D0D;margin:10px 0}
+
+/* CODE */
+code{font-family:'SF Mono','Fira Code',monospace;font-size:12px;background:#F1EFE8;padding:2px 6px;border-radius:4px;color:#3B3830}
+.code-block{background:#1A1916;color:#D4CFC8;font-family:'SF Mono','Fira Code',monospace;font-size:12px;padding:14px 16px;border-radius:8px;margin:10px 0;white-space:pre;overflow-x:auto;line-height:1.7}
+.code-block .cm{color:#6B7280}
+.code-block .kw{color:#F0A442}
+.code-block .st{color:#2ECC8A}
+
+/* LINK */
+a{color:#1558A0;text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* FILE LIST */
+.file-list{background:#F7F6F3;border:1px solid #E4E2DC;border-radius:8px;padding:12px 14px;margin:10px 0}
+.file-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #E4E2DC;font-size:13px}
+.file-item:last-child{border-bottom:none}
+.file-icon{font-size:16px}
+.file-name{font-family:monospace;font-weight:500;color:#1A1916}
+.file-desc{color:#6B6860;font-size:12px;margin-left:auto}
+
+/* DIVIDER */
+hr{border:none;border-top:1px solid #E4E2DC;margin:18px 0}
+
+/* BUTTON DEMO */
+.btn-demo{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:500;color:white;margin:4px 2px}
+.btn-green{background:#1D6DB5}
+.btn-gray{background:#6B6860}
+
+/* HEADER BADGE */
+.badge{display:inline-block;background:#EAF3DE;color:#3B6D11;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+th{background:#F7F6F3;padding:8px 12px;text-align:left;font-weight:600;border:1px solid #E4E2DC}
+td{padding:8px 12px;border:1px solid #E4E2DC;color:#484644}
+
+/* PROGRESS BAR */
+.progress-overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:28px}
+.prog-card{background:#fff;border:1px solid #E4E2DC;border-radius:10px;padding:12px 14px;text-align:center}
+.prog-card-num{font-size:22px;font-weight:700;color:#1A1916}
+.prog-card-lbl{font-size:11px;color:#9D9B94;margin-top:2px}
+
+@media(max-width:500px){.wrap{padding:16px 14px 40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🚚 Guia de Instalação</h1>
+<p class="subtitle">Sistema de Expedição + Bling — do zero ao ar em ~30 minutos. Sem precisar entender de programação.</p>
+
+<div class="progress-overview">
+  <div class="prog-card"><div class="prog-card-num">5</div><div class="prog-card-lbl">etapas no total</div></div>
+  <div class="prog-card"><div class="prog-card-num">~30</div><div class="prog-card-lbl">minutos</div></div>
+  <div class="prog-card"><div class="prog-card-num">R$ 0</div><div class="prog-card-lbl">custo mensal</div></div>
+  <div class="prog-card"><div class="prog-card-num">📱</div><div class="prog-card-lbl">abre no celular</div></div>
+</div>
+
+<div class="info">
+  <strong>O que vai acontecer:</strong> Você vai criar uma conta no GitHub (guarda os arquivos), uma conta no Render (coloca o sistema no ar), e em 30 minutos vai ter um link que abre no celular do estoquista.
+</div>
+
+<!-- FASE 1: DOWNLOAD -->
+<div class="phase ph-green open">
+  <div class="phase-header" onclick="toggle(this)">
+    <div class="phase-num">1</div>
+    <div class="phase-title">Baixar os arquivos do sistema</div>
+    <div class="phase-time">2 min</div>
+    <div class="phase-arrow">▼</div>
+  </div>
+  <div class="phase-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Baixe os 3 arquivos que o Claude criou</div>
+        <div class="step-desc">
+          Você precisa de 3 arquivos. Provavelmente já foram gerados — clique em download em cada um no chat:
+        </div>
+        <div class="file-list">
+          <div class="file-item"><span class="file-icon">🟨</span><span class="file-name">server.js</span><span class="file-desc">servidor / proxy</span></div>
+          <div class="file-item"><span class="file-icon">📋</span><span class="file-name">package.json</span><span class="file-desc">configurações</span></div>
+          <div class="file-item"><span class="file-icon">🌐</span><span class="file-name">index.html</span><span class="file-desc">o sistema visual</span></div>
+        </div>
+        <div class="tip">💡 O <strong>index.html</strong> fica dentro de uma pasta chamada <code>public</code>. Na hora de fazer upload, você vai criar essa pasta. Explico no passo 3.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FASE 2: GITHUB -->
+<div class="phase ph-blue">
+  <div class="phase-header" onclick="toggle(this)">
+    <div class="phase-num">2</div>
+    <div class="phase-title">Criar conta no GitHub e subir os arquivos</div>
+    <div class="phase-time">10 min</div>
+    <div class="phase-arrow">▼</div>
+  </div>
+  <div class="phase-body">
+    <div class="info">
+      <strong>O que é o GitHub?</strong> É um site gratuito que guarda os arquivos do seu sistema, igual ao Google Drive mas para código. O Render vai buscar os arquivos direto de lá.
+    </div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Crie uma conta gratuita no GitHub</div>
+        <div class="step-desc">
+          Acesse <a href="https://github.com" target="_blank"><strong>github.com</strong></a> → clique em <strong>Sign up</strong> → preencha e-mail, senha e nome de usuário → confirme o e-mail que chegar na sua caixa.
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">Crie um repositório (pasta) para o sistema</div>
+        <div class="step-desc">
+          Depois de entrar no GitHub:<br><br>
+          → Clique no <strong>+</strong> no canto superior direito → <strong>New repository</strong><br>
+          → Em <strong>Repository name</strong> escreva: <code>expedicao-bling</code><br>
+          → Deixe marcado <strong>Public</strong><br>
+          → Marque a caixinha <strong>"Add a README file"</strong><br>
+          → Clique no botão verde <strong>Create repository</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">Faça upload do server.js e package.json</div>
+        <div class="step-desc">
+          Dentro do repositório que você criou:<br><br>
+          → Clique em <strong>Add file</strong> → <strong>Upload files</strong><br>
+          → Arraste ou selecione o <code>server.js</code> e o <code>package.json</code><br>
+          → Lá embaixo, clique em <strong>Commit changes</strong>
+        </div>
+        <div class="tip">⚠ Atenção: o <strong>index.html</strong> ainda NÃO vai aqui. Ele vai dentro de uma pasta chamada <code>public</code>. Siga o passo 4.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">Crie a pasta "public" e faça upload do index.html</div>
+        <div class="step-desc">
+          O GitHub não deixa criar uma pasta vazia, então o truque é criar um arquivo dentro dela:<br><br>
+          → Clique em <strong>Add file</strong> → <strong>Create new file</strong><br>
+          → No campo do nome do arquivo, escreva: <code>public/index.html</code><br>
+          &nbsp;&nbsp; (quando você digitar a barra <code>/</code>, o GitHub vai criar a pasta automaticamente)<br>
+          → No campo de conteúdo abaixo, cole <strong>todo o conteúdo</strong> do <code>index.html</code> que você baixou<br>
+          → Clique em <strong>Commit changes</strong>
+        </div>
+        <div class="info">
+          🔎 Como abrir o index.html para copiar: clique com botão direito no arquivo → <em>Abrir com Bloco de Notas</em> → Ctrl+A (selecionar tudo) → Ctrl+C (copiar) → cole no GitHub.
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <div class="step-title">Confira se ficou assim</div>
+        <div class="step-desc">
+          Seu repositório deve ter essa estrutura:
+        </div>
+        <div class="file-list">
+          <div class="file-item"><span class="file-icon">📁</span><span class="file-name">public/</span><span class="file-desc">pasta</span></div>
+          <div class="file-item" style="padding-left:20px"><span class="file-icon">🌐</span><span class="file-name">public/index.html</span><span class="file-desc">sistema visual</span></div>
+          <div class="file-item"><span class="file-icon">🟨</span><span class="file-name">server.js</span><span class="file-desc">servidor</span></div>
+          <div class="file-item"><span class="file-icon">📋</span><span class="file-name">package.json</span><span class="file-desc">configurações</span></div>
+          <div class="file-item"><span class="file-icon">📄</span><span class="file-name">README.md</span><span class="file-desc">criado automaticamente</span></div>
+        </div>
+        <div class="success">✅ Se ficou assim, o GitHub está pronto! Próxima etapa: colocar no ar.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FASE 3: RENDER -->
+<div class="phase ph-orange">
+  <div class="phase-header" onclick="toggle(this)">
+    <div class="phase-num">3</div>
+    <div class="phase-title">Criar conta no Render e colocar no ar</div>
+    <div class="phase-time">10 min</div>
+    <div class="phase-arrow">▼</div>
+  </div>
+  <div class="phase-body">
+    <div class="info">
+      <strong>O que é o Render?</strong> É um serviço gratuito que pega seus arquivos do GitHub e coloca no ar na internet, gerando um link que funciona no celular de qualquer lugar.
+    </div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Crie uma conta gratuita no Render</div>
+        <div class="step-desc">
+          Acesse <a href="https://render.com" target="_blank"><strong>render.com</strong></a> → clique em <strong>Get Started for Free</strong> → escolha <strong>Sign up with GitHub</strong> (mais fácil, já conecta direto).
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">Crie um novo "Web Service"</div>
+        <div class="step-desc">
+          Dentro do Render, no painel principal:<br><br>
+          → Clique em <strong>New +</strong> (botão roxo no canto superior direito)<br>
+          → Clique em <strong>Web Service</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">Conecte ao seu repositório do GitHub</div>
+        <div class="step-desc">
+          Na tela seguinte:<br><br>
+          → Clique em <strong>Connect account</strong> (se pedido) para autorizar o GitHub<br>
+          → Vai aparecer seu repositório <code>expedicao-bling</code> na lista<br>
+          → Clique em <strong>Connect</strong> ao lado dele
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">Configure o serviço</div>
+        <div class="step-desc">
+          Preencha os campos assim:
+        </div>
+        <table>
+          <tr><th>Campo</th><th>O que colocar</th></tr>
+          <tr><td><strong>Name</strong></td><td><code>expedicao-bling</code> (ou qualquer nome)</td></tr>
+          <tr><td><strong>Region</strong></td><td>São Paulo (South America) se disponível, senão deixe padrão</td></tr>
+          <tr><td><strong>Branch</strong></td><td><code>main</code> (já deve estar preenchido)</td></tr>
+          <tr><td><strong>Build Command</strong></td><td><code>npm install</code></td></tr>
+          <tr><td><strong>Start Command</strong></td><td><code>node server.js</code></td></tr>
+          <tr><td><strong>Instance Type</strong></td><td><strong>Free</strong> (plano gratuito)</td></tr>
+        </table>
+        <div class="tip">💡 Se o campo <em>Build Command</em> já tiver preenchido com outro valor, apague e coloque <code>npm install</code>.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <div class="step-title">Clique em "Create Web Service"</div>
+        <div class="step-desc">
+          Role a página até o fim → clique no botão <strong>Create Web Service</strong>.<br><br>
+          O Render vai começar a instalar e rodar o sistema. Isso leva de <strong>2 a 5 minutos</strong>. Você vai ver logs na tela — quando aparecer <strong>"Live"</strong> em verde ou a mensagem <strong>"Servidor rodando na porta 3000"</strong>, está pronto.
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <div class="step-title">Copie o link do seu sistema</div>
+        <div class="step-desc">
+          No topo da página do Render aparece o link do seu sistema, algo como:<br><br>
+          <code>https://expedicao-bling.onrender.com</code><br><br>
+          Clique nele — vai abrir o sistema de expedição! 🎉
+        </div>
+        <div class="success">✅ Pronto! O sistema está no ar. Agora só falta conectar ao Bling.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FASE 4: BLING TOKEN -->
+<div class="phase ph-purple">
+  <div class="phase-header" onclick="toggle(this)">
+    <div class="phase-num">4</div>
+    <div class="phase-title">Pegar o token do Bling e configurar</div>
+    <div class="phase-time">10 min</div>
+    <div class="phase-arrow">▼</div>
+  </div>
+  <div class="phase-body">
+    <div class="info">
+      <strong>O que é o token?</strong> É uma senha especial que o Bling gera para deixar outros sistemas acessarem seus dados. Sem ele, o sistema não consegue puxar os pedidos.
+    </div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Crie um aplicativo no Bling</div>
+        <div class="step-desc">
+          Dentro do Bling, no menu superior:<br><br>
+          → Clique no ícone de <strong>grade/apps</strong> (canto superior direito) → <strong>Área do Integrador</strong><br>
+          → Ou acesse direto: <a href="https://www.bling.com.br/cadastro.aplicativos.php" target="_blank">bling.com.br/cadastro.aplicativos.php</a><br><br>
+          → Clique em <strong>+ Novo aplicativo</strong><br>
+          → Nome: <code>Expedição</code> (qualquer nome)<br>
+          → Em <strong>Redirect URI</strong> coloque: <code>https://expedicao-bling.onrender.com/callback</code> (substituindo pelo seu link real)<br>
+          → Salve — o Bling vai gerar um <strong>Client ID</strong> e um <strong>Client Secret</strong>. Guarde os dois.
+        </div>
+        <div class="tip">💡 O nome e URL exatos variam um pouco dependendo da versão do seu Bling. Se travar, tire um print e me mande no chat que eu te ajudo.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">Gere o Access Token (senha de acesso)</div>
+        <div class="step-desc">
+          O Bling usa OAuth 2.0. O fluxo mais rápido para uso interno é:<br><br>
+          → Dentro do aplicativo criado, clique em <strong>Autorizar</strong> ou <strong>Gerar Token</strong><br>
+          → Faça login com seu usuário Bling quando pedido<br>
+          → O Bling vai retornar um <strong>access_token</strong> — copie esse valor.<br><br>
+          <strong>Importante:</strong> O token expira em 6 horas. Para uso diário, você vai precisar renovar ou configurar o refresh_token (posso ajudar com isso depois).
+        </div>
+        <div class="warn">⚠ O token é como uma senha — não compartilhe com ninguém além dos funcionários que vão usar o sistema.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">Configure o token no sistema</div>
+        <div class="step-desc">
+          No sistema de expedição (o link do Render):<br><br>
+          → Clique na aba <strong>⚙ Config</strong><br>
+          → Cole o token no campo <strong>Access Token (Bearer)</strong><br>
+          → O campo <strong>URL do Proxy</strong> já vai estar preenchido automaticamente<br>
+          → Clique em <strong>Salvar</strong><br><br>
+          O botão <code>● Bling ON</code> deve ficar verde. Agora clique em <strong>Buscar no Bling</strong> — os pedidos de hoje devem aparecer!
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FASE 5: USO DIÁRIO -->
+<div class="phase ph-teal">
+  <div class="phase-header" onclick="toggle(this)">
+    <div class="phase-num">5</div>
+    <div class="phase-title">Como usar no dia a dia</div>
+    <div class="phase-time">referência</div>
+    <div class="phase-arrow">▼</div>
+  </div>
+  <div class="phase-body">
+
+    <div class="step">
+      <div class="step-num">📱</div>
+      <div class="step-content">
+        <div class="step-title">Abrir no celular</div>
+        <div class="step-desc">
+          O link do Render abre em qualquer celular com Chrome. Para deixar como atalho na tela inicial:<br><br>
+          → Abra o link no Chrome → toque nos 3 pontinhos (⋮) → <strong>Adicionar à tela inicial</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">☀</div>
+      <div class="step-content">
+        <div class="step-title">Todo dia de manhã — Romaneio</div>
+        <div class="step-desc">
+          → Abra o sistema → aba <strong>Romaneio</strong><br>
+          → Clique em <strong>Buscar no Bling</strong><br>
+          → Os pedidos do dia aparecem divididos por marketplace (Shopee, ML, Amazon...)<br>
+          → Isso vem direto do campo <em>Serviço / Logística</em> do Bling
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">📦</div>
+      <div class="step-content">
+        <div class="step-title">Na hora de embalar — aba Coleta</div>
+        <div class="step-desc">
+          → Aba <strong>📷 Coleta</strong><br>
+          → Selecione a transportadora que vai chegar<br>
+          → Clique em <strong>Iniciar Câmera</strong> (ou use leitor USB na caixinha de entrada)<br>
+          → Aponte para o código de barras da etiqueta — o sistema lê, tira foto automática e registra<br>
+          → A barra de progresso mostra quantos faltam<br>
+          → Ao terminar tudo, clique em <strong>Confirmar entrega ao motorista</strong><br>
+          → O status atualiza no Bling automaticamente
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">🚫</div>
+      <div class="step-content">
+        <div class="step-title">Se biper o pacote errado</div>
+        <div class="step-desc">
+          → Aparece um aviso vermelho grande: <strong>"MARKETPLACE ERRADO!"</strong><br>
+          → O sistema mostra de qual transportadora é o pacote<br>
+          → Não registra — o estoquista coloca de volta no carrinho certo
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">📸</div>
+      <div class="step-content">
+        <div class="step-title">Evidências — aba Dia</div>
+        <div class="step-desc">
+          → Aba <strong>Dia</strong> tem todas as fotos das etiquetas bipadas com data e hora<br>
+          → Se tiver dúvida depois ("foi entregue mesmo?"), é só olhar aqui<br>
+          → Dá para exportar CSV com todo o histórico do dia
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="warn">
+      <strong>⚠ Sobre o plano gratuito do Render:</strong> No plano grátis, o servidor "dorme" depois de 15 minutos sem uso e demora ~30 segundos para acordar na primeira visita do dia. Para uso na expedição (onde você abre todo dia de manhã), isso não é problema. Se quiser sem esse delay, o plano pago custa ~US$ 7/mês.
+    </div>
+
+    <div class="tip">
+      <strong>💡 Token expirando?</strong> O token do Bling dura 6 horas. Se aparecer erro "401 Unauthorized", é só ir em ⚙ Config e colar um token novo. Me peça no chat que posso criar um sistema de renovação automática.
+    </div>
+  </div>
+</div>
+
+<!-- AJUDA -->
+<div style="background:#fff;border:1px solid #E4E2DC;border-radius:14px;padding:20px;margin-top:14px">
+  <div style="font-size:15px;font-weight:600;margin-bottom:10px">🆘 Travou em algum passo?</div>
+  <div style="font-size:13px;color:#484644;line-height:1.6">
+    Manda print ou descreve onde travou no chat — vou te ajudar a resolver. Os passos mais comuns onde as pessoas travam são:<br><br>
+    <strong>• Estrutura de pastas no GitHub</strong> — a pasta <code>public/</code> precisa existir<br>
+    <strong>• Token do Bling</strong> — o fluxo OAuth pode confundir, mas resolvemos juntos<br>
+    <strong>• Câmera no celular</strong> — precisa ser Chrome e o site precisa ser HTTPS (o Render já faz isso automaticamente)
+  </div>
+</div>
+
+</div>
+
+<script>
+function toggle(header){
+  const phase = header.closest('.phase');
+  phase.classList.toggle('open');
+}
+// Open first phase by default
+document.querySelector('.phase').classList.add('open');
+</script>
+</body>
+</html>

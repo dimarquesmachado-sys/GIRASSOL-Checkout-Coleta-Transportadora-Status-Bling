@@ -1,0 +1,16 @@
+{
+  "name": "expedicao-bling",
+  "version": "1.0.0",
+  "description": "Sistema de controle de expedição integrado ao Bling",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
