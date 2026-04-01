@@ -33,7 +33,7 @@ function requireAuth(req, res, next) {
   const auth = req.headers['x-session-token'];
   if (!auth || !sessions.has(auth)) return res.status(401).json({ error: 'Não autorizado.' });
   const s = sessions.get(auth);
-  if (Date.now() - s.createdAt > 12 * 60 * 60 * 1000) {
+  if (Date.now() - s.createdAt > 24 * 60 * 60 * 1000) {
     sessions.delete(auth);
     return res.status(401).json({ error: 'Sessão expirada.' });
   }
