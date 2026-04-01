@@ -513,6 +513,7 @@ var colSession = [], activeMkt = '';
 var fotosVeiculo = [], problemaPkgs = [];
 var camStream = null, barcodeDetector = null, scanning = false, scanPaused = false;
 var lastCode = '', lastCodeAt = 0;
+var encerrandoParcial = false; // flag: encerramento parcial ativo
 var lastPullAt = 0;        // timestamp do último pullFromBling
 var histFilterDate = '';   // filtro ativo de data no histórico
 var histFilterMkt  = '';   // filtro ativo de mkt no histórico
@@ -762,20 +763,20 @@ function renderMktGrid(){
     document.getElementById('mktGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--th);padding:40px 0;font-size:13px">Nenhum pedido VERIFICADO</div>';
     return;
   }
-  var flexPkgs=today.filter(function(p){return p.urgente;});
+  var flexPkgs=today.filter(function(p){return p.urgente;}); // todos para barra de progresso
   var byMkt={};
   today.forEach(function(p){if(!byMkt[p.mkt])byMkt[p.mkt]=[];byMkt[p.mkt].push(p);});
   var cards=[];
   if(flexPkgs.length>0){
     var fc=flexPkgs.filter(function(p){return p.status==='coletado';}).length;
     var fp=flexPkgs.filter(function(p){return p.status==='pendente';}).length;
-    var fpct=Math.round(fc/flexPkgs.length*100);
+    var fpct=flexPkgs.length?Math.round(fc/flexPkgs.length*100):0;
     var fActive=activeMkt==='flex';
-    var fDone=fp===0;
+    var fDone=fp===0&&fc>0;
     cards.push('<div class="mkt-card '+(fActive?'active':'')+(fDone?' done':'')+'" onclick="selectMkt(\'flex\')" style="'+(fDone?'':'border-color:rgba(224,85,85,.4)')+'">'+
       '<div class="mkt-head"><span class="mkt-chip c-rd">⚡ FLEX URGENTE</span></div>'+
-      '<div class="mkt-count" style="color:'+(fDone?'var(--gr)':'#F09090')+'">'+flexPkgs.length+'</div>'+
-      '<div class="mkt-sub">'+fc+' col · '+fp+' pend</div>'+
+      '<div class="mkt-count" style="color:'+(fDone?'var(--gr)':fp>0?'#F09090':'var(--gr)')+'">'+fp+'</div>'+
+      '<div class="mkt-sub">'+fp+' pend · '+fc+' col / '+flexPkgs.length+' total</div>'+
       '<div class="mkt-prog"><div class="mkt-prog-bar" style="width:'+fpct+'%;background:#E05555"></div></div>'+
       '</div>');
   }
@@ -802,7 +803,7 @@ function renderMktGrid(){
 function selectMkt(mkt){
   if(activeMkt===mkt){closeColeta();return;}
   stopCamera();
-  activeMkt=mkt; colSession=[]; scanPaused=false; fotosVeiculo=[]; problemaPkgs=[];
+  activeMkt=mkt; colSession=[]; scanPaused=false; encerrandoParcial=false; fotosVeiculo=[]; problemaPkgs=[];
   ['wrongAlert','confirmArea','missingArea','motivoArea','desfazerBar'].forEach(function(id){document.getElementById(id).classList.remove('show');});
   document.getElementById('encerrarBtn').classList.remove('show');
   document.getElementById('coletaFb').className='fb';
@@ -816,14 +817,19 @@ function selectMkt(mkt){
 }
 
 function closeColeta(){
-  activeMkt=''; colSession=[]; scanPaused=false;
+  activeMkt=''; colSession=[]; scanPaused=false; encerrandoParcial=false;
   stopCamera();
   document.getElementById('coletaPanel').classList.remove('show');
   renderMktGrid();
 }
 
 function getPkgsAtivos(){
-  return activeMkt==='flex'?todayPkgs().filter(function(p){return p.urgente;}):todayPkgs().filter(function(p){return p.mkt===activeMkt;});
+  // Retorna todos os pacotes do mkt para exibição (coletados aparecem com ✓)
+  // mas a bipagem só processa pendentes
+  if(activeMkt==='flex'){
+    return todayPkgs().filter(function(p){return p.urgente;});
+  }
+  return todayPkgs().filter(function(p){return p.mkt===activeMkt;});
 }
 
 function renderPkgList(){
@@ -1191,6 +1197,7 @@ function confirmarEncerrarParcial(){
     return;
   }
   // Guarda motivo e abre o painel de confirmação (fotos + obs)
+  encerrandoParcial=true; // permite finalizar mesmo com pendentes
   document.getElementById('motivoArea').classList.remove('show');
   document.getElementById('encerrarBtn').classList.remove('show');
   // Coloca o motivo já preenchido no campo de obs do lote
@@ -1218,7 +1225,8 @@ function finalizeColeta(){
   var pend=getPkgsAtivos().filter(function(p){
     return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1&&problemaPkgs.indexOf(p.etiqueta)===-1;
   });
-  if(pend.length>0){
+  // Só bloqueia se NÃO for encerramento parcial (com motivo já informado)
+  if(pend.length>0&&!encerrandoParcial){
     document.getElementById('missingArea').classList.add('show');
     document.getElementById('missingList').innerHTML=pend.map(function(p){return '<div class="missing-item">⚠ '+p.numero+' · '+p.destinatario+'</div>';}).join('');
     document.getElementById('confirmArea').classList.remove('show');
