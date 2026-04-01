@@ -1041,14 +1041,12 @@ function toggleProblemaSelect(){
 
 function renderProblemaSelect(){
   const pkgs=(activeMkt==='flex'
-    ? todayPkgs().filter(p=>p.urgente)
-    : todayPkgs().filter(p=>p.mkt===activeMkt)
-  ).filter(p=>!problemaPkgs.includes(p.etiqueta));
+    ? todayPkgs().filter(function(p){ return p.urgente; })
+    : todayPkgs().filter(function(p){ return p.mkt===activeMkt; })
+  ).filter(function(p){ return !problemaPkgs.includes(p.etiqueta); });
   document.getElementById('problemaSelect').innerHTML=pkgs.length===0
     ? '<div style="padding:12px;font-size:12px;color:var(--tm);text-align:center">Nenhum pacote disponível</div>'
-    : pkgs.map(p=>`<div class="problema-select-item" onclick="adicionarProblema('${p.etiqueta}')">
-        ${p.numero} · ${p.destinatario}
-      </div>`).join('');
+    : pkgs.map(buildProblemaSelectItem).join('');
 }
 
 function adicionarProblema(etiqueta){
@@ -1143,64 +1141,90 @@ async function updateBlingStatus(id){
 }
 
 // ═══ DIA ═══
+// ─── Helpers para evitar template literals 3 níveis profundos ───────────────
+function buildFotosMiniatura(lote){
+  if(!lote.fotosVeiculo||!lote.fotosVeiculo.length) return '';
+  const imgs = lote.fotosVeiculo.map(function(f,i){
+    return '<img src="'+f+'" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b2)" onclick="verFotoLote(\''+lote.id+'\','+i+')">';
+  }).join('');
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap">'+imgs+'</div>';
+}
+
+function buildLoteCard(l){
+  let html = '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">';
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px">';
+  html += '<span style="font-size:12px;font-weight:600">'+(MKT[l.mkt]||{}).icon+' '+(MKT[l.mkt]||{n:l.mkt}).n+'</span>';
+  html += '<span style="font-size:11px;color:var(--tm)">'+l.time+'</span>';
+  html += '</div>';
+  html += '<div style="font-size:11px;font-family:var(--mono);color:var(--tm);margin-bottom:8px">';
+  html += '✓ '+l.qtd+' entregues'+(l.problemas>0?' · 🚫 '+l.problemas+' problemas':'');
+  html += '</div>';
+  if(l.obs){
+    html += '<div style="font-size:11px;color:var(--am);background:var(--am2);border-radius:6px;padding:6px 8px;margin-bottom:8px">📝 '+l.obs+'</div>';
+  }
+  html += buildFotosMiniatura(l);
+  html += '</div>';
+  return html;
+}
+
+function buildMktCard(m, mp){
+  const mc = mp.filter(function(p){ return p.status==='coletado'; }).length;
+  const mp2 = mp.filter(function(p){ return p.status==='problema'; }).length;
+  const pct = mp.length ? Math.round(mc/mp.length*100) : 0;
+  const mktInfo = MKT[m]||{cls:'c-outro',icon:'📦',n:m};
+  let html = '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  html += '<span class="mkt-chip '+mktInfo.cls+'">'+mktInfo.icon+' '+mktInfo.n+'</span>';
+  html += '<span style="font-family:var(--mono);font-size:12px;color:var(--tm)">'+pct+'%</span>';
+  html += '</div>';
+  html += '<div class="prog-bar-wrap" style="margin:0 0 6px"><div class="prog-bar" style="width:'+pct+'%"></div></div>';
+  html += '<div style="font-size:11px;font-family:var(--mono);display:flex;gap:12px;flex-wrap:wrap">';
+  html += '<span style="color:var(--am)">'+(mp.length-mc-mp2)+' pend.</span>';
+  html += '<span style="color:var(--gr)">'+mc+' col.</span>';
+  if(mp2>0) html += '<span style="color:var(--rd)">'+mp2+' prob.</span>';
+  html += '</div></div>';
+  return html;
+}
+
+function buildProblemaSelectItem(p){
+  // Usa data-etiqueta para evitar problemas com aspas no onclick
+  return '<div class="problema-select-item" data-etiqueta="'+p.etiqueta+'" onclick="adicionarProblema(this.dataset.etiqueta)">'+p.numero+' · '+p.destinatario+'</div>';
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function renderDia(){
   const today=todayPkgs();
-  const col=today.filter(p=>p.status==='coletado').length;
-  const prob=today.filter(p=>p.status==='problema').length;
-  document.getElementById('dayCards').innerHTML=`
-    <div class="day-card"><div class="day-lbl">Total</div><div class="day-val">${today.length}</div></div>
-    <div class="day-card"><div class="day-lbl">Coletados</div><div class="day-val" style="color:var(--gr)">${col}</div></div>
-    <div class="day-card"><div class="day-lbl">Pendentes</div><div class="day-val" style="color:var(--am)">${today.length-col-prob}</div></div>
-    <div class="day-card"><div class="day-lbl">Problemas</div><div class="day-val" style="color:var(--rd)">${prob}</div></div>`;
-  const mkts=[...new Set(today.map(p=>p.mkt))];
-  // Lotes registrados hoje
-  const lotes=scans.filter(s=>s.tipo==='lote'&&s.date===todayStr());
-  let html=mkts.map(m=>{
-    const mp=today.filter(p=>p.mkt===m);
-    const mc=mp.filter(p=>p.status==='coletado').length;
-    const mp2=mp.filter(p=>p.status==='problema').length;
-    const pct=mp.length?Math.round(mc/mp.length*100):0;
-    return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span class="mkt-chip ${MKT[m]?.cls||'c-outro'}">${MKT[m]?.icon||'📦'} ${MKT[m]?.n||m}</span>
-        <span style="font-family:var(--mono);font-size:12px;color:var(--tm)">${pct}%</span>
-      </div>
-      <div class="prog-bar-wrap" style="margin:0 0 6px"><div class="prog-bar" style="width:${pct}%"></div></div>
-      <div style="font-size:11px;font-family:var(--mono);display:flex;gap:12px;flex-wrap:wrap">
-        <span style="color:var(--am)">${mp.length-mc-mp2} pend.</span>
-        <span style="color:var(--gr)">${mc} col.</span>
-        ${mp2>0?`<span style="color:var(--rd)">${mp2} prob.</span>`:''}
-      </div>
-    </div>`;
+  const col=today.filter(function(p){ return p.status==='coletado'; }).length;
+  const prob=today.filter(function(p){ return p.status==='problema'; }).length;
+  document.getElementById('dayCards').innerHTML=
+    '<div class="day-card"><div class="day-lbl">Total</div><div class="day-val">'+today.length+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Coletados</div><div class="day-val" style="color:var(--gr)">'+col+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Pendentes</div><div class="day-val" style="color:var(--am)">'+(today.length-col-prob)+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Problemas</div><div class="day-val" style="color:var(--rd)">'+prob+'</div></div>';
+
+  const mkts=[...new Set(today.map(function(p){ return p.mkt; }))];
+  const lotes=scans.filter(function(s){ return s.tipo==='lote'&&s.date===todayStr(); });
+
+  let html = mkts.map(function(m){
+    return buildMktCard(m, today.filter(function(p){ return p.mkt===m; }));
   }).join('');
-  // Lotes com fotos e obs
+
   if(lotes.length>0){
-    html+=`<div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin:16px 0 8px">Lotes fechados hoje</div>`;
-    html+=lotes.map(l=>`
-      <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-          <span style="font-size:12px;font-weight:600">${MKT[l.mkt]?.icon||'📦'} ${MKT[l.mkt]?.n||l.mkt}</span>
-          <span style="font-size:11px;color:var(--tm)">${l.time}</span>
-        </div>
-        <div style="font-size:11px;font-family:var(--mono);color:var(--tm);margin-bottom:8px">
-          ✓ ${l.qtd} entregues${l.problemas>0?' · 🚫 '+l.problemas+' problemas':''}
-        </div>
-        ${l.obs?`<div style="font-size:11px;color:var(--am);background:var(--am2);border-radius:6px;padding:6px 8px;margin-bottom:8px">📝 ${l.obs}</div>`:''}
-        ${l.fotosVeiculo?.length>0?`<div style="display:flex;gap:6px;flex-wrap:wrap">${l.fotosVeiculo.map((f,i)=>`<img src="${f}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b2)" onclick="verFotoLote('${l.id}',${i})">`).join('')}</div>`:''}
-      </div>`).join('');
+    html += '<div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin:16px 0 8px">Lotes fechados hoje</div>';
+    html += lotes.map(buildLoteCard).join('');
   }
   document.getElementById('dayByMkt').innerHTML=html;
 }
 
 function verFotoLote(loteId, idx){
-  const lote=scans.find(s=>s.id===loteId);
-  if(!lote?.fotosVeiculo?.[idx]) return;
+  const lote=scans.find(function(s){ return s.id===loteId; });
+  if(!lote||!lote.fotosVeiculo||!lote.fotosVeiculo[idx]) return;
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-  modal.innerHTML=`<div style="position:relative;max-width:100%;max-height:100%">
-    <img src="${lote.fotosVeiculo[idx]}" style="max-width:100%;max-height:90vh;border-radius:8px">
-    <button onclick="this.closest('div').parentElement.remove()" style="position:absolute;top:-12px;right:-12px;width:32px;height:32px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer">✕</button>
-  </div>`;
+  modal.innerHTML='<div style="position:relative;max-width:100%;max-height:100%">'+
+    '<img src="'+lote.fotosVeiculo[idx]+'" style="max-width:100%;max-height:90vh;border-radius:8px">'+
+    '<button onclick="this.closest(\'div\').parentElement.remove()" style="position:absolute;top:-12px;right:-12px;width:32px;height:32px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer">✕</button>'+
+    '</div>';
   document.body.appendChild(modal);
 }
 
