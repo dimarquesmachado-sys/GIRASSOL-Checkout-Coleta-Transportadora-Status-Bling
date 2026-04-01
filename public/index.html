@@ -1200,6 +1200,7 @@ function handleScan(rawCode,photo){
   colSession.push(chave);
   scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
   sv('expv5_scans',scans);
+  syncToServer();
   if(photo){var fl=document.getElementById('photoFlash');fl.classList.add('flash');setTimeout(function(){fl.classList.remove('flash');},150);}
   beepSuccess();
   showFb('✓ '+pkg.numero+' · '+pkg.destinatario,'ok');
@@ -1435,6 +1436,7 @@ function finalizeColeta(){
   var qtdEntregues=colSession.length-problemaPkgs.filter(function(e){return colSession.indexOf(e)!==-1;}).length;
   scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:todayStr(),time:now,qtd:qtdEntregues,problemas:problemaPkgs.length,obs:obs,fotosVeiculo:fotosVeiculo.slice()});
   sv('expv5_scans',scans);
+  syncToServer();
   colSession.filter(function(c){return problemaPkgs.indexOf(c)===-1;}).forEach(function(chave){
     for(var i=0;i<packages.length;i++){
       if(packages[i].etiqueta===chave&&packages[i].date===todayStr()){
@@ -1721,12 +1723,86 @@ function clearDay(){
   toast('Limpo','warn');
 }
 
+// ═══ SYNC SERVIDOR ═══
+function stripPhotos(arr){
+  // Remove fotos antes de enviar pro servidor (economia de banda)
+  return arr.map(function(item){
+    var copy={};
+    Object.keys(item).forEach(function(k){
+      if(k==='photo'||k==='fotosVeiculo') return; // não envia fotos
+      copy[k]=item[k];
+    });
+    return copy;
+  });
+}
+
+function syncToServer(){
+  // Envia packages e scans (sem fotos) para o servidor
+  // Outros dispositivos recebem na próxima carga
+  apiFetch('/sync/packages',{method:'POST',body:JSON.stringify({packages:packages})}).catch(function(){});
+  apiFetch('/sync/scans',{method:'POST',body:JSON.stringify({scans:stripPhotos(scans)})}).catch(function(){});
+}
+
+function loadFromServer(cb){
+  apiFetch('/sync/data')
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var serverPkgs=d.packages||[];
+    var serverScans=d.scans||[];
+    var today=todayStr();
+
+    // Merge packages: server tem prioridade para campos que o cliente pode não ter
+    if(serverPkgs.length>0){
+      var localMap={};
+      packages.forEach(function(p){localMap[p.blingId]=p;});
+      serverPkgs.forEach(function(sp){
+        if(localMap[sp.blingId]){
+          // Mantém status e fotos locais, mas pega campos do servidor se mais completos
+          if(sp.nf&&!localMap[sp.blingId].nf) localMap[sp.blingId].nf=sp.nf;
+          if(sp.nfChave&&!localMap[sp.blingId].nfChave) localMap[sp.blingId].nfChave=sp.nfChave;
+          if(sp.numeracao&&!localMap[sp.blingId].numeracao) localMap[sp.blingId].numeracao=sp.numeracao;
+          if(sp.numLoja&&!localMap[sp.blingId].numLoja) localMap[sp.blingId].numLoja=sp.numLoja;
+          if(sp.status==='coletado'&&localMap[sp.blingId].status==='pendente') localMap[sp.blingId].status=sp.status;
+        } else if(sp.date===today){
+          // Pacote do servidor que não está local — adiciona
+          packages.push(sp);
+        }
+      });
+      sv('expv5_pkgs',packages);
+    }
+
+    // Merge scans: adiciona scans do servidor que não existem localmente
+    if(serverScans.length>0){
+      var localIds={};
+      scans.forEach(function(s){
+        var key=(s.tipo==='lote'?s.id:s.etiqueta+'_'+s.date+'_'+s.time);
+        localIds[key]=true;
+      });
+      var novos=serverScans.filter(function(s){
+        var key=(s.tipo==='lote'?s.id:s.etiqueta+'_'+s.date+'_'+s.time);
+        return !localIds[key];
+      });
+      if(novos.length>0){
+        scans=scans.concat(novos);
+        sv('expv5_scans',scans);
+      }
+    }
+
+    if(cb) cb();
+  })
+  .catch(function(){if(cb) cb();});
+}
+
 // ═══ INIT ═══
 function initApp(){
   packages=ld('expv5_pkgs',[]); scans=ld('expv5_scans',[]);
   document.getElementById('userChip').textContent='👤 '+currentUser;
   renderMktGrid(); updateBadge();
-  setTimeout(pullFromBling,1200);
+  // Carrega dados do servidor (outros dispositivos podem ter scans mais recentes)
+  loadFromServer(function(){
+    renderMktGrid(); updateBadge();
+    setTimeout(pullFromBling,1200);
+  });
 }
 
 (function(){
