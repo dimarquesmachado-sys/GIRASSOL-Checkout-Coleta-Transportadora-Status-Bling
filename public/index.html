@@ -628,6 +628,47 @@ function apiFetch(path,opts){
 }
 
 // ═══ BLING — busca rastreio FLEX ═══
+// Busca tracking individual para marketplaces que não trazem rastreio na listagem
+function detectTrackingPkgs(pkgs){
+  var i=0;
+  function next(){
+    if(i>=pkgs.length) return;
+    var pkg=pkgs[i++];
+    if(pkg.numeracao){next();return;} // já tem tracking, pula
+    setTimeout(function(){
+      apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
+      .then(function(r){if(!r.ok)return null;return r.json();})
+      .then(function(d){
+        if(!d) return;
+        var order=d.data||d;
+        // Tracking pode estar em vários lugares no Bling v3
+        var track=(order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].numeracao)||
+                  (order.transporte&&order.transporte.codigoRastreamento)||
+                  (order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].codigoRastreio)||
+                  (order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].tracking)||'';
+        // NF também captura aqui se não tinha
+        var nfDetalhe=(order.notaFiscal&&order.notaFiscal.numero)||
+                      (order.nfe&&order.nfe.numero)||
+                      (order.notasFiscais&&order.notasFiscais[0]&&order.notasFiscais[0].numero)||'';
+        // Atualiza o pacote na memória
+        var p=null;
+        for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
+        if(p){
+          if(track) p.numeracao=String(track).replace(/\s/g,'').toUpperCase();
+          if(nfDetalhe&&!p.nf) p.nf=String(nfDetalhe).trim();
+          sv('expv5_pkgs',packages);
+          if(track) console.log('📦 Tracking '+p.mkt.toUpperCase()+': '+p.numero+' → '+p.numeracao);
+          if(nfDetalhe) console.log('🧾 NF '+p.mkt.toUpperCase()+': '+p.numero+' → '+p.nf);
+          renderMktGrid();
+        }
+        next();
+      })
+      .catch(function(){next();});
+    },600);
+  }
+  next();
+}
+
 function detectFlexML(mlPkgs){
   var i=0;
   function next(){
@@ -722,9 +763,13 @@ function pullFromBling(){
       if(nf) nf=String(nf).trim();
       // Número do pedido no marketplace (Bling guarda em numeroPedidoLoja ou loja.numeroPedido)
       var numLoja=(o.numeroPedidoLoja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
+      // Extrai tracking da listagem (pode já estar disponível para Shopee, TikTok etc.)
+      var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
+                         (o.transporte&&o.transporte.codigoRastreamento)||'';
+      if(numeracaoLista) numeracaoLista=String(numeracaoLista).replace(/\s/g,'').toUpperCase();
       return {id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,numLoja:String(numLoja||''),
         destinatario:(o.contato&&o.contato.nome)||'—',
-        servico:svc,lojaId:lojaId,mkt:mkt,urgente:urgente,numeracao:'',
+        servico:svc,lojaId:lojaId,mkt:mkt,urgente:urgente,numeracao:numeracaoLista,
         blingStatus:Number((o.situacao&&o.situacao.id)||0),
         dataPedido:o.data||'',date:today,pulledAt:nowTS(),
         status:'pendente',colT:null,obs:'',blingId:o.id};
@@ -755,6 +800,11 @@ function pullFromBling(){
     renderMktGrid(); updateBadge();
     var mlPkgs=newPkgs.filter(function(p){return p.mkt==='ml';});
     if(mlPkgs.length>0) detectFlexML(mlPkgs);
+    // Busca tracking individual para TikTok, Shopee e outros que não trazem na listagem
+    var semTracking=newPkgs.filter(function(p){
+      return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='shopee'||p.mkt==='magalu'||p.mkt==='amazon');
+    });
+    if(semTracking.length>0) detectTrackingPkgs(semTracking);
     resetSyncBtn();
   }
   function resetSyncBtn(){
