@@ -237,6 +237,36 @@ app.all('/bling/*', requireAuth, async (req, res) => {
 
 
 
+
+// ── TESTE: parâmetros de data ─────────────────────────────────────
+app.get('/info/teste-data', async (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  const d30 = new Date(); d30.setDate(d30.getDate()-30);
+  const from = d30.toISOString().split('T')[0];
+  const results = {};
+  const tests = [
+    `idSituacao=24&dataEmissaoInicial=${from}&dataEmissaoFinal=${today}`,
+    `idSituacao=24&dataInicial=${from}&dataFinal=${today}`,
+    `idSituacao=24&dataGeracao=${today}`,
+    `idSituacao=24&dataAlteracao=${today}`,
+    `idSituacao=24`,
+  ];
+  for(const p of tests){
+    try{
+      await sleep(400);
+      const r = await blingFetch(BLING_BASE + '/pedidos/vendas?' + p + '&limite=5&pagina=1');
+      const d = await r.json();
+      results[p.substring(0,40)] = {
+        http: r.status,
+        qtd: d.data?.length ?? 'N/A',
+        sit_id: d.data?.[0]?.situacao?.id ?? 'N/A',
+        numero: d.data?.[0]?.numero ?? 'N/A'
+      };
+    }catch(e){ results[p.substring(0,40)] = {erro: e.message}; }
+  }
+  res.json(results);
+});
+
 // ── TESTE: diferentes parâmetros de filtro situação ─────────────
 app.get('/info/teste-filtro', async (req, res) => {
   const results = {};
