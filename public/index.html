@@ -700,7 +700,13 @@ function pullFromBling(){
       var svcLow=svc.toLowerCase();
       var urgente=FLEX_KEYWORDS.some(function(u){return svcLow.indexOf(u)!==-1;});
       var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
-      var nf=(o.notaFiscal&&o.notaFiscal.numero)||(o.nfe&&o.nfe.numero)||'';
+      // Bling v3: NF pode vir em vários caminhos
+      var nf=(o.notaFiscal&&o.notaFiscal.numero)        // caminho principal
+           ||(o.nfe&&o.nfe.numero)                       // alternativo nfe
+           ||(o.notasFiscais&&o.notasFiscais[0]&&o.notasFiscais[0].numero) // array
+           ||(o.nota&&o.nota.numero)                     // variante nota
+           ||'';
+      if(nf) nf=String(nf).trim();
       // Número do pedido no marketplace (Bling guarda em numeroPedidoLoja ou loja.numeroPedido)
       var numLoja=(o.numeroPedidoLoja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
       return {id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,numLoja:String(numLoja||''),
