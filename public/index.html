@@ -620,7 +620,15 @@ function pullFromBling(){
         blingStatus:Number((o.situacao&&o.situacao.id)||0),
         dataPedido:o.data||'',date:today,pulledAt:nowTS(),
         status:'pendente',colT:null,obs:'',blingId:o.id};
-    }).filter(function(p){return p.etiqueta&&p.blingStatus===24;});
+    }).filter(function(p){
+      if(!p.etiqueta||p.blingStatus!==24) return false;
+      // FIX DEFINITIVO: só aceita pedidos de hoje ou ontem
+      // Impede que pedidos antigos ainda em VERIFICADO apareçam na lista
+      if(!p.dataPedido) return true; // sem data: deixa passar
+      var d1=new Date(); d1.setDate(d1.getDate()-1);
+      var ontem=d1.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+      return p.dataPedido===today||p.dataPedido.startsWith(today)||p.dataPedido.startsWith(ontem);
+    });
     var existingToday=packages.filter(function(p){return p.date===today;});
     newPkgs.forEach(function(p){
       for(var i=0;i<existingToday.length;i++){
