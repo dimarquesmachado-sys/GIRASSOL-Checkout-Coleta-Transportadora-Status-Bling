@@ -234,6 +234,28 @@ app.all('/bling/*', requireAuth, async (req, res) => {
   }
 });
 
+
+// ── ROTA PÚBLICA: listar situações (só para descobrir IDs) ────────
+app.get('/info/situacoes', async (req, res) => {
+  if (!accessToken) {
+    return res.json({ error: 'Token não configurado' });
+  }
+  try {
+    await sleep(300);
+    const r = await blingFetch(BLING_BASE + '/situacoes?limite=100&pagina=1');
+    const data = await r.json();
+    // Filtra e formata para fácil leitura
+    const situacoes = (data.data || []).map(s => ({
+      id: s.id,
+      nome: s.nome,
+      modulo: s.modulo?.nome || ''
+    }));
+    res.json({ total: situacoes.length, situacoes });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📦 Client ID: ${CLIENT_ID ? '✓ configurado' : '✗ NÃO configurado'}`);
