@@ -488,8 +488,12 @@ async function pullFromBling(){
   try{
     const today=todayStr();
     let all=[]; let page=1; let more=true;
-    while(more&&page<=20){
-      const r=await apiFetch(`/bling/pedidos/vendas?idSituacao=24&pagina=${page}&limite=100`);
+    // Data de 30 dias atrás
+    const d30=new Date(); d30.setDate(d30.getDate()-30);
+    const dateFrom=d30.toISOString().split('T')[0];
+
+    while(more&&page<=5){  // max 5 páginas = 500 pedidos
+      const r=await apiFetch(`/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial=${dateFrom}&dataEmissaoFinal=${today}&pagina=${page}&limite=100`);
       const d=await r.json();
       const orders=d.data||[];
       all=all.concat(orders);
