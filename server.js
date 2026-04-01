@@ -352,6 +352,30 @@ app.get('/admin/migrar-status', (req, res) => {
   res.json({ rodando: migrationRunning, log: migrationLog });
 });
 
+// ═══ SYNC — packages e scans (sem fotos) compartilhados entre dispositivos ═══
+let sharedPackages = [];
+let sharedScans    = [];
+
+app.get('/sync/data', requireAuth, (req, res) => {
+  res.json({ packages: sharedPackages, scans: sharedScans });
+});
+
+app.post('/sync/packages', requireAuth, (req, res) => {
+  const { packages } = req.body;
+  if(Array.isArray(packages)){
+    sharedPackages = packages;
+  }
+  res.json({ ok: true });
+});
+
+app.post('/sync/scans', requireAuth, (req, res) => {
+  const { scans } = req.body;
+  if(Array.isArray(scans)){
+    sharedScans = scans;
+  }
+  res.json({ ok: true });
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📦 Client ID: ${CLIENT_ID ? '✓ configurado' : '✗ NÃO configurado'}`);
