@@ -202,6 +202,8 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .modal-img-wrap{position:relative;max-width:100%;max-height:100%}
 .modal-img-wrap img{max-width:100%;max-height:90vh;border-radius:8px;display:block}
 .modal-close{position:absolute;top:-12px;right:-12px;width:40px;height:40px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;-webkit-tap-highlight-color:transparent;touch-action:manipulation;z-index:1}
+.modal-back{display:block;width:100%;height:48px;background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;font-family:var(--sans);-webkit-tap-highlight-color:transparent;touch-action:manipulation;letter-spacing:.02em}
+.modal-back:active{background:rgba(255,255,255,.22)}
 
 /* DIA */
 .day-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
@@ -1061,11 +1063,12 @@ function verFotoScan(etiqueta){
   var p=null;
   for(var i=0;i<packages.length;i++){if(packages[i].etiqueta===etiqueta){p=packages[i];break;}}
   openModal('<div class="modal-img-wrap">'+
-    '<img src="'+scanItem.photo+'" alt="etiqueta" style="max-width:100%;max-height:85vh;border-radius:8px;display:block">'+
+    '<img src="'+scanItem.photo+'" alt="etiqueta" style="max-width:100%;max-height:80vh;border-radius:8px;display:block">'+
     '<div style="background:rgba(0,0,0,.7);padding:8px 12px;border-radius:0 0 8px 8px;font-size:12px;font-family:var(--mono);color:#fff">'+
       (p?p.numero+' · '+p.destinatario:etiqueta)+
       '<br><span style="color:var(--tm)">'+scanItem.time+'</span>'+
     '</div>'+
+    '<button class="modal-back" onclick="closeTopModal()">← Voltar</button>'+
     '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
     '</div>');
 }
@@ -1137,7 +1140,7 @@ function delFoto(i){
 function verFoto(i){
   var src=fotosVeiculo[i];
   if(!src) return;
-  openModal('<div class="modal-img-wrap"><img src="'+src+'" alt="foto"><button class="modal-close" onclick="closeTopModal()">✕</button></div>');
+  openModal('<div class="modal-img-wrap"><img src="'+src+'" alt="foto" style="max-width:100%;max-height:80vh;border-radius:8px;display:block"><button class="modal-back" onclick="closeTopModal()">← Voltar</button><button class="modal-close" onclick="closeTopModal()">✕</button></div>');
 }
 
 // ═══ PROBLEMAS ═══
@@ -1330,7 +1333,7 @@ function verFotoLote(loteId,idx){
   var lote=null;
   for(var i=0;i<scans.length;i++){if(scans[i].id===loteId){lote=scans[i];break;}}
   if(!lote||!lote.fotosVeiculo||!lote.fotosVeiculo[idx]) return;
-  openModal('<div class="modal-img-wrap"><img src="'+lote.fotosVeiculo[idx]+'" alt="foto lote"><button class="modal-close" onclick="closeTopModal()">✕</button></div>');
+  openModal('<div class="modal-img-wrap"><img src="'+lote.fotosVeiculo[idx]+'" alt="foto lote" style="max-width:100%;max-height:80vh;border-radius:8px;display:block"><button class="modal-back" onclick="closeTopModal()">← Voltar</button><button class="modal-close" onclick="closeTopModal()">✕</button></div>');
 }
 
 // ═══ HISTÓRICO ═══
@@ -1427,6 +1430,12 @@ function renderHistContent(){
     html+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:10px 14px">';
     pkgScans.forEach(function(s){
       var mktInfo=MKT[s.mkt]||{icon:'📦'};
+      // Busca pacote para pegar NF e numLoja
+      var pkg=null;
+      for(var k=0;k<packages.length;k++){if(packages[k].etiqueta===s.etiqueta){pkg=packages[k];break;}}
+      var nf=pkg&&pkg.nf?pkg.nf:'';
+      var numLoja=pkg&&pkg.numLoja?pkg.numLoja:'';
+      var diaLabel=s.date===todayStr()?'Hoje':s.date;
       html+='<div class="hist-pkg">';
       if(s.photo){
         html+='<img src="'+s.photo+'" data-et="'+s.etiqueta+'" onclick="verFotoScan(this.dataset.et)" alt="etiqueta">';
@@ -1436,8 +1445,12 @@ function renderHistContent(){
       html+='<div class="hist-pkg-info">';
       html+='<div class="hist-pkg-num">'+mktInfo.icon+' '+s.numero+'</div>';
       html+='<div class="hist-pkg-dest">'+s.destinatario+'</div>';
+      html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">';
+      html+='<span style="font-size:10px;font-family:var(--mono);color:var(--tm)">📅 '+diaLabel+' '+s.time+'</span>';
+      if(nf) html+='<span style="font-size:10px;font-family:var(--mono);color:var(--tm)">NF '+nf+'</span>';
+      if(numLoja) html+='<span style="font-size:10px;font-family:var(--mono);color:var(--bl)">🛒 '+numLoja+'</span>';
       html+='</div>';
-      html+='<span style="font-size:10px;font-family:var(--mono);color:var(--tm)">'+s.time+'</span>';
+      html+='</div>';
       html+='</div>';
     });
     html+='</div>';
