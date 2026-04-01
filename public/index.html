@@ -1525,7 +1525,7 @@ function initApp(){
         // Sessão inválida no servidor — mostra login
         sv('expv5_session',''); sv('expv5_user',''); sv('expv5_login_time',0);
         sessionToken=''; currentUser='';
-        document.getElementById('loginUser').focus();
+        // Não força focus — usuário pode já estar digitando
       }
     })
     .catch(function(){
@@ -1537,7 +1537,7 @@ function initApp(){
     return;
   }
   sv('expv5_session',''); sv('expv5_user',''); sv('expv5_login_time',0);
-  document.getElementById('loginUser').focus();
+  // Não força focus — evita roubar foco de outro campo
 })();
 </script>
 </body>
