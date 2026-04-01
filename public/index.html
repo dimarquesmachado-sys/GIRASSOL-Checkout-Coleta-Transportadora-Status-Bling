@@ -527,10 +527,14 @@ function apiFetch(path,opts){
   var url=path.indexOf('/bling/')!==-1?path+sep+'_='+Date.now():path;
   return fetch(url,Object.assign({},opts,{headers:Object.assign({},opts.headers||{},{'x-session-token':sessionToken,'Content-Type':'application/json','Cache-Control':'no-cache'})}))
   .then(function(r){
-    // 401 = sessão expirada no NOSSO servidor → logout
-    // 502 = token Bling expirado → mostra erro, não faz logout
-    if(r.status===401){doLogout();throw new Error('Sessão expirada');}
-    if(r.status===502){throw new Error('Token Bling expirado — acesse /callback para renovar');}
+    if(r.status===401){
+      // Lê o body para ver se é erro NOSSO ou do Bling
+      return r.json().then(function(body){
+        var nossoErro = body&&(body.error==='Não autorizado.'||body.error==='Sessão expirada.');
+        if(nossoErro){ doLogout(); }
+        throw new Error(body&&body.error||'Erro de autorização');
+      });
+    }
     return r;
   });
 }
@@ -1160,9 +1164,28 @@ function initApp(){
   var loginTime=ld('expv5_login_time',0);
   var within24h=loginTime&&(Date.now()-loginTime<24*60*60*1000);
   if(sessionToken&&within24h){
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('appWrap').classList.add('show');
-    initApp(); return;
+    // Verifica com o servidor se a sessão ainda é válida antes de auto-logar
+    // (após redeploy do Render, sessões em memória são perdidas)
+    fetch('/me',{headers:{'x-session-token':sessionToken}})
+    .then(function(r){
+      if(r.ok){
+        document.getElementById('loginScreen').style.display='none';
+        document.getElementById('appWrap').classList.add('show');
+        initApp();
+      } else {
+        // Sessão inválida no servidor — mostra login
+        sv('expv5_session',''); sv('expv5_user',''); sv('expv5_login_time',0);
+        sessionToken=''; currentUser='';
+        document.getElementById('loginUser').focus();
+      }
+    })
+    .catch(function(){
+      // Erro de rede — tenta mesmo assim
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('appWrap').classList.add('show');
+      initApp();
+    });
+    return;
   }
   sv('expv5_session',''); sv('expv5_user',''); sv('expv5_login_time',0);
   document.getElementById('loginUser').focus();
