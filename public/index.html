@@ -785,16 +785,7 @@ async function pullFromBling(){
         date:today, pulledAt:nowTS(),
         status:'pendente', colT:null, blingId:o.id
       };
-    }).filter(p=>{
-      if(!p.etiqueta) return false;
-      if(p.blingStatus!==24) return false;
-      // Filtra últimos 30 dias pela data do pedido
-      if(p.dataPedido){
-        const diff=(new Date(today)-new Date(p.dataPedido))/(1000*60*60*24);
-        if(diff>30) return false;
-      }
-      return true;
-    });
+    }).filter(p => p.etiqueta && p.blingStatus===24);
 
     packages=packages.filter(p=>p.date!==today);
     packages=[...newPkgs,...packages];
