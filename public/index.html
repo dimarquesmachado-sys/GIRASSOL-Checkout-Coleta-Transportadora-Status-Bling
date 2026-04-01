@@ -476,7 +476,10 @@ async function doLogout(){
 }
 
 async function apiFetch(path,opts={}){
-  const r=await fetch(path,{...opts,headers:{...(opts.headers||{}),'x-session-token':sessionToken,'Content-Type':'application/json'}});
+  // Cache-busting para evitar 304 do navegador
+  const sep=path.includes('?')?'&':'?';
+  const url=path.includes('/bling/')?path+sep+'_='+Date.now():path;
+  const r=await fetch(url,{...opts,headers:{...(opts.headers||{}),'x-session-token':sessionToken,'Content-Type':'application/json','Cache-Control':'no-cache'}});
   if(r.status===401){ doLogout(); throw new Error('Sessão expirada'); }
   return r;
 }
@@ -495,6 +498,7 @@ async function detectFlexML(mlPkgs){
       const order = d.data || d;
       // Check all possible service fields
       const svcNome = (order.transporte?.servico?.nome||'').toLowerCase();
+      // volumes[0].servico é uma STRING direta (ex: "Mercado Envios Flex")
       const svcVol = (order.transporte?.volumes?.[0]?.servico||'').toLowerCase();
       const svcTransp = (order.transporte?.transportadora?.nome||'').toLowerCase();
       const allSvc = svcNome+' '+svcVol+' '+svcTransp;
