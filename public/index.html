@@ -349,7 +349,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="login-field">
       <div class="login-lbl">Senha</div>
       <div class="login-input-wrap">
-        <input type="password" class="login-input" id="loginPass" placeholder="••••••••" autocomplete="current-password" style="padding-right:46px">
+        <input type="password" class="login-input" id="loginPass" placeholder="" autocomplete="current-password" style="padding-right:46px">
         <button class="eye-btn" onclick="toggleLoginPass()" id="eyeBtn" type="button">👁</button>
       </div>
     </div>
@@ -786,10 +786,21 @@ async function pullFromBling(){
         rastreio,
         servico:svc, lojaId, mkt,
         blingStatus: Number(o.situacao?.id||0),
+        dataPedido: o.data||'',
         date:today, pulledAt:nowTS(),
         status:'pendente', colT:null, blingId:o.id
       };
-    }).filter(p => p.etiqueta && p.blingStatus===24); // etiqueta = numero do pedido
+    }).filter(p => {
+      if(!p.etiqueta) return false;
+      if(p.blingStatus!==24) return false;
+      // Só últimos 30 dias
+      if(p.dataPedido){
+        const pedDate = new Date(p.dataPedido + 'T00:00:00');
+        const diffDays = (new Date() - pedDate) / (1000*60*60*24);
+        if(diffDays > 30) return false;
+      }
+      return true;
+    });
 
     packages=packages.filter(p=>p.date!==today);
     packages=[...newPkgs,...packages];
