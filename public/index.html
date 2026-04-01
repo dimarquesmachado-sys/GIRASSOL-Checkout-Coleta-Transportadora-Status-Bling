@@ -482,6 +482,33 @@ async function apiFetch(path,opts={}){
 }
 
 // ═══ BLING ═══
+// Detecta pedidos FLEX do ML buscando detalhe individual
+async function detectFlexML(mlPkgs){
+  const FLEX_SERVICES = ['mercado envios flex','flex'];
+  let found = 0;
+  for(const pkg of mlPkgs){
+    try{
+      await new Promise(r=>setTimeout(r,300));
+      const r = await apiFetch('/bling/pedidos/vendas/'+pkg.blingId);
+      if(!r.ok) continue;
+      const d = await r.json();
+      const order = d.data || d;
+      const svc = (order.transporte?.servico?.nome||
+                   order.transporte?.volumes?.[0]?.servico||'').toLowerCase();
+      const isFlexIntegration = (order.integracaoLogistica?.id||'').toString().includes('flex');
+      if(FLEX_SERVICES.some(f=>svc.includes(f)) || isFlexIntegration){
+        const p = packages.find(x=>x.blingId===pkg.blingId);
+        if(p){ p.urgente=true; p.servico=order.transporte?.servico?.nome||'ML Flex'; found++; }
+      }
+    }catch(e){}
+  }
+  if(found>0){
+    sv('expv5_pkgs',packages);
+    renderMktGrid();
+    toast(`⚡ ${found} pedido(s) FLEX detectado(s)`,'warn');
+  }
+}
+
 async function pullFromBling(){
   const btn=document.getElementById('syncBtn');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Buscando...';
@@ -506,18 +533,7 @@ async function pullFromBling(){
       more=orders.length===100; page++;
     }
     if(all.length===0){ flash('Nenhum pedido VERIFICADO encontrado','warn'); renderMktGrid(); return; }
-    // Debug: find FLEX orders
-    const flexSample=all.filter(o=>['103803','103802'].includes(String(o.numero)));
-    if(flexSample.length>0) console.log('FLEX orders debug:', JSON.stringify(flexSample.map(o=>({
-      num:o.numero,
-      svc:o.transporte?.servico?.nome,
-      transportadora:o.transporte?.transportadora?.nome,
-      integracaoLogistica:o.integracaoLogistica,
-      codigoIntegracao:o.codigoIntegracao,
-      numeroPedidoLoja:o.numeroPedidoLoja,
-      volumes:o.transporte?.volumes?.map(v=>v.servico),
-      loja:o.loja
-    }))));
+
 
     const newPkgs=all.map(o=>{
       const lojaId=String(o.loja?.id||'0');
@@ -559,6 +575,12 @@ async function pullFromBling(){
     sv('expv5_pkgs',packages);
     toast(`${newPkgs.length} pedidos carregados`,'ok');
     renderMktGrid(); updateBadge();
+
+    // Busca detalhe dos pedidos ML para detectar FLEX (em background)
+    const mlPkgs = newPkgs.filter(p=>p.mkt==='ml');
+    if(mlPkgs.length>0){
+      detectFlexML(mlPkgs);
+    }
   }catch(e){ flash('Erro: '+e.message,'err'); }
   btn.disabled=false;
   btn.innerHTML='<svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Buscar no Bling';
@@ -925,7 +947,7 @@ function clearDay(){
 function initApp(){
   document.getElementById('userChip').textContent='👤 '+currentUser;
   renderMktGrid(); updateBadge();
-  // auto-pull removido para evitar dupla busca
+  setTimeout(()=>pullFromBling(),1200);
 }
 
 (async()=>{
