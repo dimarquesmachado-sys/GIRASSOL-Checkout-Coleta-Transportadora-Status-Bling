@@ -141,7 +141,7 @@ nav{
 .c-magalu{background:rgba(70,135,220,.12);color:#5A9AE0;border:1px solid rgba(70,135,220,.28)}
 .c-shein{background:rgba(200,55,150,.1);color:#D060B0;border:1px solid rgba(200,55,150,.25)}
 .c-tiktok{background:rgba(0,240,255,.08);color:#00D4E6;border:1px solid rgba(0,212,230,.25)}
-.c-americanas{background:rgba(220,50,50,.1);color:#E05050;border:1px solid rgba(220,50,50,.25)}
+
 .c-outro{background:var(--s2);color:var(--tm);border:1px solid var(--b2)}
 
 /* ═══ INPUT / SELECT ═══ */
@@ -396,22 +396,19 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           Buscar no Bling
         </button>
-        
       </div>
 
       <div id="romFeedback" class="fb" style="margin-bottom:14px"></div>
-      <!-- FLEX URGENT BANNER -->
-      <div id="flexBanner" style="display:none;background:rgba(224,85,85,.15);border:1px solid rgba(224,85,85,.4);border-radius:12px;padding:14px 18px;margin-bottom:14px;flex-direction:column;gap:10px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-size:18px">⚡</span>
+      <div id="flexBanner" style="display:none;background:rgba(224,85,85,.15);border:1px solid rgba(224,85,85,.4);border-radius:12px;padding:14px 18px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <span style="font-size:20px">⚡</span>
           <div>
-            <div style="font-weight:600;font-size:14px;color:#F09090">⚡ FLEX — <span id="flexCount">0</span> pedido(s) urgentes para despacho hoje</div>
-            <div style="font-size:11px;color:rgba(240,144,144,.7);margin-top:2px">ML Flex · MAGALU VAPT · Shopee Entrega Direta / Logística Shopee</div>
+            <div style="font-weight:600;font-size:14px;color:#F09090">FLEX — <span id="flexCount">0</span> pedido(s) urgentes para despacho hoje</div>
+            <div style="font-size:11px;color:rgba(240,144,144,.7);margin-top:2px">ML Flex · MAGALU VAPT · Shopee Entrega Direta</div>
           </div>
         </div>
         <div id="flexList" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       </div>
-
       <div id="boardsArea">
         <div class="empty" style="padding:60px 20px">
           <div class="e-icon">📦</div>
@@ -453,6 +450,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
             <option value="magalu">Magazine Luiza</option>
             <option value="shein">Shein</option>
             <option value="tiktok">TikTok Shop</option>
+                        <option value="melhorenvio">Melhor Envio</option>
+            <option value="velozz">Flex Velozz (Motoboy)</option>
+            <option value="lalamove">Lalamove (Motoboy)</option>
             <option value="melhorenvio">Melhor Envio</option>
             <option value="velozz">Flex Velozz (Motoboy)</option>
             <option value="lalamove">Lalamove (Motoboy)</option>
@@ -614,13 +614,13 @@ const MKT = {
   melhorenvio:{n:'Melhor Envio',   cls:'c-outro',      icon:'📮', svcMatch:['melhor envio','melhorenvio','loggi','jadlog','correios','pac ','sedex']},
   velozz:     {n:'Flex Velozz',    cls:'c-amber',      icon:'🏍', svcMatch:['velozz','flex velozz']},
   lalamove:   {n:'Lalamove',       cls:'c-amber',      icon:'🛵', svcMatch:['lalamove']},
+  melhorenvio:{n:'Melhor Envio',   cls:'c-outro',      icon:'📮', svcMatch:['melhor envio','melhorenvio','loggi','jadlog','correios']},
+  velozz:     {n:'Flex Velozz',    cls:'c-shopee',     icon:'🏍', svcMatch:['velozz']},
+  lalamove:   {n:'Lalamove',       cls:'c-shopee',     icon:'🛵', svcMatch:['lalamove']},
   outro:      {n:'Outro',         cls:'c-outro',      icon:'📫', svcMatch:[]},
 };
 
 // Mapa de loja.id para marketplace (adicione mais conforme descobrir)
-// Serviços FLEX — carregados dinamicamente do Bling, fallback para lista fixa
-let FLEX_SERVICES = ld('flex_services', []);
-
 const LOJA_MKT_MAP = {
   '203146903': 'ml',
   '203583169': 'shopee',
@@ -631,6 +631,19 @@ const LOJA_MKT_MAP = {
 
 function lojaToMkt(lojaId){
   if(!lojaId || lojaId === '0' || lojaId === 'undefined') return 'melhorenvio';
+  return LOJA_MKT_MAP[String(lojaId)] || null;
+}
+
+const LOJA_MKT_MAP = {
+  '203146903': 'ml',
+  '203583169': 'shopee',
+  '203967708': 'amazon',
+  '203262016': 'magalu',
+  '205523707': 'tiktok',
+};
+
+function lojaToMkt(lojaId){
+  if(!lojaId || lojaId==='0') return null;
   return LOJA_MKT_MAP[String(lojaId)] || null;
 }
 
@@ -738,47 +751,6 @@ async function apiFetch(path,opts={}){
 }
 
 // ═══ BLING ═══
-// Carrega serviços logísticos FLEX do Bling
-async function loadFlexServices(){
-  try{
-    const r = await apiFetch('/bling/logisticas?limite=100&pagina=1');
-    if(!r.ok) return;
-    const d = await r.json();
-    const logisticas = d.data || [];
-    const flexNames = [];
-
-    for(const log of logisticas){
-      const name = (log.nome || log.descricao || '').toLowerCase();
-      // Detecta integrações FLEX por nome
-      if(['flex','vapt','entrega local','entrega direta','logistica shopee','shopee entrega'].some(k=>name.includes(k))){
-        flexNames.push(name);
-        // Busca serviços da integração
-        if(log.id){
-          try{
-            await new Promise(r=>setTimeout(r,300));
-            const r2 = await apiFetch('/bling/logisticas/'+log.id+'/servicos?limite=100');
-            if(r2.ok){
-              const d2 = await r2.json();
-              (d2.data||[]).forEach(s=>{
-                const sn = (s.nome||s.descricao||'').toLowerCase();
-                if(sn) flexNames.push(sn);
-              });
-            }
-          }catch(e){}
-        }
-      }
-    }
-
-    if(flexNames.length > 0){
-      FLEX_SERVICES = [...new Set(flexNames)];
-      sv('flex_services', FLEX_SERVICES);
-      console.log('FLEX services carregados:', FLEX_SERVICES);
-    }
-  }catch(e){
-    console.log('Erro ao carregar serviços FLEX:', e.message);
-  }
-}
-
 async function pullFromBling(){
   const btn=document.getElementById('pullBtn');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Buscando...';
@@ -802,17 +774,10 @@ async function pullFromBling(){
       const mkt = lojaToMkt(lojaId) || svcToMkt(svc);
       // Usa número do pedido como etiqueta principal (QR do ML tem o ID do pedido)
       const etiqueta=(o.transporte?.volumes?.[0]?.codigoRastreamento||o.numero||o.id||'').toString().trim().toUpperCase();
-      const svcLow = svc.toLowerCase();
-      // FLEX detection: ML Flex, MAGALU VAPT, Shopee Entrega Direta/Logistica
-      const flexKeywords = FLEX_SERVICES.length > 0
-        ? FLEX_SERVICES
-        : ['mercado envios flex','magalog - entrega local','entrega local','vapt',
-           'logistica shopee','shopee entrega direta','entrega direta','flex'];
-      const urgente = flexKeywords.some(u=>svcLow.includes(u));
       return {
         id:o.id, numero:o.numero, etiqueta,
         destinatario:o.contato?.nome||'—',
-        servico:svc, lojaId, mkt, urgente,
+        servico:svc, lojaId, mkt,
         date:today, pulledAt:nowTS(),
         status:'pendente', colT:null, blingId:o.id
       };
@@ -831,22 +796,7 @@ async function pullFromBling(){
   btn.innerHTML='<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Buscar no Bling';
 }
 
-,
-    {etiqueta:'BR267016595588',destinatario:'José Adenilto Benito',servico:'Shopee Xpress',mkt:'shopee',numero:'103824'},
-    {etiqueta:'BR261193452054',destinatario:'Carlos Eduardo Braga',servico:'Shopee Xpress',mkt:'shopee',numero:'103824'},
-    {etiqueta:'MLB1234567890',destinatario:'Bruna Bagliano',servico:'MLIVRE Mercado Envios',mkt:'ml',numero:'103620'},
-    {etiqueta:'OL987654321BR',destinatario:'Marco Cavaleiro',servico:'MLIVRE Mercado Envios',mkt:'ml',numero:'103612'},
-    {etiqueta:'TBA123456789012',destinatario:'Silva e Santos',servico:'Amazon DBA',mkt:'amazon',numero:'103808'},
-    {etiqueta:'MGZ456789012',destinatario:'Fernanda Lima',servico:'MAGALU Entregas',mkt:'magalu',numero:'103715'},
-    {etiqueta:'BR263242008945',destinatario:'Paulo Mendes',servico:'Shopee Xpress',mkt:'shopee',numero:'103900'},
-    {etiqueta:'OD123456789BR',destinatario:'Ana Paula',servico:'Mercado Envios Full',mkt:'ml',numero:'103745'},
-  ].map((d,i)=>({...d,id:100+i,date:today,pulledAt:'09:00',status:'pendente',colT:null,blingId:100+i}));
-  packages=packages.filter(p=>p.date!==today);
-  packages=[...demo,...packages];
-  sv('expv4_pkgs',packages);
-  flash('romFeedback','ok',`✓ ${demo.length} pacotes demo carregados`);
-  renderRomaneio(); updateBadges();
-}
+
 
 // ═══ ROMANEIO ═══
 function renderRomaneio(){
@@ -869,22 +819,15 @@ function renderRomaneio(){
       </div>`;
     }).join('')}</div>`;
   document.getElementById('romListArea').style.display='block';
-
-  // FLEX BANNER
-  const urgentes = today.filter(p=>p.urgente && p.status==='pendente');
-  const flexBanner = document.getElementById('flexBanner');
-  if(urgentes.length > 0){
-    flexBanner.style.display='flex';
-    document.getElementById('flexCount').textContent = urgentes.length;
-    document.getElementById('flexList').innerHTML = urgentes.map(p=>
-      `<span style="font-family:var(--mono);font-size:12px;background:rgba(0,0,0,.2);padding:3px 8px;border-radius:4px;white-space:nowrap">
-        ${p.numero} · <span style="opacity:.8">${p.servico}</span>
-      </span>`
+  const urgentes=today.filter(p=>p.urgente&&p.status==='pendente');
+  const fb=document.getElementById('flexBanner');
+  if(urgentes.length>0){
+    fb.style.display='block';
+    document.getElementById('flexCount').textContent=urgentes.length;
+    document.getElementById('flexList').innerHTML=urgentes.map(p=>
+      '<span style="font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.25);padding:3px 8px;border-radius:4px;color:#F09090">'+p.numero+' · '+p.servico+'</span>'
     ).join('');
-  } else {
-    flexBanner.style.display='none';
-  }
-
+  } else { fb.style.display='none'; }
   renderRomList(today);
   const d=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
   document.getElementById('pullDateLabel').textContent=d.charAt(0).toUpperCase()+d.slice(1);
@@ -1031,12 +974,11 @@ function cancelColeta(){ colSession=[]; document.getElementById('carrierSel').va
 async function updateBlingStatus(id, situacaoId){
   if(!id) return;
   try{
-    await apiFetch(`/bling/pedidos/${id}/situacoes`,{
+    await apiFetch('/bling/pedidos/'+id+'/situacoes',{
       method:'PATCH',
-      body: JSON.stringify({situacao:{id: situacaoId || 14}})
+      body: JSON.stringify({situacao:{id: situacaoId||743515}})
     });
-    console.log('Status Bling atualizado:', id, situacaoId);
-  }catch(e){ console.error('Erro update Bling:', e); }
+  }catch(e){ console.warn('Erro update Bling:', e.message); }
 }
 
 // ═══ CAMERA ═══
@@ -1119,8 +1061,6 @@ function resetAll(){ if(!confirm('Resetar TUDO?')) return; ['expv4_pkgs','expv4_
 // ═══ INIT ═══
 async function initApp(){
   document.getElementById('userChip').textContent='👤 '+currentUser;
-  // Carrega serviços FLEX em background
-  loadFlexServices().catch(()=>{});
   document.getElementById('blingDot').textContent='● Bling';
   document.getElementById('blingDot').style.background='var(--gr2)';
   document.getElementById('blingDot').style.color='var(--gr)';
@@ -1132,11 +1072,14 @@ async function initApp(){
   const loginTime = ld('expv4_login_time', 0);
   const within24h = loginTime && (Date.now() - loginTime < 24 * 60 * 60 * 1000);
   if(sessionToken && within24h){
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('appWrap').classList.add('show');
-    initApp();
-    return;
+    const ok=await checkSession();
+    if(ok){
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('appWrap').classList.add('show');
+      initApp(); return;
+    }
   }
+  // Clear expired session
   sv('expv4_session',''); sv('expv4_user',''); sv('expv4_login_time',0);
   document.getElementById('loginUser').focus();
 })();
