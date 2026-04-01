@@ -510,6 +510,8 @@ async function detectFlexML(mlPkgs){
           p.urgente=true;
           p.servico=order.transporte?.servico?.nome||order.transporte?.volumes?.[0]?.servico||'ML Flex';
           found++;
+          sv('expv5_pkgs',packages); // salva imediatamente
+          renderMktGrid(); // atualiza a tela na hora
         }
       }
     }catch(e){ console.warn('Erro detalhe', pkg.numero, e.message); }
@@ -580,6 +582,13 @@ async function pullFromBling(){
         if((new Date()-d)/(1000*60*60*24)>30) return false;
       }
       return true;
+    });
+    // Preserva urgente detectado anteriormente no mesmo dia
+    const existingToday=packages.filter(p=>p.date===today);
+    newPkgs.forEach(p=>{
+      const existing=existingToday.find(e=>e.blingId===p.blingId);
+      if(existing?.urgente) p.urgente=true;
+      if(existing?.servico) p.servico=existing.servico;
     });
     packages=packages.filter(p=>p.date!==today);
     packages=[...newPkgs,...packages];
