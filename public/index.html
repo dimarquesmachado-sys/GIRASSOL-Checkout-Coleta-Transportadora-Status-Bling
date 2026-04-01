@@ -396,7 +396,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           Buscar no Bling
         </button>
-        <button class="btn btn-gh btn-sm" onclick="loadDemo()">Demo</button>
+        
       </div>
 
       <div id="romFeedback" class="fb" style="margin-bottom:14px"></div>
@@ -597,7 +597,7 @@ const MKT = {
   ml:         {n:'Mercado Livre', cls:'c-ml',        icon:'🟡', svcMatch:['mlivre','mercado envios','mercado_envios','olist','mlivre flex']},
   shopee:     {n:'Shopee',        cls:'c-shopee',     icon:'🟠', svcMatch:['shopee']},
   amazon:     {n:'Amazon',        cls:'c-amazon',     icon:'📦', svcMatch:['amazon','dba']},
-  magalu:     {n:'Mag. Luiza',    cls:'c-magalu',     icon:'🔵', svcMatch:['magalu','via varejo','magazine']},
+  magalu:     {n:'MAGALU',    cls:'c-magalu',     icon:'🔵', svcMatch:['magalu','via varejo','magazine']},
   shein:      {n:'Shein',         cls:'c-shein',      icon:'🩷', svcMatch:['shein']},
   tiktok:     {n:'TikTok Shop',   cls:'c-tiktok',     icon:'⚫', svcMatch:['tiktok']},
   americanas: {n:'Americanas',    cls:'c-americanas', icon:'🔴', svcMatch:['americanas','b2w']},
@@ -733,7 +733,7 @@ async function pullFromBling(){
     const today=todayStr();
     let all=[];let page=1;let more=true;
     while(more&&page<=10){
-      const r=await apiFetch(`/bling/pedidos/vendas?situacao=24&pagina=${page}&limite=100`);
+      const r=await apiFetch(`/bling/pedidos/vendas?idSituacao=24&pagina=${page}&limite=100`);
       const d=await r.json();
       const orders=d.data||[];
       all=all.concat(orders);
@@ -770,10 +770,7 @@ async function pullFromBling(){
   btn.innerHTML='<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Buscar no Bling';
 }
 
-function loadDemo(){
-  const today=todayStr();
-  const demo=[
-    {etiqueta:'BR263242008946C',destinatario:'Julio Sousa',servico:'Logistica Shopee',mkt:'shopee',numero:'103769'},
+,
     {etiqueta:'BR267016595588',destinatario:'José Adenilto Benito',servico:'Shopee Xpress',mkt:'shopee',numero:'103824'},
     {etiqueta:'BR261193452054',destinatario:'Carlos Eduardo Braga',servico:'Shopee Xpress',mkt:'shopee',numero:'103824'},
     {etiqueta:'MLB1234567890',destinatario:'Bruna Bagliano',servico:'MLIVRE Mercado Envios',mkt:'ml',numero:'103620'},
@@ -1056,14 +1053,14 @@ async function initApp(){
   const loginTime = ld('expv4_login_time', 0);
   const within24h = loginTime && (Date.now() - loginTime < 24 * 60 * 60 * 1000);
   if(sessionToken && within24h){
-    const ok=await checkSession();
-    if(ok){
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('appWrap').classList.add('show');
-      initApp(); return;
-    }
+    // Skip server check on page reload to avoid asking for login
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('appWrap').classList.add('show');
+    initApp();
+    // Verify in background silently
+    checkSession().then(ok => { if(!ok){ doLogout(); } });
+    return;
   }
-  // Clear expired session
   sv('expv4_session',''); sv('expv4_user',''); sv('expv4_login_time',0);
   document.getElementById('loginUser').focus();
 })();
