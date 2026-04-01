@@ -401,19 +401,29 @@ app.get('/admin/migrar-verificados', async (req, res) => {
 
         for(const o of orders) {
           try {
-            await sleep(700);
-            const patch = await blingFetch(
-              `${BLING_BASE}/pedidos/vendas/${o.id}/situacoes/743515`,
-              { method: 'PATCH' }
-            );
-            if(patch.ok) total++;
-            else erros++;
+            await sleep(1500); // 1.5s entre cada PATCH
+            let ok = false;
+            for(let attempt = 0; attempt < 5; attempt++) {
+              const patch = await blingFetch(
+                `${BLING_BASE}/pedidos/vendas/${o.id}/situacoes/743515`,
+                { method: 'PATCH' }
+              );
+              if(patch.status === 429) {
+                const wait = Math.pow(2, attempt+1) * 2000;
+                migrationLog.push(`⏳ Rate limit — aguardando ${wait/1000}s...`);
+                await sleep(wait);
+                continue;
+              }
+              if(patch.ok) { ok = true; break; }
+              else { break; }
+            }
+            if(ok) total++; else erros++;
           } catch(e) { erros++; }
         }
 
         migrationLog.push(`✓ Página ${page} concluída — ${total} movidos, ${erros} erros`);
+        await sleep(3000); // 3s entre páginas
 
-        // Se retornou menos que 100, é a última página
         if(orders.length < 100) hasMore = false;
         else page++;
       }
