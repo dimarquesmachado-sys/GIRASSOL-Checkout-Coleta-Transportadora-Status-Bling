@@ -201,7 +201,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal-img-wrap{position:relative;max-width:100%;max-height:100%}
 .modal-img-wrap img{max-width:100%;max-height:90vh;border-radius:8px;display:block}
-.modal-close{position:absolute;top:-12px;right:-12px;width:32px;height:32px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700}
+.modal-close{position:absolute;top:-12px;right:-12px;width:40px;height:40px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;-webkit-tap-highlight-color:transparent;touch-action:manipulation;z-index:1}
 
 /* DIA */
 .day-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
@@ -699,7 +699,9 @@ function pullFromBling(){
       var urgente=FLEX_KEYWORDS.some(function(u){return svcLow.indexOf(u)!==-1;});
       var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
       var nf=(o.notaFiscal&&o.notaFiscal.numero)||(o.nfe&&o.nfe.numero)||'';
-      return {id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,
+      // Número do pedido no marketplace (Bling guarda em numeroPedidoLoja ou loja.numeroPedido)
+      var numLoja=(o.numeroPedidoLoja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
+      return {id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,numLoja:String(numLoja||''),
         destinatario:(o.contato&&o.contato.nome)||'—',
         servico:svc,lojaId:lojaId,mkt:mkt,urgente:urgente,numeracao:'',
         blingStatus:Number((o.situacao&&o.situacao.id)||0),
@@ -858,7 +860,7 @@ function renderPkgList(){
     return '<div class="pkg-row '+(ativo?'scanned':'')+'">'+
       fotoHtml+
       '<div style="flex:1;min-width:0">'+
-      '<div class="pkg-num">'+p.numero+(p.nf?' <span style="color:var(--tm);font-size:10px">NF:'+p.nf+'</span>':'')+(p.numeracao?' <span style="color:var(--th);font-size:10px">📦'+p.numeracao.slice(-6)+'</span>':'')+'</div>'+
+      '<div class="pkg-num">'+p.numero+(p.nf?' <span style="color:var(--tm);font-size:10px"> · NF '+p.nf+'</span>':'')+(p.numLoja?' <span style="color:var(--bl);font-size:10px"> · 🛒'+p.numLoja+'</span>':'')+(p.numeracao?' <span style="color:var(--th);font-size:10px"> · 📦'+p.numeracao.slice(-6)+'</span>':'')+'</div>'+
       '<div class="pkg-dest">'+p.destinatario+'</div>'+
       '</div>'+
       '<span class="pkg-badge '+(ativo?'b-scan':'b-pend')+'">'+(ativo?'✓':'—')+'</span>'+
@@ -1058,18 +1060,14 @@ function verFotoScan(etiqueta){
   if(!scanItem||!scanItem.photo){toast('Sem foto para este pacote','warn');return;}
   var p=null;
   for(var i=0;i<packages.length;i++){if(packages[i].etiqueta===etiqueta){p=packages[i];break;}}
-  var modal=document.createElement('div');
-  modal.className='modal-overlay';
-  modal.onclick=function(e){if(e.target===modal)modal.remove();};
-  modal.innerHTML='<div class="modal-img-wrap">'+
+  openModal('<div class="modal-img-wrap">'+
     '<img src="'+scanItem.photo+'" alt="etiqueta" style="max-width:100%;max-height:85vh;border-radius:8px;display:block">'+
     '<div style="background:rgba(0,0,0,.7);padding:8px 12px;border-radius:0 0 8px 8px;font-size:12px;font-family:var(--mono);color:#fff">'+
       (p?p.numero+' · '+p.destinatario:etiqueta)+
       '<br><span style="color:var(--tm)">'+scanItem.time+'</span>'+
     '</div>'+
-    '<button class="modal-close" onclick="this.parentElement.parentElement">✕</button>'+
-    '</div>';
-  document.body.appendChild(modal);
+    '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
+    '</div>');
 }
 
 // ═══ CANCELAR / DESFAZER SCAN ═══
@@ -1139,11 +1137,7 @@ function delFoto(i){
 function verFoto(i){
   var src=fotosVeiculo[i];
   if(!src) return;
-  var modal=document.createElement('div');
-  modal.className='modal-overlay';
-  modal.onclick=function(){modal.remove();};
-  modal.innerHTML='<div class="modal-img-wrap"><img src="'+src+'" alt="foto"><button class="modal-close" onclick="this.closest(\'.modal-overlay\').remove()">✕</button></div>';
-  document.body.appendChild(modal);
+  openModal('<div class="modal-img-wrap"><img src="'+src+'" alt="foto"><button class="modal-close" onclick="closeTopModal()">✕</button></div>');
 }
 
 // ═══ PROBLEMAS ═══
@@ -1336,11 +1330,7 @@ function verFotoLote(loteId,idx){
   var lote=null;
   for(var i=0;i<scans.length;i++){if(scans[i].id===loteId){lote=scans[i];break;}}
   if(!lote||!lote.fotosVeiculo||!lote.fotosVeiculo[idx]) return;
-  var modal=document.createElement('div');
-  modal.className='modal-overlay';
-  modal.onclick=function(){modal.remove();};
-  modal.innerHTML='<div class="modal-img-wrap"><img src="'+lote.fotosVeiculo[idx]+'" alt="foto lote"><button class="modal-close" onclick="this.closest(\'.modal-overlay\').remove()">✕</button></div>';
-  document.body.appendChild(modal);
+  openModal('<div class="modal-img-wrap"><img src="'+lote.fotosVeiculo[idx]+'" alt="foto lote"><button class="modal-close" onclick="closeTopModal()">✕</button></div>');
 }
 
 // ═══ HISTÓRICO ═══
@@ -1454,6 +1444,41 @@ function renderHistContent(){
   }
 
   document.getElementById('histContent').innerHTML=html;
+}
+
+// ═══ MODAL — fechar com botão Voltar Android ═══
+function closeTopModal(){
+  var modals=document.querySelectorAll('.modal-overlay');
+  if(modals.length>0){
+    modals[modals.length-1].remove();
+    // Remove o estado de histórico que foi empurrado ao abrir
+    if(history.state&&history.state.modal){
+      history.back();
+    }
+    return true;
+  }
+  return false;
+}
+
+// Botão Voltar do Android/navegador fecha o modal em vez de sair do site
+window.addEventListener('popstate',function(e){
+  if(document.querySelector('.modal-overlay')){
+    document.querySelector('.modal-overlay').remove();
+  }
+});
+
+function openModal(html){
+  // Empurra estado no histórico para que o Voltar feche o modal
+  history.pushState({modal:true},'');
+  var modal=document.createElement('div');
+  modal.className='modal-overlay';
+  // Toca no overlay (fora da imagem) para fechar
+  modal.addEventListener('click',function(e){
+    if(e.target===modal) closeTopModal();
+  });
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+  return modal;
 }
 
 // ═══ NAV ═══
