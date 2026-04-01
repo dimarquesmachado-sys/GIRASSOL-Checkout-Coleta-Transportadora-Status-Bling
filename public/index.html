@@ -694,15 +694,15 @@ function detectTrackingPkgs(pkgs){
         next();
       })
       .catch(function(e){console.error('❌ detectTracking erro:',e.message);next();});
-    },600);
+    },1100); // 1100ms entre chamadas — evita rate limit Bling
   }
   next();
 }
 
-function detectFlexML(mlPkgs){
+function detectFlexML(mlPkgs, onDone){
   var i=0;
   function next(){
-    if(i>=mlPkgs.length) return;
+    if(i>=mlPkgs.length){if(onDone)onDone();return;}
     var pkg=mlPkgs[i++];
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
@@ -746,14 +746,17 @@ function detectFlexML(mlPkgs){
             var nfChaveFlex=(order.notaFiscal&&order.notaFiscal.chave)||(order.nfe&&order.nfe.chave)||'';
             if(nfFlex&&!p.nf){p.nf=String(nfFlex).trim(); console.log('✅ NF FLEX #'+p.numero+': '+p.nf);}
             if(nfChaveFlex&&!p.nfChave){p.nfChave=String(nfChaveFlex).replace(/\s/g,'');}
+            // Também captura numLoja da resposta individual (não vem na listagem)
+            var numLojaDetalhe=(order.numeroPedidoLoja)||(order.loja&&order.loja.numeroPedido)||'';
+            if(numLojaDetalhe&&!p.numLoja) p.numLoja=String(numLojaDetalhe).trim();
             sv('expv5_pkgs',packages);
             renderMktGrid();
           }
         }
         next();
       })
-      .catch(function(){next();});
-    },500);
+      .catch(function(e){console.error('❌ FLEX erro:',e.message);next();});
+    },1100); // 1100ms entre chamadas — evita rate limit Bling (limite ~1 req/s)
   }
   next();
 }
@@ -854,13 +857,21 @@ function pullFromBling(){
     if(semTracking_count>0) toast('Buscando tracking de '+semTracking_count+' pedido(s)... aguarde','warn');
     renderMktGrid(); updateBadge();
     var mlPkgs=newPkgs.filter(function(p){return p.mkt==='ml';});
-    if(mlPkgs.length>0) detectFlexML(mlPkgs);
-    // Busca tracking individual para TikTok, Shopee e outros que não trazem na listagem
+    // Busca tracking: primeiro FLEX ML, depois TikTok/Shopee/etc em SEQUÊNCIA
+    // (evita rate limit 429 do Bling ao rodar os dois em paralelo)
     var semTracking=newPkgs.filter(function(p){
       return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='shopee'||p.mkt==='magalu'||p.mkt==='amazon');
     });
     var semTracking_count=semTracking.length;
-    if(semTracking.length>0) detectTrackingPkgs(semTracking);
+    if(mlPkgs.length>0){
+      detectFlexML(mlPkgs, function(){
+        // Só começa tracking dos outros APÓS o FLEX terminar
+        if(semTracking.length>0) detectTrackingPkgs(semTracking);
+        else if(semTracking_count===0) toast('✅ Trackings carregados!','ok');
+      });
+    } else if(semTracking.length>0){
+      detectTrackingPkgs(semTracking);
+    }
     resetSyncBtn();
   }
   function resetSyncBtn(){
