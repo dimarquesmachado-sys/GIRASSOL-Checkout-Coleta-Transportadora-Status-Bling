@@ -243,6 +243,23 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .motivo-confirm-btn{width:100%;height:46px;background:var(--am);color:#1A0B00;border:none;border-radius:var(--r);font-size:14px;font-weight:800;cursor:pointer;font-family:var(--sans)}
 .motivo-confirm-btn:active{transform:scale(.98)}
 
+/* HISTÓRICO / FILTROS */
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.filter-chip{height:30px;padding:0 12px;background:var(--s2);color:var(--tm);border:1px solid var(--b2);border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:.15s}
+.filter-chip.on{background:var(--bl2);color:var(--bl);border-color:var(--bl3)}
+.filter-chip.on-am{background:var(--am2);color:var(--am);border-color:var(--am3)}
+.hist-lote{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:14px;margin-bottom:10px}
+.hist-lote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hist-lote-fotos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.hist-lote-fotos img{width:72px;height:72px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--b2)}
+.hist-empty{text-align:center;color:var(--th);padding:40px 0;font-size:13px}
+.hist-pkg{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1);font-size:12px}
+.hist-pkg:last-child{border-bottom:none}
+.hist-pkg img{width:44px;height:44px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid var(--b2)}
+.hist-pkg-info{flex:1;min-width:0}
+.hist-pkg-num{font-family:var(--mono);font-weight:600;font-size:12px}
+.hist-pkg-dest{color:var(--tm);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* UTILS */
 .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,.2);border-top-color:currentColor;border-radius:50%;animation:rot .7s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
@@ -438,6 +455,21 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
       </div>
     </div>
 
+    <!-- HISTÓRICO -->
+    <div id="pageHist" style="display:none">
+      <div style="font-size:16px;font-weight:700;color:var(--bl);margin-bottom:14px">🗂 Histórico de Lotes</div>
+
+      <!-- Filtro de data -->
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-bottom:6px">Data</div>
+      <div class="filter-row" id="filterDateRow"></div>
+
+      <!-- Filtro de marketplace -->
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-bottom:6px">Marketplace</div>
+      <div class="filter-row" id="filterMktRow"></div>
+
+      <div id="histContent"></div>
+    </div>
+
   </div>
 
   <nav class="bottom-nav">
@@ -447,6 +479,9 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
     </button>
     <button class="nav-btn" id="navDia" onclick="showPage('dia')">
       <span class="nav-icon">📊</span><span>Dia</span>
+    </button>
+    <button class="nav-btn" id="navHist" onclick="showPage('historico')">
+      <span class="nav-icon">🗂</span><span>Histórico</span>
     </button>
   </nav>
 </div>
@@ -478,6 +513,9 @@ var colSession = [], activeMkt = '';
 var fotosVeiculo = [], problemaPkgs = [];
 var camStream = null, barcodeDetector = null, scanning = false, scanPaused = false;
 var lastCode = '', lastCodeAt = 0;
+var lastPullAt = 0;        // timestamp do último pullFromBling
+var histFilterDate = '';   // filtro ativo de data no histórico
+var histFilterMkt  = '';   // filtro ativo de mkt no histórico
 
 // ═══ STORAGE ═══
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
@@ -696,6 +734,7 @@ function pullFromBling(){
     resetSyncBtn();
   }
   function resetSyncBtn(){
+    lastPullAt=Date.now();
     btn.disabled=false;
     btn.innerHTML='<svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Buscar no Bling';
   }
@@ -1296,13 +1335,137 @@ function verFotoLote(loteId,idx){
   document.body.appendChild(modal);
 }
 
+// ═══ HISTÓRICO ═══
+function renderHistorico(){
+  var today=todayStr();
+  // Coleta datas únicas dos lotes (max 14 dias)
+  var datas=[];
+  scans.forEach(function(s){
+    if(s.tipo==='lote'&&s.date&&datas.indexOf(s.date)===-1) datas.push(s.date);
+  });
+  datas.sort(function(a,b){return b>a?1:b<a?-1:0;});
+  if(datas.indexOf(today)===-1) datas.unshift(today);
+  datas=datas.slice(0,14);
+
+  // Chips de data
+  document.getElementById('filterDateRow').innerHTML=datas.map(function(d){
+    var label=d===today?'Hoje':d;
+    var on=histFilterDate===d||(!histFilterDate&&d===today);
+    if(on&&!histFilterDate) histFilterDate=today;
+    return '<button class="filter-chip'+(on?' on':'')+'" data-d="'+d+'" onclick="setHistDate(this.dataset.d)">'+label+'</button>';
+  }).join('');
+
+  // Chips de marketplace
+  var mktsDisp=['todos'].concat(Object.keys(MKT).filter(function(m){return m!=='flex'&&m!=='outro';}));
+  document.getElementById('filterMktRow').innerHTML=mktsDisp.map(function(m){
+    var on=(!histFilterMkt&&m==='todos')||(histFilterMkt===m);
+    var label=m==='todos'?'Todos':(MKT[m]?MKT[m].icon+' '+MKT[m].n:m);
+    return '<button class="filter-chip'+(on?' on-am':'')+'" data-m="'+m+'" onclick="setHistMkt(this.dataset.m)">'+label+'</button>';
+  }).join('');
+
+  renderHistContent();
+}
+
+function setHistDate(d){
+  histFilterDate=d;
+  // Atualiza chips
+  var chips=document.getElementById('filterDateRow').querySelectorAll('.filter-chip');
+  chips.forEach(function(c){c.className='filter-chip'+(c.dataset.d===d?' on':'');});
+  renderHistContent();
+}
+
+function setHistMkt(m){
+  histFilterMkt=m==='todos'?'':m;
+  var chips=document.getElementById('filterMktRow').querySelectorAll('.filter-chip');
+  chips.forEach(function(c){c.className='filter-chip'+(c.dataset.m===m?' on-am':'');});
+  renderHistContent();
+}
+
+function renderHistContent(){
+  var date=histFilterDate||todayStr();
+  // Lotes do dia filtrado
+  var lotes=scans.filter(function(s){
+    return s.tipo==='lote'&&s.date===date&&(!histFilterMkt||s.mkt===histFilterMkt);
+  });
+  // Scans individuais do dia filtrado
+  var pkgScans=scans.filter(function(s){
+    return s.tipo!=='lote'&&s.date===date&&(!histFilterMkt||s.mkt===histFilterMkt);
+  });
+
+  var html='';
+
+  if(lotes.length===0&&pkgScans.length===0){
+    html='<div class="hist-empty">Nenhum registro para este filtro</div>';
+    document.getElementById('histContent').innerHTML=html;
+    return;
+  }
+
+  // Lotes com fotos
+  if(lotes.length>0){
+    html+='<div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:8px">Lotes ('+lotes.length+')</div>';
+    lotes.forEach(function(l){
+      var info=MKT[l.mkt]||{icon:'📦',n:l.mkt};
+      html+='<div class="hist-lote">';
+      html+='<div class="hist-lote-head">';
+      html+='<span style="font-size:13px;font-weight:700">'+info.icon+' '+info.n+'</span>';
+      html+='<span style="font-size:11px;color:var(--tm)">'+l.time+'</span>';
+      html+='</div>';
+      html+='<div style="font-size:11px;font-family:var(--mono);color:var(--tm)">✓ '+l.qtd+' entregues'+(l.problemas>0?' · 🚫 '+l.problemas+' prob.':'')+'</div>';
+      if(l.obs) html+='<div style="font-size:11px;color:var(--am);background:var(--am2);border-radius:6px;padding:5px 8px;margin-top:6px">📝 '+l.obs+'</div>';
+      if(l.fotosVeiculo&&l.fotosVeiculo.length>0){
+        html+='<div class="hist-lote-fotos">';
+        l.fotosVeiculo.forEach(function(f,idx){
+          html+='<img src="'+f+'" data-id="'+l.id+'" data-idx="'+idx+'" onclick="verFotoLote(this.dataset.id,this.dataset.idx)" alt="foto veículo">';
+        });
+        html+='</div>';
+      }
+      html+='</div>';
+    });
+  }
+
+  // Pacotes bipados individualmente
+  if(pkgScans.length>0){
+    html+='<div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin:12px 0 8px">Pacotes bipados ('+pkgScans.length+')</div>';
+    html+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:10px 14px">';
+    pkgScans.forEach(function(s){
+      var mktInfo=MKT[s.mkt]||{icon:'📦'};
+      html+='<div class="hist-pkg">';
+      if(s.photo){
+        html+='<img src="'+s.photo+'" data-et="'+s.etiqueta+'" onclick="verFotoScan(this.dataset.et)" alt="etiqueta">';
+      } else {
+        html+='<div style="width:44px;height:44px;border-radius:6px;background:var(--s2);border:1px dashed var(--b2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📷</div>';
+      }
+      html+='<div class="hist-pkg-info">';
+      html+='<div class="hist-pkg-num">'+mktInfo.icon+' '+s.numero+'</div>';
+      html+='<div class="hist-pkg-dest">'+s.destinatario+'</div>';
+      html+='</div>';
+      html+='<span style="font-size:10px;font-family:var(--mono);color:var(--tm)">'+s.time+'</span>';
+      html+='</div>';
+    });
+    html+='</div>';
+  }
+
+  document.getElementById('histContent').innerHTML=html;
+}
+
 // ═══ NAV ═══
 function showPage(page){
   document.getElementById('pageRomaneio').style.display=page==='romaneio'?'block':'none';
   document.getElementById('pageDia').style.display=page==='dia'?'block':'none';
+  document.getElementById('pageHist').style.display=page==='historico'?'block':'none';
   document.getElementById('navRom').className='nav-btn'+(page==='romaneio'?' active':'');
   document.getElementById('navDia').className='nav-btn'+(page==='dia'?' active':'');
+  document.getElementById('navHist').className='nav-btn'+(page==='historico'?' active':'');
   if(page==='dia') renderDia();
+  if(page==='historico') renderHistorico();
+  if(page==='romaneio'){
+    // Auto-refresh: se passaram mais de 2 minutos desde a última busca, atualiza
+    var mins2=2*60*1000;
+    if(lastPullAt>0&&Date.now()-lastPullAt>mins2){
+      var btn=document.getElementById('syncBtn');
+      if(btn&&!btn.disabled) pullFromBling();
+    }
+  }
 }
 function updateBadge(){
   var n=todayPkgs().filter(function(p){return p.status==='pendente';}).length;
