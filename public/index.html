@@ -691,6 +691,18 @@ function pullFromBling(){
   }
   function finishFetch(all){
     if(all.length===0){flash('Nenhum pedido VERIFICADO','warn');renderMktGrid();resetSyncBtn();return;}
+    // DEBUG NF: loga os campos da 1ª ordem para identificar onde está a NF
+    if(all.length>0){
+      var sample=all[0];
+      console.log('🔍 BLING SAMPLE KEYS:', Object.keys(sample));
+      console.log('🔍 notaFiscal:', sample.notaFiscal);
+      console.log('🔍 nfe:', sample.nfe);
+      console.log('🔍 nota:', sample.nota);
+      console.log('🔍 notasFiscais:', sample.notasFiscais);
+      console.log('🔍 loja:', sample.loja);
+      console.log('🔍 numeroPedidoLoja:', sample.numeroPedidoLoja);
+      console.log('🔍 FULL:', JSON.stringify(sample).substring(0,800));
+    }
     var newPkgs=all.map(function(o){
       var lojaId=String((o.loja&&o.loja.id)||'0');
       var svc=(o.transporte&&o.transporte.servico&&o.transporte.servico.nome)||
