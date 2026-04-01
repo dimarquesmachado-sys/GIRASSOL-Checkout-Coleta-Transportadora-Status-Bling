@@ -496,13 +496,23 @@ async function pullFromBling(){
       const syncBtn=document.getElementById('syncBtn');
       if(syncBtn) syncBtn.innerHTML=`<span class="spin"></span> Pág. ${page}...`;
       const r=await apiFetch(`/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial=${dateFrom}&dataEmissaoFinal=${today}&pagina=${page}&limite=100`);
-      if(!r.ok){ more=false; break; }
+      if(r.status!==200){ more=false; break; }
       const d=await r.json();
       const orders=d.data||[];
+      if(orders.length===0){ more=false; break; }
       all=all.concat(orders);
       more=orders.length===100; page++;
     }
     if(all.length===0){ flash('Nenhum pedido VERIFICADO encontrado','warn'); renderMktGrid(); return; }
+    // Debug: log service names to find FLEX
+    if(all.length>0) console.log('Serviços sample:', all.slice(0,5).map(o=>({
+      num:o.numero,
+      svc:o.transporte?.servico?.nome,
+      transportadora:o.transporte?.transportadora?.nome,
+      loja:o.loja?.nome,
+      lojaId:o.loja?.id
+    })));
+
     const newPkgs=all.map(o=>{
       const lojaId=String(o.loja?.id||'0');
       const svc=o.transporte?.servico?.nome||o.transporte?.transportadora?.nome||o.loja?.nome||'';
@@ -900,7 +910,7 @@ function clearDay(){
 function initApp(){
   document.getElementById('userChip').textContent='👤 '+currentUser;
   renderMktGrid(); updateBadge();
-  setTimeout(()=>pullFromBling(),400);
+  // auto-pull removido para evitar dupla busca
 }
 
 (async()=>{
