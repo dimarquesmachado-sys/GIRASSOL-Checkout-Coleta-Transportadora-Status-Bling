@@ -218,6 +218,18 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .nav-badge{position:absolute;top:6px;right:calc(50% - 18px);background:var(--rd);color:#fff;font-size:9px;font-weight:700;font-family:var(--mono);padding:1px 5px;border-radius:10px;min-width:16px;text-align:center;display:none}
 .nav-badge.show{display:block}
 
+/* ENCERRAR PARCIAL */
+.encerrar-btn{margin:10px 14px 0;height:48px;background:transparent;color:var(--am);border:1.5px solid var(--am3);border-radius:var(--rl);font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;width:calc(100% - 28px);display:none;transition:.15s}
+.encerrar-btn.show{display:block}
+.encerrar-btn:active{transform:scale(.97)}
+.motivo-area{margin:10px 14px 0;background:var(--am2);border:1.5px solid var(--am3);border-radius:var(--rl);padding:14px;display:none}
+.motivo-area.show{display:block}
+.motivo-textarea{width:100%;min-height:72px;background:var(--bg);border:1.5px solid var(--am3);border-radius:var(--r);color:var(--tx);font-family:var(--sans);font-size:13px;padding:10px 12px;outline:none;resize:vertical;-webkit-appearance:none;line-height:1.5;margin-bottom:10px}
+.motivo-textarea:focus{border-color:var(--am)}
+.motivo-alert{font-size:11px;color:var(--rd);margin-bottom:10px;display:none}
+.motivo-confirm-btn{width:100%;height:46px;background:var(--am);color:#1A0B00;border:none;border-radius:var(--r);font-size:14px;font-weight:800;cursor:pointer;font-family:var(--sans)}
+.motivo-confirm-btn:active{transform:scale(.98)}
+
 /* UTILS */
 .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,.2);border-top-color:currentColor;border-radius:50%;animation:rot .7s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
@@ -336,6 +348,21 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
             <span id="statOk" style="color:var(--gr)"></span>
             <span id="statPend" style="color:var(--am)"></span>
           </div>
+        </div>
+
+        <!-- BOTÃO ENCERRAR PARCIAL -->
+        <button class="encerrar-btn" id="encerrarBtn" onclick="showEncerrar()">
+          ⚠ Encerrar Coleta (parcial)
+        </button>
+
+        <!-- ÁREA DE MOTIVO PARA ENCERRAMENTO PARCIAL -->
+        <div class="motivo-area" id="motivoArea">
+          <div style="font-size:13px;font-weight:700;color:var(--am);margin-bottom:10px">⚠ Encerrar com pacotes pendentes</div>
+          <div id="motivoPendList" style="margin-bottom:10px"></div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-bottom:6px">Motivo do encerramento *</div>
+          <textarea class="motivo-textarea" id="motivoText" placeholder="Ex: Veículo sem espaço, motorista recusou pacote, produto danificado..."></textarea>
+          <div class="motivo-alert" id="motivoAlert">⚠ Informe o motivo antes de continuar.</div>
+          <button class="motivo-confirm-btn" onclick="confirmarEncerrarParcial()">Continuar → Fotos e finalizar</button>
         </div>
 
         <div class="missing-area" id="missingArea">
@@ -718,7 +745,8 @@ function selectMkt(mkt){
   if(activeMkt===mkt){closeColeta();return;}
   stopCamera();
   activeMkt=mkt; colSession=[]; scanPaused=false; fotosVeiculo=[]; problemaPkgs=[];
-  ['wrongAlert','confirmArea','missingArea'].forEach(function(id){document.getElementById(id).classList.remove('show');});
+  ['wrongAlert','confirmArea','missingArea','motivoArea'].forEach(function(id){document.getElementById(id).classList.remove('show');});
+  document.getElementById('encerrarBtn').classList.remove('show');
   document.getElementById('coletaFb').className='fb';
   document.getElementById('coletaPanel').classList.add('show');
   document.getElementById('coletaTitle').textContent=(MKT[mkt]||{}).icon+' '+(MKT[mkt]||{n:mkt}).n;
@@ -768,6 +796,14 @@ function renderProgress(){
   document.getElementById('progPct').style.color=pct===100?'var(--gr)':'var(--am)';
   document.getElementById('statOk').textContent='✓ '+colSession.length+' bipados';
   document.getElementById('statPend').textContent=pend.length+' pendentes';
+  // Mostra botão encerrar parcial sempre que tiver algo bipado mas ainda tiver pendentes
+  var encBtn=document.getElementById('encerrarBtn');
+  if(colSession.length>0&&pend.length>0){
+    encBtn.classList.add('show');
+    encBtn.textContent='⚠ Encerrar Coleta ('+colSession.length+' bipados, '+pend.length+' pendentes)';
+  } else {
+    encBtn.classList.remove('show');
+  }
   if(pend.length===0&&colSession.length>0) showConfirm();
 }
 
@@ -995,6 +1031,47 @@ function renderProblemaList(){
       '<button onclick="delProblema(\''+et+'\')">✕</button>'+
       '</div>';
   }).join('');
+}
+
+// ═══ ENCERRAR PARCIAL ═══
+function showEncerrar(){
+  var pend=getPkgsAtivos().filter(function(p){return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1;});
+  document.getElementById('motivoArea').classList.add('show');
+  document.getElementById('motivoText').value='';
+  document.getElementById('motivoAlert').style.display='none';
+  document.getElementById('motivoPendList').innerHTML=
+    '<div style="font-size:11px;color:var(--am);margin-bottom:8px;font-family:var(--mono)">'+pend.length+' pacote(s) que NÃO serão despachados:</div>'+
+    pend.map(function(p){return '<div style="font-size:11px;font-family:var(--mono);color:var(--tm);padding:3px 0;border-bottom:1px solid var(--b1)">• '+p.numero+' · '+p.destinatario+'</div>';}).join('');
+  document.getElementById('motivoArea').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function confirmarEncerrarParcial(){
+  var motivo=document.getElementById('motivoText').value.trim();
+  if(!motivo){
+    document.getElementById('motivoAlert').style.display='block';
+    document.getElementById('motivoText').focus();
+    return;
+  }
+  // Guarda motivo e abre o painel de confirmação (fotos + obs)
+  document.getElementById('motivoArea').classList.remove('show');
+  document.getElementById('encerrarBtn').classList.remove('show');
+  // Coloca o motivo já preenchido no campo de obs do lote
+  document.getElementById('confirmArea').classList.add('show');
+  var pend=getPkgsAtivos().filter(function(p){return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1;});
+  document.getElementById('confirmText').innerHTML=
+    '<b style="color:var(--am)">⚠ Encerramento parcial</b><br>'+
+    '<span style="color:var(--gr)">'+colSession.length+' bipados</span> · '+
+    '<span style="color:var(--am)">'+pend.length+' pendentes (não despachados)</span><br>'+
+    '<span style="color:var(--tm);font-size:12px">Tire as fotos do veículo e finalize.</span>';
+  document.getElementById('fotoAlert').style.display='none';
+  document.getElementById('obsLote').value='MOTIVO ENCERRAMENTO PARCIAL: '+motivo;
+  renderFotosVeiculo();
+  renderProblemaList();
+  renderProblemaSelect();
+  document.getElementById('btnFotoVeiculo').className='foto-btn';
+  document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto (0/3)';
+  fotosVeiculo=[]; problemaPkgs=[];
+  document.getElementById('confirmArea').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 // ═══ FINALIZAR ═══
