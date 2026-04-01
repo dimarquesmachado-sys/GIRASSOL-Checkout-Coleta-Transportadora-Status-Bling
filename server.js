@@ -267,6 +267,44 @@ app.get('/info/teste-data', async (req, res) => {
   res.json(results);
 });
 
+
+// ── TESTE DIRETO VERIFICADO ───────────────────────────────────────
+app.get('/info/count24', async (req, res) => {
+  try {
+    let total = 0;
+    let page = 1;
+    let examples = [];
+    
+    // Testa idSituacao=24 sem mais nada
+    const r = await blingFetch(BLING_BASE + '/pedidos/vendas?idSituacao=24&limite=100&pagina=1');
+    const d = await r.json();
+    const all = d.data || [];
+    
+    // Conta quantos realmente tem situacao.id === 24
+    const real24 = all.filter(o => o.situacao?.id === 24);
+    
+    res.json({
+      http_status: r.status,
+      total_retornados: all.length,
+      realmente_id24: real24.length,
+      outros_ids: [...new Set(all.map(o=>o.situacao?.id))],
+      exemplos_id24: real24.slice(0,3).map(o=>({
+        id: o.id,
+        numero: o.numero,
+        situacao: o.situacao,
+        data: o.data,
+        loja: o.loja?.id
+      })),
+      exemplos_outros: all.filter(o=>o.situacao?.id!==24).slice(0,2).map(o=>({
+        numero: o.numero,
+        situacao: o.situacao
+      }))
+    });
+  } catch(e) {
+    res.json({ erro: e.message });
+  }
+});
+
 // ── TESTE: diferentes parâmetros de filtro situação ─────────────
 app.get('/info/teste-filtro', async (req, res) => {
   const results = {};
