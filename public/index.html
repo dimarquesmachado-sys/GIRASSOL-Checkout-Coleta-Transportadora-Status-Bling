@@ -15,48 +15,130 @@
   --am:#F0A442;--am2:rgba(240,164,66,.13);--am3:rgba(240,164,66,.28);
   --rd:#E05555;--rd2:rgba(224,85,85,.13);--rd3:rgba(224,85,85,.28);
   --bl:#4A9EFF;--bl2:rgba(74,158,255,.13);--bl3:rgba(74,158,255,.28);
-  --pp:#A78BFA;--pp2:rgba(167,139,250,.13);--pp3:rgba(167,139,250,.28);
   --mono:'JetBrains Mono',monospace;--sans:'Geist',sans-serif;
   --r:8px;--rl:12px;--rxl:16px;
 }
-body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh;overflow-x:hidden}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:15px}
 
-/* NAV */
-nav{background:var(--s1);border-bottom:1px solid var(--b1);height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:sticky;top:0;z-index:300}
+/* ═══ LOGIN ═══ */
+#loginScreen{
+  position:fixed;inset:0;background:var(--bg);z-index:1000;
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.login-box{
+  background:var(--s1);border:1px solid var(--b2);border-radius:20px;
+  padding:40px 36px;width:100%;max-width:400px;
+}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo-icon{
+  width:56px;height:56px;background:var(--gr2);border:1px solid var(--gr3);
+  border-radius:14px;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 12px;font-size:24px;
+}
+.login-title{font-size:20px;font-weight:600;text-align:center;margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--tm);text-align:center}
+.login-field{margin-bottom:16px}
+.login-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--tm);font-family:var(--mono);font-weight:500;margin-bottom:6px}
+.login-input-wrap{position:relative}
+.login-input{
+  width:100%;height:50px;background:var(--bg);border:1px solid var(--b2);
+  border-radius:var(--r);color:var(--tx);font-family:var(--sans);font-size:15px;
+  padding:0 14px;outline:none;transition:.15s;
+}
+.login-input:focus{border-color:var(--gr);box-shadow:0 0 0 3px var(--gr2)}
+.eye-btn{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--tm);cursor:pointer;padding:6px;
+  font-size:16px;line-height:1;transition:.15s;
+}
+.eye-btn:hover{color:var(--tx)}
+.login-btn{
+  width:100%;height:50px;background:var(--gr);color:#071A0F;border:none;
+  border-radius:var(--r);font-family:var(--sans);font-size:15px;font-weight:600;
+  cursor:pointer;margin-top:4px;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.login-btn:hover{filter:brightness(1.1)}
+.login-btn:disabled{opacity:.5;cursor:not-allowed}
+.login-err{
+  background:var(--rd2);border:1px solid var(--rd3);color:var(--rd);
+  border-radius:var(--r);padding:10px 14px;font-size:13px;text-align:center;
+  margin-top:12px;display:none;
+}
+.login-err.show{display:block}
+
+/* ═══ NAV ═══ */
+nav{
+  background:var(--s1);border-bottom:1px solid var(--b1);height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;position:sticky;top:0;z-index:200;
+}
 .brand{font-family:var(--mono);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
-.blink{width:7px;height:7px;background:var(--gr);border-radius:50%;animation:blink 2s infinite}
+.blink{width:7px;height:7px;background:var(--gr);border-radius:50%;animation:blink 2s infinite;flex-shrink:0}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.tabs{display:flex;gap:2px;background:var(--bg);border:1px solid var(--b1);border-radius:var(--r);padding:3px}
-.tab{padding:5px 12px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--tm);font-family:var(--sans);transition:.15s;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.nav-center{display:flex;gap:2px;background:var(--bg);border:1px solid var(--b1);border-radius:var(--r);padding:3px}
+.tab{
+  padding:6px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;
+  border:none;background:transparent;color:var(--tm);font-family:var(--sans);
+  transition:.15s;display:flex;align-items:center;gap:5px;white-space:nowrap;
+}
 .tab.on{background:var(--s2);color:var(--tx)}
-.nbadge{background:var(--rd);color:#fff;font-size:10px;font-family:var(--mono);font-weight:600;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center;display:none}
+.nbadge{
+  background:var(--rd);color:#fff;font-size:10px;font-family:var(--mono);
+  font-weight:600;padding:1px 5px;border-radius:10px;min-width:16px;
+  text-align:center;display:none;
+}
 .nbadge.show{display:inline-block}
+.nav-right{display:flex;align-items:center;gap:10px}
+.user-chip{
+  font-size:12px;font-family:var(--mono);color:var(--tm);
+  background:var(--s2);border:1px solid var(--b1);border-radius:20px;
+  padding:4px 10px;
+}
+.logout-btn{
+  height:30px;padding:0 12px;background:var(--s2);color:var(--tm);
+  border:1px solid var(--b2);border-radius:var(--r);font-size:12px;
+  cursor:pointer;font-family:var(--sans);transition:.15s;
+}
+.logout-btn:hover{color:var(--rd);border-color:var(--rd3)}
 
-/* PAGES */
-.page{display:none;padding:16px;max-width:880px;margin:0 auto;padding-bottom:40px}
+/* ═══ LAYOUT ═══ */
+.app-wrap{display:none;flex-direction:column;height:100vh}
+.app-wrap.show{display:flex}
+.pages-area{flex:1;overflow-y:auto}
+.page{display:none;padding:24px 28px;max-width:1400px;margin:0 auto;width:100%;padding-bottom:40px}
 .page.on{display:block}
 
-/* PULL SECTION */
-.pull-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:14px 16px;margin-bottom:14px}
+/* ═══ PULL BAR ═══ */
+.pull-bar{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);
+  padding:16px 20px;margin-bottom:16px;
+}
 .pull-info{flex:1;min-width:150px}
-.pull-date{font-family:var(--mono);font-size:13px;font-weight:500}
-.pull-sub{font-size:11px;color:var(--tm);margin-top:2px}
-.bling-dot{font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:20px;background:var(--s2);color:var(--tm);border:1px solid var(--b1);white-space:nowrap}
+.pull-date{font-family:var(--mono);font-size:14px;font-weight:500}
+.pull-sub{font-size:12px;color:var(--tm);margin-top:2px}
+.bling-dot{
+  font-size:12px;font-family:var(--mono);padding:4px 10px;border-radius:20px;
+  background:var(--s2);color:var(--tm);border:1px solid var(--b1);white-space:nowrap;
+}
 
-/* MKT BOARDS */
-.boards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px}
-.mboard{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);overflow:hidden;cursor:pointer;transition:.15s}
+/* ═══ BOARDS ═══ */
+.boards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+.mboard{
+  background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);
+  overflow:hidden;cursor:pointer;transition:.15s;
+}
 .mboard:hover{border-color:var(--b3)}
 .mboard.selected{border-color:var(--am);box-shadow:0 0 0 1px var(--am3)}
-.mb-head{padding:10px 12px;display:flex;align-items:center;justify-content:space-between}
-.mb-mkt{font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px}
-.mb-count{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--tx);padding:4px 12px 12px;line-height:1}
-.mb-sub{font-size:10px;color:var(--tm);padding:0 12px 10px;font-family:var(--mono)}
+.mb-head{padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+.mb-mkt{font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.mb-count{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--tx);padding:4px 14px 12px;line-height:1}
+.mb-sub{font-size:11px;color:var(--tm);padding:0 14px 10px;font-family:var(--mono)}
 .mb-bar{height:3px;background:var(--bg)}
 .mb-progress{height:100%;background:var(--gr);transition:width .4s}
 
-/* MKT CHIPS */
-.chip{font-size:11px;font-weight:500;padding:3px 8px;border-radius:20px;white-space:nowrap}
+/* ═══ CHIPS ═══ */
+.chip{font-size:12px;font-weight:500;padding:3px 9px;border-radius:20px;white-space:nowrap}
 .c-ml{background:rgba(255,226,0,.1);color:#D4C000;border:1px solid rgba(212,192,0,.25)}
 .c-shopee{background:rgba(232,85,45,.12);color:#E86040;border:1px solid rgba(232,85,45,.28)}
 .c-amazon{background:rgba(255,155,0,.1);color:#E09500;border:1px solid rgba(255,155,0,.25)}
@@ -66,388 +148,431 @@ nav{background:var(--s1);border-bottom:1px solid var(--b1);height:52px;display:f
 .c-americanas{background:rgba(220,50,50,.1);color:#E05050;border:1px solid rgba(220,50,50,.25)}
 .c-outro{background:var(--s2);color:var(--tm);border:1px solid var(--b2)}
 
-/* CAMERA */
-.camera-wrap{position:relative;background:#000;border-radius:var(--rl);overflow:hidden;margin-bottom:14px;aspect-ratio:16/10;border:2px solid var(--b1);transition:.3s}
-.camera-wrap.active{border-color:var(--gr3)}
-.camera-wrap.err-scan{border-color:var(--rd3);animation:shake .4s}
-.camera-wrap.ok-scan{border-color:var(--gr)}
-@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
-#camVideo{width:100%;height:100%;object-fit:cover;display:block}
-.cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.scan-frame{width:70%;max-width:280px;aspect-ratio:3/2;border:2px solid rgba(255,255,255,.5);border-radius:6px;position:relative}
-.scan-frame::before,.scan-frame::after{content:'';position:absolute;width:20px;height:20px;border-color:var(--gr);border-style:solid}
-.scan-frame::before{top:-1px;left:-1px;border-width:2px 0 0 2px;border-radius:4px 0 0 0}
-.scan-frame::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-radius:0 0 4px 0}
-.scan-line{position:absolute;left:10%;right:10%;height:2px;background:var(--gr);top:50%;transform:translateY(-50%);animation:scanLine 2s ease-in-out infinite;opacity:.8;box-shadow:0 0 8px var(--gr)}
-@keyframes scanLine{0%,100%{top:20%}50%{top:80%}}
-.cam-status{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.7);background:rgba(0,0,0,.5);padding:4px 8px}
-.cam-off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--s1)}
-.cam-off-icon{font-size:36px;opacity:.4}
-.cam-off-txt{font-size:13px;color:var(--tm);text-align:center;padding:0 20px}
-
-/* FLASH PHOTO */
-.photo-flash{position:absolute;inset:0;background:white;opacity:0;pointer-events:none;transition:opacity .15s}
-.photo-flash.flash{opacity:.8;transition:none}
-
-/* SCAN INPUT */
-.scan-input-area{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:14px;margin-bottom:12px}
-.input-row{display:flex;gap:8px;align-items:flex-end}
-.lbl{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--tm);font-weight:500;margin-bottom:5px;font-family:var(--mono)}
-input[type=text],input[type=password],select{width:100%;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:var(--mono);font-size:14px;padding:0 12px;height:46px;outline:none;transition:.15s}
+/* ═══ INPUT / SELECT ═══ */
+input[type=text],input[type=password],select{
+  width:100%;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);
+  color:var(--tx);font-family:var(--mono);font-size:14px;padding:0 12px;
+  height:46px;outline:none;transition:.15s;
+}
 input:focus,select:focus{border-color:var(--bl);box-shadow:0 0 0 3px var(--bl2)}
 input.big{height:56px;font-size:16px;letter-spacing:.06em}
-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238B8D9B' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;cursor:pointer;padding-right:30px}
+select{
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238B8D9B' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;cursor:pointer;padding-right:30px;
+}
 
-/* BUTTONS */
-.btn{height:46px;padding:0 18px;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;touch-action:manipulation}
-.btn-gr{background:var(--gr);color:#071A0F}
-.btn-gr:hover{filter:brightness(1.1)}
-.btn-am{background:var(--am);color:#1A0B00}
-.btn-am:hover{filter:brightness(1.1)}
+/* ═══ BUTTONS ═══ */
+.btn{
+  height:46px;padding:0 20px;border-radius:var(--r);font-family:var(--sans);
+  font-size:14px;font-weight:500;cursor:pointer;border:none;
+  display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;
+}
+.btn-gr{background:var(--gr);color:#071A0F}.btn-gr:hover{filter:brightness(1.1)}
+.btn-am{background:var(--am);color:#1A0B00}.btn-am:hover{filter:brightness(1.1)}
 .btn-rd{background:var(--rd2);color:var(--rd);border:1px solid var(--rd3)}
-.btn-bl{background:var(--bl2);color:var(--bl);border:1px solid var(--bl3)}
 .btn-gh{background:var(--s2);color:var(--tm);border:1px solid var(--b2)}
 .btn-gh:hover{color:var(--tx);border-color:var(--b3)}
-.btn-lg{height:56px;font-size:15px;padding:0 24px;border-radius:var(--rl);font-weight:600}
+.btn-lg{height:54px;font-size:15px;padding:0 28px;border-radius:var(--rl);font-weight:600}
 .btn-full{width:100%;justify-content:center}
 .btn-sm{height:34px;padding:0 12px;font-size:12px}
 .btn-xs{height:28px;padding:0 9px;font-size:11px}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 
-/* FEEDBACK */
-.fb{padding:11px 14px;border-radius:var(--r);font-family:var(--mono);font-size:13px;display:none;align-items:center;gap:10px;margin-top:10px;animation:fbIn .2s ease}
+/* ═══ FEEDBACK ═══ */
+.fb{
+  padding:12px 16px;border-radius:var(--r);font-family:var(--mono);font-size:13px;
+  display:none;align-items:center;gap:10px;margin-top:10px;animation:fbIn .2s ease;
+}
 .fb.show{display:flex}
 .fb.ok{background:var(--gr2);border:1px solid var(--gr3);color:var(--gr)}
 .fb.warn{background:var(--am2);border:1px solid var(--am3);color:var(--am)}
 .fb.err{background:var(--rd2);border:1px solid var(--rd3);color:var(--rd)}
 @keyframes fbIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-/* WRONG MKT */
-.wrong-alert{background:var(--rd2);border:2px solid var(--rd);border-radius:var(--rl);padding:20px;text-align:center;display:none;animation:shake .4s ease}
+/* ═══ WRONG MKT ═══ */
+.wrong-alert{
+  background:var(--rd2);border:2px solid var(--rd);border-radius:var(--rl);
+  padding:22px;text-align:center;display:none;animation:shake .4s ease;
+}
 .wrong-alert.show{display:block}
-.wrong-title{font-size:18px;font-weight:700;color:var(--rd);margin-bottom:8px}
-.wrong-body{font-size:13px;color:#F09090;line-height:1.5;font-family:var(--mono)}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.wrong-title{font-size:20px;font-weight:700;color:var(--rd);margin-bottom:8px}
+.wrong-body{font-size:14px;color:#F09090;line-height:1.5;font-family:var(--mono)}
 
-/* PROGRESS */
-.prog-area{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:14px 16px;margin-bottom:12px}
+/* ═══ PROGRESS ═══ */
+.prog-area{
+  background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);
+  padding:16px 20px;margin-bottom:14px;
+}
 .prog-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .prog-label{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--tm)}
-.prog-pct{font-family:var(--mono);font-size:16px;font-weight:600}
+.prog-pct{font-family:var(--mono);font-size:18px;font-weight:600}
 .prog-bar-wrap{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
 .prog-bar{height:100%;border-radius:3px;background:var(--gr);transition:width .4s ease}
-.prog-stats{display:flex;gap:16px;margin-top:8px;font-size:11px;font-family:var(--mono)}
+.prog-stats{display:flex;gap:16px;margin-top:8px;font-size:12px;font-family:var(--mono)}
 
-/* MISSING ALERT */
-.missing{background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--rl);padding:14px 16px;margin-bottom:12px;display:none}
+/* ═══ MISSING ═══ */
+.missing{background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--rl);padding:16px 18px;margin-bottom:14px;display:none}
 .missing.show{display:block}
-.miss-title{color:var(--rd);font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.miss-title{color:var(--rd);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .miss-item{font-family:var(--mono);font-size:12px;color:#F09090;padding:6px 0;border-bottom:1px solid rgba(224,85,85,.15);display:flex;align-items:flex-start;gap:10px}
 .miss-item:last-child{border-bottom:none}
-.miss-pkg{flex:1}
-.miss-dest{font-size:10px;color:rgba(240,144,144,.7);margin-top:2px}
 
-/* PKG LIST */
+/* ═══ PKG LIST ═══ */
 .pkg-list{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);overflow:hidden}
-.pkg-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--b1);transition:.1s;cursor:pointer}
+.pkg-row{
+  display:flex;align-items:center;gap:12px;padding:12px 16px;
+  border-bottom:1px solid var(--b1);transition:.1s;cursor:pointer;
+}
 .pkg-row:last-child{border-bottom:none}
 .pkg-row:hover{background:rgba(255,255,255,.02)}
 .pkg-row.scanned{opacity:.55}
-.pkg-code{font-family:var(--mono);font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pkg-dest{font-size:11px;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1.5}
-.pkg-time{font-family:var(--mono);font-size:10px;color:var(--th);white-space:nowrap}
-.has-photo{font-size:14px;cursor:pointer;flex-shrink:0}
+.pkg-code{font-family:var(--mono);font-size:13px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pkg-dest{font-size:12px;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1.5}
+.pkg-time{font-family:var(--mono);font-size:11px;color:var(--th);white-space:nowrap}
+.has-photo{font-size:16px;cursor:pointer;flex-shrink:0}
 
-/* BADGE */
-.badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;font-family:var(--mono);letter-spacing:.04em;white-space:nowrap}
+/* ═══ BADGE ═══ */
+.badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:4px;font-family:var(--mono);letter-spacing:.04em;white-space:nowrap}
 .b-pend{background:var(--am2);color:var(--am);border:1px solid var(--am3)}
 .b-scan{background:var(--gr2);color:var(--gr);border:1px solid var(--gr3)}
 .b-col{background:var(--gr2);color:var(--gr);border:1px solid var(--gr3)}
-.b-miss{background:var(--rd2);color:var(--rd);border:1px solid var(--rd3)}
 
-/* CONFIRM */
-.confirm{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:16px;margin-top:12px;display:none}
+/* ═══ CAMERA ═══ */
+.camera-wrap{
+  position:relative;background:#000;border-radius:var(--rl);overflow:hidden;
+  margin-bottom:14px;aspect-ratio:16/9;border:2px solid var(--b1);transition:.3s;
+  max-height:400px;
+}
+.camera-wrap.active{border-color:var(--gr3)}
+.camera-wrap.err-scan{border-color:var(--rd3);animation:shake .4s}
+.camera-wrap.ok-scan{border-color:var(--gr)}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block}
+.cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.scan-frame{width:55%;max-width:300px;aspect-ratio:3/2;border:2px solid rgba(255,255,255,.4);border-radius:6px;position:relative}
+.scan-frame::before,.scan-frame::after{content:'';position:absolute;width:22px;height:22px;border-color:var(--gr);border-style:solid}
+.scan-frame::before{top:-1px;left:-1px;border-width:2px 0 0 2px;border-radius:4px 0 0 0}
+.scan-frame::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-radius:0 0 4px 0}
+.scan-line{position:absolute;left:10%;right:10%;height:2px;background:var(--gr);top:50%;animation:scanLine 2s ease-in-out infinite;opacity:.8;box-shadow:0 0 8px var(--gr)}
+@keyframes scanLine{0%,100%{top:20%}50%{top:80%}}
+.cam-status{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.8);background:rgba(0,0,0,.5);padding:5px 8px}
+.cam-off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--s1)}
+.cam-off-icon{font-size:40px;opacity:.4}
+.cam-off-txt{font-size:14px;color:var(--tm);text-align:center;padding:0 20px}
+.photo-flash{position:absolute;inset:0;background:white;opacity:0;pointer-events:none;transition:opacity .15s}
+.photo-flash.flash{opacity:.9;transition:none}
+
+/* ═══ SCAN INPUT ═══ */
+.scan-input-area{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:16px;margin-bottom:14px}
+.input-row{display:flex;gap:8px;align-items:flex-end}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--tm);font-weight:500;margin-bottom:5px;font-family:var(--mono)}
+
+/* ═══ CONFIRM ═══ */
+.confirm{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:18px;margin-top:14px;display:none}
 .confirm.show{display:block}
 
-/* PHOTO MODAL */
-.photo-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
-.photo-modal-bg.show{display:flex}
-.photo-modal{background:var(--s1);border-radius:var(--rl);overflow:hidden;max-width:500px;width:100%}
-.photo-modal img{width:100%;display:block;max-height:70vh;object-fit:contain;background:#000}
-.photo-modal-info{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.photo-code{font-family:var(--mono);font-size:12px;font-weight:500}
+/* ═══ SUMÁRIO ═══ */
+.day-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+.sum-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:16px}
+.sum-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--tm);font-family:var(--mono);margin-bottom:8px}
+.sum-val{font-size:30px;font-weight:600;font-family:var(--mono);line-height:1}
 
-/* SUMMARY PAGE */
-.day-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px}
-.sum-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:14px}
-.sum-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--tm);font-family:var(--mono);margin-bottom:6px}
-.sum-val{font-size:28px;font-weight:600;font-family:var(--mono);line-height:1}
-
-/* PHOTO GRID */
-.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:16px}
+/* ═══ FOTO ═══ */
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px}
 .photo-thumb{position:relative;aspect-ratio:4/3;background:var(--s2);border-radius:var(--r);overflow:hidden;cursor:pointer;border:1px solid var(--b1);transition:.15s}
 .photo-thumb:hover{border-color:var(--b3)}
 .photo-thumb img{width:100%;height:100%;object-fit:cover}
 .photo-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.75);padding:4px 6px;font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .photo-mkt{position:absolute;top:4px;right:4px}
+.photo-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.photo-modal-bg.show{display:flex}
+.photo-modal{background:var(--s1);border-radius:var(--rl);overflow:hidden;max-width:560px;width:100%}
+.photo-modal img{width:100%;display:block;max-height:70vh;object-fit:contain;background:#000}
+.photo-modal-info{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
-/* CONFIG */
-.cfg-section{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:16px 18px;margin-bottom:12px}
-.cfg-title{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:12px}
+/* ═══ SECTION LABEL ═══ */
+.sec-lbl{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
 
-/* TOAST */
-.toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:90%;max-width:360px}
-.toast{padding:10px 18px;border-radius:var(--r);font-size:13px;font-weight:500;font-family:var(--mono);animation:tbIn .25s ease;box-shadow:0 4px 24px rgba(0,0,0,.5);width:100%;text-align:center}
+/* ═══ TOAST ═══ */
+.toasts{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:999;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:90%;max-width:400px}
+.toast{padding:11px 20px;border-radius:var(--r);font-size:14px;font-weight:500;font-family:var(--mono);animation:tbIn .25s ease;box-shadow:0 4px 24px rgba(0,0,0,.5);width:100%;text-align:center}
 @keyframes tbIn{from{transform:translateY(8px);opacity:0}to{opacity:1;transform:none}}
 .t-ok{background:var(--gr);color:#071A0F}
 .t-warn{background:var(--am);color:#1A0B00}
 .t-err{background:var(--rd);color:#fff}
 
-/* SPINNER */
-.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:currentColor;border-radius:50%;animation:rot .7s linear infinite;display:inline-block;flex-shrink:0}
+/* ═══ SPINNER ═══ */
+.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:currentColor;border-radius:50%;animation:rot .7s linear infinite;display:inline-block;flex-shrink:0}
 @keyframes rot{to{transform:rotate(360deg)}}
 
-/* EMPTY */
-.empty{padding:32px 20px;text-align:center;color:var(--th)}
-.e-icon{font-size:28px;margin-bottom:8px;opacity:.5}
+.empty{padding:40px 20px;text-align:center;color:var(--th)}
+.e-icon{font-size:32px;margin-bottom:10px;opacity:.5}
+hr{border:none;border-top:1px solid var(--b1);margin:16px 0}
 
-/* SESSION HEADER */
-.session-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-.session-title{font-size:16px;font-weight:600}
+/* ═══ CONFIG ═══ */
+.cfg-section{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:18px 20px;margin-bottom:14px}
+.cfg-title{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:14px}
+.cfg-info{font-size:13px;color:var(--tm);line-height:1.6}
+.cfg-warn{background:var(--am2);border:1px solid var(--am3);border-radius:var(--r);padding:12px 14px;font-size:13px;color:var(--am);margin-top:10px}
 
-/* DIVIDER */
-hr{border:none;border-top:1px solid var(--b1);margin:14px 0}
+/* ═══ TABLE ═══ */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--th);font-family:var(--mono);font-weight:500;border-bottom:1px solid var(--b1);background:var(--s2)}
+td{padding:10px 14px;border-bottom:1px solid var(--b1);font-family:var(--mono);color:var(--tm)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
 
-@media(max-width:500px){
-  .tabs .tab span:not(.nbadge){display:none}
+@media(max-width:640px){
+  .page{padding:14px 16px 40px}
+  nav{padding:0 14px}
+  .tab span:not(.nbadge){display:none}
   .day-summary{grid-template-columns:1fr 1fr}
   .boards-grid{grid-template-columns:1fr 1fr}
+  .nav-right .user-chip{display:none}
 }
 </style>
 </head>
 <body>
 
-<nav>
-  <div class="brand"><div class="blink"></div>EXPEDIÇÃO</div>
-  <div class="tabs">
-    <button class="tab on" onclick="go('romaneio',this)">
-      <span>Romaneio</span><span class="nbadge" id="nb-rom"></span>
-    </button>
-    <button class="tab" onclick="go('coleta',this)">
-      <span>📷 Coleta</span><span class="nbadge" id="nb-col"></span>
-    </button>
-    <button class="tab" onclick="go('dia',this)">
-      <span>Dia</span>
-    </button>
-    <button class="tab" onclick="go('cfg',this)">
-      <span>⚙</span>
-    </button>
-  </div>
-</nav>
-
-<!-- ═══ ROMANEIO ═══ -->
-<div class="page on" id="page-romaneio">
-  <div class="pull-bar">
-    <div class="pull-info">
-      <div class="pull-date" id="pullDateLabel">Hoje — carregando...</div>
-      <div class="pull-sub" id="pullSubLabel">Puxar pedidos ATENDIDOS do Bling</div>
+<!-- ═══ LOGIN ═══ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">🚚</div>
+      <div class="login-title">Expedição</div>
+      <div class="login-sub">Checkout de Saída · Transportadora</div>
     </div>
-    <span class="bling-dot" id="blingDot">● Bling OFF</span>
-    <button class="btn btn-am" id="pullBtn" onclick="pullFromBling()">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      Buscar no Bling
-    </button>
-    <button class="btn btn-gh btn-sm" onclick="loadDemo()">Demo</button>
-  </div>
 
-  <div id="romFeedback" class="fb" style="margin-bottom:12px"></div>
-
-  <div id="boardsArea">
-    <div class="empty" style="padding:48px 20px">
-      <div class="e-icon">📦</div>
-      <div style="font-size:13px;color:var(--tm)">Clique em "Buscar no Bling" para carregar o romaneio de hoje</div>
-      <div style="font-size:11px;color:var(--th);margin-top:6px">ou use "Demo" para ver com dados de exemplo</div>
+    <div class="login-field">
+      <div class="login-lbl">Usuário</div>
+      <input type="text" class="login-input" id="loginUser" placeholder="seu.usuario" autocomplete="username" autocapitalize="none">
     </div>
-  </div>
 
-  <div id="romListArea" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm)">Todos os pacotes de hoje</div>
-      <div style="display:flex;gap:6px">
-        <select id="romFilter" onchange="filterRomList()" style="height:32px;font-size:12px;width:auto">
-          <option value="">Todos</option>
-          <option value="ml">Mercado Livre</option>
-          <option value="shopee">Shopee</option>
-          <option value="amazon">Amazon</option>
-          <option value="magalu">Magalu</option>
-          <option value="shein">Shein</option>
-          <option value="outro">Outros</option>
-        </select>
-        <button class="btn btn-gh btn-xs" onclick="exportRomCSV()">↓ CSV</button>
+    <div class="login-field">
+      <div class="login-lbl">Senha</div>
+      <div class="login-input-wrap">
+        <input type="password" class="login-input" id="loginPass" placeholder="••••••••" autocomplete="current-password" style="padding-right:46px">
+        <button class="eye-btn" onclick="toggleLoginPass()" id="eyeBtn" type="button">👁</button>
       </div>
     </div>
-    <div class="pkg-list" id="romList"></div>
+
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
+    <div class="login-err" id="loginErr"></div>
   </div>
 </div>
 
-<!-- ═══ COLETA ═══ -->
-<div class="page" id="page-coleta">
-  <!-- CARRIER SELECT -->
-  <div style="background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:14px;margin-bottom:12px">
-    <div class="lbl" style="margin-bottom:6px">Transportadora / Marketplace que chegou agora</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select id="carrierSel" onchange="selectCarrier()" style="flex:1;min-width:180px">
-        <option value="">— Selecione —</option>
-        <option value="ml">Mercado Livre</option>
-        <option value="shopee">Shopee</option>
-        <option value="amazon">Amazon</option>
-        <option value="magalu">Magazine Luiza</option>
-        <option value="shein">Shein</option>
-        <option value="tiktok">TikTok Shop</option>
-        <option value="americanas">Americanas/B2W</option>
-        <option value="outro">Outro</option>
-      </select>
-      <div id="carrierCount" style="font-family:var(--mono);font-size:12px;color:var(--tm)"></div>
-    </div>
-  </div>
-
-  <!-- CAMERA -->
-  <div class="camera-wrap" id="camWrap">
-    <div class="cam-off" id="camOff">
-      <div class="cam-off-icon">📷</div>
-      <div class="cam-off-txt">Selecione uma transportadora e clique em Iniciar Câmera</div>
-      <button class="btn btn-gh btn-sm" style="margin-top:6px" onclick="startCamera()" id="startCamBtn" disabled>Iniciar Câmera</button>
-    </div>
-    <video id="camVideo" autoplay playsinline muted style="display:none"></video>
-    <div class="cam-overlay" id="camOverlay" style="display:none">
-      <div class="scan-frame"><div class="scan-line"></div></div>
-    </div>
-    <div class="cam-status" id="camStatus" style="display:none">Aguardando leitura...</div>
-    <div class="photo-flash" id="photoFlash"></div>
-  </div>
-
-  <!-- MANUAL INPUT -->
-  <div class="scan-input-area" id="manualArea">
-    <div class="lbl" style="margin-bottom:6px">Entrada manual / leitor USB</div>
-    <div class="input-row">
-      <div style="flex:1">
-        <input type="text" class="big" id="manualIn" placeholder="Bipe a etiqueta aqui..." autocomplete="off" disabled>
-      </div>
-      <button class="btn btn-gr" id="manualBtn" onclick="handleScan(document.getElementById('manualIn').value.trim().toUpperCase(),null)" disabled>OK</button>
-    </div>
-    <div class="fb" id="colFb"></div>
-  </div>
-
-  <!-- WRONG MKT ALERT -->
-  <div class="wrong-alert" id="wrongAlert">
-    <div class="wrong-title">🚫 MARKETPLACE ERRADO!</div>
-    <div class="wrong-body" id="wrongBody"></div>
-  </div>
-
-  <!-- PROGRESS -->
-  <div class="prog-area" id="progArea" style="display:none">
-    <div class="prog-header">
-      <span class="prog-label">Progresso</span>
-      <span class="prog-pct" id="progPct" style="color:var(--am)">0%</span>
-    </div>
-    <div class="prog-bar-wrap"><div class="prog-bar" id="progBar" style="width:0%"></div></div>
-    <div class="prog-stats">
-      <span id="statOk" style="color:var(--gr)">0 confirmados</span>
-      <span id="statPend" style="color:var(--am)">0 pendentes</span>
-    </div>
-  </div>
-
-  <!-- MISSING -->
-  <div class="missing" id="missingBox">
-    <div class="miss-title">
-      ⚠ Pacotes NÃO bipados — ficarão para trás!
-    </div>
-    <div id="missList"></div>
-  </div>
-
-  <!-- PKG LIST FOR CARRIER -->
-  <div id="colListArea" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-      <div style="font-size:12px;color:var(--tm)" id="colListTitle"></div>
-      <button class="btn btn-gh btn-xs" onclick="stopCamera()">⏹ Parar câmera</button>
-    </div>
-    <div class="pkg-list" id="colPkgList"></div>
-  </div>
-
-  <!-- CONFIRM -->
-  <div class="confirm" id="confirmBox">
-    <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--tm);margin-bottom:10px">Confirmar coleta</div>
-    <div style="font-size:13px;color:var(--tm);margin-bottom:14px" id="confirmTxt"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-gr btn-lg" onclick="finalizeColeta()" style="flex:1">
-        ✓ Confirmar entrega ao motorista
+<!-- ═══ APP ═══ -->
+<div class="app-wrap" id="appWrap">
+  <nav>
+    <div class="brand"><div class="blink"></div>EXPEDIÇÃO</div>
+    <div class="nav-center">
+      <button class="tab on" onclick="go('romaneio',this)">
+        <span>Romaneio</span><span class="nbadge" id="nb-rom"></span>
       </button>
-      <button class="btn btn-gh" onclick="cancelColeta()">Cancelar</button>
+      <button class="tab" onclick="go('coleta',this)">
+        <span>📷 Coleta</span><span class="nbadge" id="nb-col"></span>
+      </button>
+      <button class="tab" onclick="go('dia',this)">
+        <span>Dia</span>
+      </button>
+      <button class="tab" onclick="go('cfg',this)">
+        <span>⚙</span>
+      </button>
     </div>
-  </div>
-</div>
-
-<!-- ═══ DIA ═══ -->
-<div class="page" id="page-dia">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div style="font-size:17px;font-weight:600;color:var(--bl)">Resumo do Dia</div>
-    <div style="display:flex;gap:6px">
-      <button class="btn btn-gh btn-sm" onclick="renderDia()">↻</button>
-      <button class="btn btn-gh btn-sm" onclick="exportCSV()">↓ CSV</button>
-      <button class="btn btn-rd btn-sm" onclick="clearDay()">Limpar</button>
+    <div class="nav-right">
+      <span class="user-chip" id="userChip"></span>
+      <button class="logout-btn" onclick="doLogout()">Sair</button>
     </div>
-  </div>
+  </nav>
 
-  <div class="day-summary" id="daySummary"></div>
+  <div class="pages-area">
 
-  <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:10px">Por marketplace</div>
-  <div id="dayByMkt" style="margin-bottom:20px"></div>
+    <!-- ROMANEIO -->
+    <div class="page on" id="page-romaneio">
+      <div class="pull-bar">
+        <div class="pull-info">
+          <div class="pull-date" id="pullDateLabel">Carregando...</div>
+          <div class="pull-sub" id="pullSubLabel">Pedidos ATENDIDOS do Bling</div>
+        </div>
+        <span class="bling-dot" id="blingDot">● Bling</span>
+        <button class="btn btn-am" id="pullBtn" onclick="pullFromBling()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Buscar no Bling
+        </button>
+        <button class="btn btn-gh btn-sm" onclick="loadDemo()">Demo</button>
+      </div>
 
-  <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:10px">
-    Fotos das etiquetas — evidências
-    <span id="photoCount" style="color:var(--tm)"></span>
-  </div>
-  <div class="photo-grid" id="photoGrid">
-    <div class="empty" style="grid-column:1/-1"><div class="e-icon">📸</div><div>Nenhuma foto capturada ainda</div></div>
-  </div>
-</div>
+      <div id="romFeedback" class="fb" style="margin-bottom:14px"></div>
+      <div id="boardsArea">
+        <div class="empty" style="padding:60px 20px">
+          <div class="e-icon">📦</div>
+          <div style="font-size:14px;color:var(--tm)">Clique em "Buscar no Bling" para carregar o romaneio de hoje</div>
+          <div style="font-size:12px;color:var(--th);margin-top:6px">ou use "Demo" para ver com dados de exemplo</div>
+        </div>
+      </div>
 
-<!-- ═══ CONFIG ═══ -->
-<div class="page" id="page-cfg">
-  <div style="font-size:17px;font-weight:600;margin-bottom:16px">Configurações</div>
-
-  <div class="cfg-section">
-    <div class="cfg-title">Bling API — OAuth 2.0</div>
-    <div style="margin-bottom:10px">
-      <div class="lbl" style="margin-bottom:5px">Access Token (Bearer)</div>
-      <div style="display:flex;gap:8px">
-        <input type="password" id="cfgToken" placeholder="Cole seu token aqui...">
-        <button class="btn btn-gr btn-sm" onclick="saveToken()">Salvar</button>
+      <div id="romListArea" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div class="sec-lbl" style="margin:0">Todos os pacotes de hoje</div>
+          <div style="display:flex;gap:6px">
+            <select id="romFilter" onchange="filterRomList()" style="height:34px;font-size:12px;width:auto">
+              <option value="">Todos</option>
+              <option value="ml">Mercado Livre</option>
+              <option value="shopee">Shopee</option>
+              <option value="amazon">Amazon</option>
+              <option value="magalu">Magalu</option>
+              <option value="shein">Shein</option>
+              <option value="outro">Outros</option>
+            </select>
+            <button class="btn btn-gh btn-xs" onclick="exportRomCSV()">↓ CSV</button>
+          </div>
+        </div>
+        <div class="pkg-list" id="romList"></div>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--th)">O Bling usa OAuth 2.0 — token expira em 6h. Para produção, use um backend proxy para evitar bloqueio CORS.</div>
 
-    <hr style="margin:12px 0">
-    <div class="lbl" style="margin-bottom:5px">URL do Proxy (opcional)</div>
-    <input type="text" id="cfgProxy" placeholder="https://seu-proxy.com/bling (deixe vazio para acesso direto)">
-    <div style="font-size:11px;color:var(--th);margin-top:4px">Se configurado, as chamadas são roteadas pelo proxy para evitar CORS.</div>
-  </div>
+    <!-- COLETA -->
+    <div class="page" id="page-coleta">
+      <div style="background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:16px;margin-bottom:14px">
+        <div class="lbl" style="margin-bottom:7px">Transportadora / Marketplace que chegou agora</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="carrierSel" onchange="selectCarrier()" style="flex:1;min-width:200px">
+            <option value="">— Selecione —</option>
+            <option value="ml">Mercado Livre</option>
+            <option value="shopee">Shopee</option>
+            <option value="amazon">Amazon</option>
+            <option value="magalu">Magazine Luiza</option>
+            <option value="shein">Shein</option>
+            <option value="tiktok">TikTok Shop</option>
+            <option value="americanas">Americanas/B2W</option>
+            <option value="outro">Outro</option>
+          </select>
+          <div id="carrierCount" style="font-family:var(--mono);font-size:13px;color:var(--tm)"></div>
+        </div>
+      </div>
 
-  <div class="cfg-section">
-    <div class="cfg-title">Status no Bling ao finalizar coleta</div>
-    <div class="lbl" style="margin-bottom:5px">ID da situação "Coletado"</div>
-    <input type="text" id="cfgSituacao" placeholder="ex: 9 (Atendido padrão)" value="9" style="max-width:200px">
-    <div style="font-size:11px;color:var(--th);margin-top:4px">Situação aplicada ao pedido no Bling quando o pacote é coletado pela transportadora.</div>
-  </div>
+      <div class="camera-wrap" id="camWrap">
+        <div class="cam-off" id="camOff">
+          <div class="cam-off-icon">📷</div>
+          <div class="cam-off-txt">Selecione uma transportadora e clique em Iniciar Câmera</div>
+          <button class="btn btn-gh btn-sm" style="margin-top:6px" onclick="startCamera()" id="startCamBtn" disabled>Iniciar Câmera</button>
+        </div>
+        <video id="camVideo" autoplay playsinline muted style="display:none"></video>
+        <div class="cam-overlay" id="camOverlay" style="display:none">
+          <div class="scan-frame"><div class="scan-line"></div></div>
+        </div>
+        <div class="cam-status" id="camStatus" style="display:none">Aguardando leitura...</div>
+        <div class="photo-flash" id="photoFlash"></div>
+      </div>
 
-  <div class="cfg-section">
-    <div class="cfg-title">Câmera</div>
-    <div style="font-size:12px;color:var(--tm);margin-bottom:10px">O sistema usa a API nativa <code style="font-family:var(--mono);font-size:11px;background:var(--s2);padding:1px 5px;border-radius:4px">BarcodeDetector</code> do navegador (Chrome 83+, Edge, Android Chrome). Para outros navegadores, use o leitor USB/manual.</div>
-    <div id="barcodeSupport" style="font-size:12px;font-family:var(--mono)"></div>
-  </div>
+      <div class="scan-input-area">
+        <div class="lbl" style="margin-bottom:6px">Entrada manual / leitor USB</div>
+        <div class="input-row">
+          <div style="flex:1">
+            <input type="text" class="big" id="manualIn" placeholder="Bipe a etiqueta aqui..." autocomplete="off" disabled>
+          </div>
+          <button class="btn btn-gr" id="manualBtn" onclick="handleScan(document.getElementById('manualIn').value.trim().toUpperCase(),null)" disabled>OK</button>
+        </div>
+        <div class="fb" id="colFb"></div>
+      </div>
 
-  <div style="display:flex;gap:8px;margin-top:4px">
-    <button class="btn btn-gh btn-sm" onclick="exportData()">↓ Exportar JSON</button>
-    <button class="btn btn-rd btn-sm" style="margin-left:auto" onclick="resetAll()">⚠ Reset total</button>
+      <div class="wrong-alert" id="wrongAlert">
+        <div class="wrong-title">🚫 MARKETPLACE ERRADO!</div>
+        <div class="wrong-body" id="wrongBody"></div>
+      </div>
+
+      <div class="prog-area" id="progArea" style="display:none">
+        <div class="prog-header">
+          <span class="prog-label">Progresso da coleta</span>
+          <span class="prog-pct" id="progPct" style="color:var(--am)">0%</span>
+        </div>
+        <div class="prog-bar-wrap"><div class="prog-bar" id="progBar" style="width:0%"></div></div>
+        <div class="prog-stats">
+          <span id="statOk" style="color:var(--gr)"></span>
+          <span id="statPend" style="color:var(--am)"></span>
+        </div>
+      </div>
+
+      <div class="missing" id="missingBox">
+        <div class="miss-title">⚠ Pacotes NÃO bipados — ficarão para trás!</div>
+        <div id="missList"></div>
+      </div>
+
+      <div id="colListArea" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+          <div style="font-size:13px;color:var(--tm)" id="colListTitle"></div>
+          <button class="btn btn-gh btn-xs" onclick="stopCamera()">⏹ Parar câmera</button>
+        </div>
+        <div class="pkg-list" id="colPkgList"></div>
+      </div>
+
+      <div class="confirm" id="confirmBox">
+        <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--tm);margin-bottom:12px">Confirmar coleta</div>
+        <div style="font-size:14px;color:var(--tm);margin-bottom:16px" id="confirmTxt"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-gr btn-lg btn-full" onclick="finalizeColeta()">✓ Confirmar entrega ao motorista</button>
+          <button class="btn btn-gh" onclick="cancelColeta()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIA -->
+    <div class="page" id="page-dia">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:18px;font-weight:600;color:var(--bl)">Resumo do Dia</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-gh btn-sm" onclick="renderDia()">↻</button>
+          <button class="btn btn-gh btn-sm" onclick="exportCSV()">↓ CSV</button>
+          <button class="btn btn-rd btn-sm" onclick="clearDay()">Limpar dia</button>
+        </div>
+      </div>
+      <div class="day-summary" id="daySummary"></div>
+      <div class="sec-lbl">Por marketplace</div>
+      <div id="dayByMkt" style="margin-bottom:22px"></div>
+      <div class="sec-lbl">Fotos das etiquetas<span id="photoCount" style="color:var(--tm)"></span></div>
+      <div class="photo-grid" id="photoGrid"></div>
+      <div class="sec-lbl">Histórico completo</div>
+      <div class="pkg-list">
+        <table><thead><tr><th>Etiqueta</th><th>Marketplace</th><th>Destinatário</th><th>Serviço</th><th>Separado</th><th>Coletado</th><th>Status</th></tr></thead>
+        <tbody id="dashHist"></tbody></table>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="page" id="page-cfg">
+      <div style="font-size:18px;font-weight:600;margin-bottom:18px">Configurações</div>
+
+      <div class="cfg-section">
+        <div class="cfg-title">Conexão com o Bling</div>
+        <div class="cfg-info">
+          O token do Bling fica armazenado com segurança no servidor (Render), não aparece nesta tela para os funcionários.<br><br>
+          Para atualizar o token, acesse o painel do Render → seu serviço → <strong>Environment</strong> → variável <code>BLING_TOKEN</code>.
+        </div>
+        <div class="cfg-warn">
+          ⚠ O token OAuth do Bling expira a cada 6 horas. Quando o "Buscar no Bling" der erro, basta atualizar a variável no Render com um token novo.
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-title">Câmera</div>
+        <div class="cfg-info">Usa a API nativa <code>BarcodeDetector</code> do Chrome (83+, Edge, Chrome Android). Para outros navegadores use o leitor USB.</div>
+        <div id="barcodeSupport" style="font-size:13px;font-family:var(--mono);margin-top:10px"></div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-title">Usuários</div>
+        <div class="cfg-info">
+          Os usuários e senhas são gerenciados no Render → <strong>Environment</strong> → variável <code>USERS</code>.<br><br>
+          Formato: <code>funcionario1:senha123,funcionario2:senha456</code>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-gh btn-sm" onclick="exportData()">↓ Exportar JSON</button>
+        <button class="btn btn-rd btn-sm" style="margin-left:auto" onclick="resetAll()">⚠ Reset total</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -457,8 +582,8 @@ hr{border:none;border-top:1px solid var(--b1);margin:14px 0}
     <img id="photoModalImg" src="" alt="">
     <div class="photo-modal-info">
       <div>
-        <div class="photo-code" id="photoModalCode"></div>
-        <div style="font-size:11px;color:var(--tm);margin-top:2px" id="photoModalTime"></div>
+        <div style="font-family:var(--mono);font-size:13px;font-weight:500" id="photoModalCode"></div>
+        <div style="font-size:12px;color:var(--tm);margin-top:2px" id="photoModalTime"></div>
       </div>
       <button class="btn btn-gh btn-sm" onclick="closePhoto()">Fechar</button>
     </div>
@@ -468,7 +593,7 @@ hr{border:none;border-top:1px solid var(--b1);margin:14px 0}
 <div class="toasts" id="toasts"></div>
 
 <script>
-// ═══ MKT CONFIG ═══
+const PROXY = window.location.origin;
 const MKT = {
   ml:         {n:'Mercado Livre', cls:'c-ml',        icon:'🟡', svcMatch:['mlivre','mercado envios','mercado_envios','olist','mlivre flex']},
   shopee:     {n:'Shopee',        cls:'c-shopee',     icon:'🟠', svcMatch:['shopee']},
@@ -476,129 +601,152 @@ const MKT = {
   magalu:     {n:'Mag. Luiza',    cls:'c-magalu',     icon:'🔵', svcMatch:['magalu','via varejo','magazine']},
   shein:      {n:'Shein',         cls:'c-shein',      icon:'🩷', svcMatch:['shein']},
   tiktok:     {n:'TikTok Shop',   cls:'c-tiktok',     icon:'⚫', svcMatch:['tiktok']},
-  americanas: {n:'Americanas',    cls:'c-americanas', icon:'🔴', svcMatch:['americanas','b2w','submarino','shoptime']},
+  americanas: {n:'Americanas',    cls:'c-americanas', icon:'🔴', svcMatch:['americanas','b2w']},
   outro:      {n:'Outro',         cls:'c-outro',      icon:'📫', svcMatch:[]},
 };
 
 function svcToMkt(svcName){
   if(!svcName) return 'outro';
-  const n = svcName.toLowerCase();
-  for(const [id, m] of Object.entries(MKT)){
+  const n=svcName.toLowerCase();
+  for(const [id,m] of Object.entries(MKT)){
     if(id==='outro') continue;
     if(m.svcMatch.some(s=>n.includes(s))) return id;
   }
   return 'outro';
 }
 
-// ═══ STORAGE ═══
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const ld=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
 
-let packages  = ld('expv3_pkgs', []);  // pulled from Bling
-let scans     = ld('expv3_scans', []); // scan events with photos
-let blingToken= ld('expv3_token', '');
-let proxyUrl  = ld('expv3_proxy', window.location.origin);
-let situacaoId= ld('expv3_sit', 9);
+let packages=ld('expv4_pkgs',[]);
+let scans=ld('expv4_scans',[]);
+let sessionToken=ld('expv4_session','');
+let currentUser=ld('expv4_user','');
+let colSession=[];
+let activeCarrier='';
+let camStream=null;
+let barcodeDetector=null;
+let scanning=false;
+let lastCode='';
+let lastCodeAt=0;
 
-let colSession = []; // current coleta session
-let activeCarrier = '';
-let camStream = null;
-let barcodeDetector = null;
-let scanning = false;
-let lastScannedCode = '';
-let lastScannedAt = 0;
+const todayStr=()=>new Date().toISOString().split('T')[0];
+const nowT=()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const nowTS=()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+const todayPkgs=()=>packages.filter(p=>p.date===todayStr());
 
-const todayStr = ()=>new Date().toISOString().split('T')[0];
-const nowT = ()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-const nowTShort = ()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-const todayPkgs = ()=>packages.filter(p=>p.date===todayStr());
-
-// ═══ BLING API ═══
-async function blingFetch(path){
-  const base = proxyUrl
-    ? proxyUrl.replace(/\/$/,'') + '/bling' + path
-    : 'https://www.bling.com.br/Api/v3' + path;
-  const r = await fetch(base,{
-    headers:{'Authorization':`Bearer ${blingToken}`,'Accept':'application/json'}
-  });
-  if(!r.ok) throw new Error(`Bling HTTP ${r.status}`);
-  return r.json();
+// ═══ AUTH ═══
+function toggleLoginPass(){
+  const inp=document.getElementById('loginPass');
+  const btn=document.getElementById('eyeBtn');
+  if(inp.type==='password'){ inp.type='text'; btn.textContent='🙈'; }
+  else { inp.type='password'; btn.textContent='👁'; }
 }
 
-async function pullFromBling(){
-  if(!blingToken){
-    flash('romFeedback','err','err','Configure o token do Bling primeiro em ⚙ Config');
-    return;
-  }
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&document.getElementById('loginScreen').style.display!=='none') doLogin();
+});
 
-  const btn=document.getElementById('pullBtn');
+async function doLogin(){
+  const usuario=document.getElementById('loginUser').value.trim();
+  const senha=document.getElementById('loginPass').value;
+  const btn=document.getElementById('loginBtn');
+  const err=document.getElementById('loginErr');
+  err.classList.remove('show');
+
+  if(!usuario||!senha){ err.textContent='Preencha usuário e senha.'; err.classList.add('show'); return; }
+
   btn.disabled=true;
-  btn.innerHTML='<span class="spin"></span> Buscando...';
+  btn.innerHTML='<span class="spin"></span> Entrando...';
 
   try{
-    const today=todayStr();
-    let allOrders=[];
-    let page=1;
-    let hasMore=true;
+    const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario,senha})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Erro de login');
 
-    while(hasMore && page<=10){
-      const data = await blingFetch(
-        `/pedidos/vendas?dataInicial=${today}&dataFinal=${today}&pagina=${page}&limite=100`
-      );
-      const orders = data.data || [];
-      allOrders = allOrders.concat(orders);
-      hasMore = orders.length===100;
-      page++;
-    }
+    sessionToken=d.token;
+    currentUser=d.usuario;
+    sv('expv4_session',sessionToken);
+    sv('expv4_user',currentUser);
 
-    if(allOrders.length===0){
-      flash('romFeedback','warn','warn','Nenhum pedido encontrado para hoje no Bling');
-      btn.disabled=false;
-      btn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Buscar no Bling';
-      return;
-    }
-
-    // Map orders to packages
-    const newPkgs = allOrders.map(o=>{
-      const svcNome = o.transporte?.servico?.nome || o.transporte?.transportadora?.nome || '';
-      const etiqueta = o.transporte?.etiqueta?.numero || o.transporte?.codigoRastreamento || o.numero || '';
-      return {
-        id: o.id,
-        numero: o.numero,
-        etiqueta: etiqueta.toString().trim().toUpperCase(),
-        destinatario: o.contato?.nome || '—',
-        servico: svcNome,
-        mkt: svcToMkt(svcNome),
-        date: today,
-        pulledAt: nowTShort(),
-        status: 'pendente',
-        colT: null,
-        blingId: o.id,
-      };
-    }).filter(p=>p.etiqueta);
-
-    // Remove today's packages and re-add
-    packages = packages.filter(p=>p.date!==today);
-    packages = [...newPkgs, ...packages];
-    sv('expv3_pkgs',packages);
-
-    flash('romFeedback','ok','ok',`✓ ${newPkgs.length} pacotes carregados do Bling`);
-    toast(`${newPkgs.length} pacotes importados!`,'ok');
-    renderRomaneio();
-    updateBadges();
-
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('appWrap').classList.add('show');
+    document.getElementById('userChip').textContent='👤 '+currentUser;
+    initApp();
   }catch(e){
-    flash('romFeedback','err','err',`Erro: ${e.message}. Verifique o token ou use um proxy.`);
+    err.textContent=e.message;
+    err.classList.add('show');
   }
 
   btn.disabled=false;
-  btn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Buscar no Bling';
+  btn.innerHTML='Entrar';
 }
 
-// ═══ DEMO DATA ═══
+async function doLogout(){
+  await fetch('/logout',{method:'POST',headers:{'x-session-token':sessionToken}}).catch(()=>{});
+  sessionToken=''; currentUser='';
+  sv('expv4_session',''); sv('expv4_user','');
+  document.getElementById('appWrap').classList.remove('show');
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginPass').value='';
+  document.getElementById('loginErr').classList.remove('show');
+}
+
+async function checkSession(){
+  if(!sessionToken) return false;
+  try{
+    const r=await fetch('/me',{headers:{'x-session-token':sessionToken}});
+    if(!r.ok){ sessionToken=''; sv('expv4_session',''); return false; }
+    return true;
+  }catch(e){ return false; }
+}
+
+// ═══ API ═══
+async function apiFetch(path,opts={}){
+  const r=await fetch(PROXY+path,{...opts,headers:{...(opts.headers||{}),'x-session-token':sessionToken,'Content-Type':'application/json'}});
+  if(r.status===401){ doLogout(); throw new Error('Sessão expirada'); }
+  return r;
+}
+
+// ═══ BLING ═══
+async function pullFromBling(){
+  const btn=document.getElementById('pullBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Buscando...';
+
+  try{
+    const today=todayStr();
+    let all=[];let page=1;let more=true;
+    while(more&&page<=10){
+      const r=await apiFetch(`/bling/pedidos/vendas?dataInicial=${today}&dataFinal=${today}&pagina=${page}&limite=100`);
+      const d=await r.json();
+      const orders=d.data||[];
+      all=all.concat(orders);
+      more=orders.length===100; page++;
+    }
+    if(all.length===0){ flash('romFeedback','warn','Nenhum pedido encontrado para hoje'); return; }
+
+    const newPkgs=all.map(o=>{
+      const svc=o.transporte?.servico?.nome||o.transporte?.transportadora?.nome||'';
+      const etiqueta=(o.transporte?.etiqueta?.numero||o.transporte?.codigoRastreamento||o.numero||'').toString().trim().toUpperCase();
+      return {id:o.id,numero:o.numero,etiqueta,destinatario:o.contato?.nome||'—',servico:svc,mkt:svcToMkt(svc),date:today,pulledAt:nowTS(),status:'pendente',colT:null,blingId:o.id};
+    }).filter(p=>p.etiqueta);
+
+    packages=packages.filter(p=>p.date!==today);
+    packages=[...newPkgs,...packages];
+    sv('expv4_pkgs',packages);
+
+    flash('romFeedback','ok',`✓ ${newPkgs.length} pacotes carregados`);
+    toast(`${newPkgs.length} pacotes importados!`,'ok');
+    renderRomaneio(); updateBadges();
+  }catch(e){ flash('romFeedback','err','Erro: '+e.message); }
+
+  btn.disabled=false;
+  btn.innerHTML='<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Buscar no Bling';
+}
+
 function loadDemo(){
   const today=todayStr();
-  const demoData=[
+  const demo=[
     {etiqueta:'BR263242008946C',destinatario:'Julio Sousa',servico:'Logistica Shopee',mkt:'shopee',numero:'103769'},
     {etiqueta:'BR267016595588',destinatario:'José Adenilto Benito',servico:'Shopee Xpress',mkt:'shopee',numero:'103824'},
     {etiqueta:'BR261193452054',destinatario:'Carlos Eduardo Braga',servico:'Shopee Xpress',mkt:'shopee',numero:'103824'},
@@ -608,48 +756,26 @@ function loadDemo(){
     {etiqueta:'MGZ456789012',destinatario:'Fernanda Lima',servico:'MAGALU Entregas',mkt:'magalu',numero:'103715'},
     {etiqueta:'BR263242008945',destinatario:'Paulo Mendes',servico:'Shopee Xpress',mkt:'shopee',numero:'103900'},
     {etiqueta:'OD123456789BR',destinatario:'Ana Paula',servico:'Mercado Envios Full',mkt:'ml',numero:'103745'},
-    {etiqueta:'BR260640400193',destinatario:'Roberto Soares',servico:'Logistica Shopee',mkt:'shopee',numero:'103810'},
-  ].map((d,i)=>({
-    ...d,
-    id: 100+i,
-    etiqueta: d.etiqueta.toUpperCase(),
-    date: today,
-    pulledAt: '09:00',
-    status: 'pendente',
-    colT: null,
-    blingId: 100+i,
-  }));
-
-  packages = packages.filter(p=>p.date!==today);
-  packages = [...demoData, ...packages];
-  sv('expv3_pkgs',packages);
-
-  flash('romFeedback','ok','ok',`✓ ${demoData.length} pacotes de demonstração carregados`);
-  toast('Dados demo carregados!','ok');
-  renderRomaneio();
-  updateBadges();
+  ].map((d,i)=>({...d,id:100+i,date:today,pulledAt:'09:00',status:'pendente',colT:null,blingId:100+i}));
+  packages=packages.filter(p=>p.date!==today);
+  packages=[...demo,...packages];
+  sv('expv4_pkgs',packages);
+  flash('romFeedback','ok',`✓ ${demo.length} pacotes demo carregados`);
+  renderRomaneio(); updateBadges();
 }
 
-// ═══ RENDER ROMANEIO ═══
+// ═══ ROMANEIO ═══
 function renderRomaneio(){
-  const today = todayPkgs();
+  const today=todayPkgs();
   if(today.length===0){
-    document.getElementById('boardsArea').innerHTML=`<div class="empty" style="padding:48px 20px"><div class="e-icon">📦</div><div style="font-size:13px;color:var(--tm)">Nenhum pacote ainda. Clique em "Buscar no Bling" ou "Demo"</div></div>`;
-    document.getElementById('romListArea').style.display='none';
-    return;
+    document.getElementById('boardsArea').innerHTML='<div class="empty" style="padding:60px 20px"><div class="e-icon">📦</div><div style="font-size:14px;color:var(--tm)">Nenhum pacote. Clique em "Buscar no Bling" ou "Demo"</div></div>';
+    document.getElementById('romListArea').style.display='none'; return;
   }
-
   const byMkt={};
-  today.forEach(p=>{
-    if(!byMkt[p.mkt]) byMkt[p.mkt]=[];
-    byMkt[p.mkt].push(p);
-  });
-
-  const mkts=Object.keys(byMkt).sort();
+  today.forEach(p=>{ if(!byMkt[p.mkt]) byMkt[p.mkt]=[]; byMkt[p.mkt].push(p); });
   document.getElementById('boardsArea').innerHTML=
-    `<div class="boards-grid">${mkts.map(m=>{
-      const list=byMkt[m];
-      const col=list.filter(p=>p.status==='coletado').length;
+    `<div class="boards-grid">${Object.keys(byMkt).sort().map(m=>{
+      const list=byMkt[m];const col=list.filter(p=>p.status==='coletado').length;
       const pct=Math.round(col/list.length*100);
       return `<div class="mboard" onclick="quickFilterRom('${m}')">
         <div class="mb-head"><div class="mb-mkt">${MKT[m].icon}<span class="chip ${MKT[m].cls}">${MKT[m].n}</span></div></div>
@@ -658,521 +784,231 @@ function renderRomaneio(){
         <div class="mb-bar"><div class="mb-progress" style="width:${pct}%"></div></div>
       </div>`;
     }).join('')}</div>`;
-
   document.getElementById('romListArea').style.display='block';
   renderRomList(today);
-  updateDateLabel();
-}
-
-function renderRomList(list){
-  document.getElementById('romList').innerHTML = list.length===0
-    ? '<div class="empty"><div class="e-icon">—</div><div>Sem pacotes</div></div>'
-    : list.map(p=>{
-        const scan=scans.find(s=>s.etiqueta===p.etiqueta && s.date===todayStr());
-        return `<div class="pkg-row ${p.status==='coletado'?'scanned':''}">
-          <div style="width:16px;text-align:center;flex-shrink:0">${MKT[p.mkt].icon}</div>
-          <div style="flex:1;min-width:0">
-            <div class="pkg-code">${p.etiqueta}</div>
-            <div class="pkg-dest">${p.destinatario} · ${p.servico}</div>
-          </div>
-          <span class="badge ${p.status==='coletado'?'b-col':'b-pend'}">${p.status==='coletado'?'COLETADO':'PENDENTE'}</span>
-          ${scan?.photo?`<span class="has-photo" onclick="event.stopPropagation();showPhoto('${p.etiqueta}')">📸</span>`:''}
-          <span class="pkg-time">${p.pulledAt||''}</span>
-        </div>`;
-      }).join('');
-}
-
-function quickFilterRom(mkt){
-  document.getElementById('romFilter').value=mkt;
-  filterRomList();
-}
-
-function filterRomList(){
-  const f=document.getElementById('romFilter').value;
-  const today=todayPkgs();
-  renderRomList(f?today.filter(p=>p.mkt===f):today);
-}
-
-function updateDateLabel(){
-  const today=todayPkgs();
   const d=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
   document.getElementById('pullDateLabel').textContent=d.charAt(0).toUpperCase()+d.slice(1);
   document.getElementById('pullSubLabel').textContent=`${today.length} pacotes · ${today.filter(p=>p.status==='coletado').length} coletados`;
 }
 
+function renderRomList(list){
+  document.getElementById('romList').innerHTML=list.length===0
+    ?'<div class="empty"><div class="e-icon">—</div></div>'
+    :list.map(p=>{
+      const scan=scans.find(s=>s.etiqueta===p.etiqueta&&s.date===todayStr());
+      return `<div class="pkg-row ${p.status==='coletado'?'scanned':''}">
+        <div style="width:18px;text-align:center;flex-shrink:0">${MKT[p.mkt].icon}</div>
+        <div style="flex:1;min-width:0"><div class="pkg-code">${p.etiqueta}</div><div class="pkg-dest">${p.destinatario} · ${p.servico}</div></div>
+        <span class="badge ${p.status==='coletado'?'b-col':'b-pend'}">${p.status==='coletado'?'COLETADO':'PENDENTE'}</span>
+        ${scan?.photo?`<span class="has-photo" onclick="event.stopPropagation();showPhoto('${p.etiqueta}')">📸</span>`:''}
+        <span class="pkg-time">${p.pulledAt||''}</span>
+      </div>`;
+    }).join('');
+}
+
+function quickFilterRom(mkt){ document.getElementById('romFilter').value=mkt; filterRomList(); }
+function filterRomList(){ const f=document.getElementById('romFilter').value; const t=todayPkgs(); renderRomList(f?t.filter(p=>p.mkt===f):t); }
+
 // ═══ COLETA ═══
 function selectCarrier(){
   activeCarrier=document.getElementById('carrierSel').value;
   colSession=[];
-  document.getElementById('wrongAlert').classList.remove('show');
-  document.getElementById('confirmBox').classList.remove('show');
-  document.getElementById('missingBox').classList.remove('show');
+  ['wrongAlert','confirmBox','missingBox'].forEach(id=>document.getElementById(id).classList.remove('show'));
   document.getElementById('manualIn').disabled=!activeCarrier;
   document.getElementById('manualBtn').disabled=!activeCarrier;
   document.getElementById('startCamBtn').disabled=!activeCarrier;
-
-  if(!activeCarrier){
-    document.getElementById('carrierCount').textContent='';
-    document.getElementById('progArea').style.display='none';
-    document.getElementById('colListArea').style.display='none';
-    return;
-  }
-
-  const pending=todayPkgs().filter(p=>p.mkt===activeCarrier && p.status==='pendente');
-  document.getElementById('carrierCount').innerHTML=
-    `<span class="chip ${MKT[activeCarrier].cls}">${MKT[activeCarrier].icon} ${MKT[activeCarrier].n}</span> &nbsp; <span style="font-family:var(--mono)">${pending.length} pacotes aguardando</span>`;
-
+  if(!activeCarrier){ document.getElementById('carrierCount').textContent=''; document.getElementById('progArea').style.display='none'; document.getElementById('colListArea').style.display='none'; return; }
+  const pending=todayPkgs().filter(p=>p.mkt===activeCarrier&&p.status==='pendente');
+  document.getElementById('carrierCount').innerHTML=`<span class="chip ${MKT[activeCarrier].cls}">${MKT[activeCarrier].icon} ${MKT[activeCarrier].n}</span> &nbsp;<span style="font-family:var(--mono)">${pending.length} pacotes aguardando</span>`;
   document.getElementById('manualIn').focus();
-  renderColList();
-  renderColProgress();
+  renderColList(); renderColProgress();
 }
 
-document.getElementById('manualIn').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){
-    const code=document.getElementById('manualIn').value.trim().toUpperCase();
-    if(code){ handleScan(code,null); document.getElementById('manualIn').value=''; }
-  }
-});
+document.getElementById('manualIn').addEventListener('keydown',e=>{ if(e.key==='Enter'){ const c=document.getElementById('manualIn').value.trim().toUpperCase(); if(c){ handleScan(c,null); document.getElementById('manualIn').value=''; } } });
 
-function handleScan(code, photo){
+function handleScan(code,photo){
   if(!code||!activeCarrier) return;
-
-  // Debounce double-scan
-  if(code===lastScannedCode && Date.now()-lastScannedAt<2000) return;
-  lastScannedCode=code; lastScannedAt=Date.now();
+  if(code===lastCode&&Date.now()-lastCodeAt<2000) return;
+  lastCode=code; lastCodeAt=Date.now();
 
   const today=todayStr();
-  const fb=document.getElementById('colFb');
   const wrongEl=document.getElementById('wrongAlert');
   wrongEl.classList.remove('show');
 
-  const pkg=packages.find(p=>p.etiqueta===code && p.date===today && p.mkt===activeCarrier && p.status==='pendente');
-  const wrongPkg=packages.find(p=>p.etiqueta===code && p.date===today && p.mkt!==activeCarrier && p.status==='pendente');
-  const alreadyCol=packages.find(p=>p.etiqueta===code && p.date===today && p.status==='coletado');
-  const alreadyScan=colSession.includes(code);
+  const pkg=packages.find(p=>p.etiqueta===code&&p.date===today&&p.mkt===activeCarrier&&p.status==='pendente');
+  const wrongPkg=packages.find(p=>p.etiqueta===code&&p.date===today&&p.mkt!==activeCarrier&&p.status==='pendente');
+  const already=packages.find(p=>p.etiqueta===code&&p.date===today&&p.status==='coletado');
+  const inSession=colSession.includes(code);
 
-  if(alreadyScan||alreadyCol){
-    flash('colFb','warn','warn',`⚠ ${code} já foi bipado`);
-    animCam('warn'); return;
-  }
+  if(inSession||already){ flash('colFb','warn',`⚠ ${code} já foi bipado`); return; }
 
   if(wrongPkg){
-    document.getElementById('wrongBody').innerHTML=
-      `Este pacote é de <b>${MKT[wrongPkg.mkt].icon} ${MKT[wrongPkg.mkt].n}</b>, não de ${MKT[activeCarrier].icon} ${MKT[activeCarrier].n}!<br>
-       <span style="font-size:15px;display:block;margin-top:8px">${code}</span>
-       <span style="font-size:11px;color:rgba(240,144,144,.7)">${wrongPkg.destinatario}</span>`;
-    wrongEl.classList.add('show');
-    animCam('err');
-    toast(`ERRADO: ${code} é ${MKT[wrongPkg.mkt].n}!`,'err');
-    return;
+    document.getElementById('wrongBody').innerHTML=`Este pacote é de <b>${MKT[wrongPkg.mkt].icon} ${MKT[wrongPkg.mkt].n}</b>, não de ${MKT[activeCarrier].icon} ${MKT[activeCarrier].n}!<br><span style="font-size:16px;display:block;margin-top:8px;font-family:var(--mono)">${code}</span><span style="font-size:12px;color:rgba(240,144,144,.7)">${wrongPkg.destinatario}</span>`;
+    wrongEl.classList.add('show'); animCam('err');
+    toast(`ERRADO: ${code} é ${MKT[wrongPkg.mkt].n}!`,'err'); return;
   }
 
-  if(!pkg){
-    // Not in Bling list for this carrier — warn but allow with manual override
-    flash('colFb','warn','warn',`⚠ ${code} não encontrado na lista de ${MKT[activeCarrier].n} — verifique ou adicione manualmente`);
-    animCam('warn'); return;
-  }
+  if(!pkg){ flash('colFb','warn',`⚠ ${code} não encontrado na lista de ${MKT[activeCarrier].n}`); animCam('warn'); return; }
 
-  // SUCCESS
   colSession.push(code);
-
-  // Save scan with photo
-  const scanRecord={
-    etiqueta: code,
-    mkt: activeCarrier,
-    date: today,
-    time: nowTShort(),
-    photo: photo,
-    destinatario: pkg.destinatario,
-    numero: pkg.numero,
-  };
-  scans.unshift(scanRecord);
-  sv('expv3_scans',scans);
-
-  // Flash photo
+  const sr={etiqueta:code,mkt:activeCarrier,date:today,time:nowTS(),photo,destinatario:pkg.destinatario,numero:pkg.numero};
+  scans.unshift(sr); sv('expv4_scans',scans);
   if(photo) flashPhoto();
-
-  flash('colFb','ok','ok',`✓ ${code} · ${pkg.destinatario}`);
-  animCam('ok');
-  toast(`✓ ${code}`,'ok');
-
-  renderColList();
-  renderColProgress();
-  checkAllDone();
+  flash('colFb','ok',`✓ ${code} · ${pkg.destinatario}`);
+  animCam('ok'); toast(`✓ ${code}`,'ok');
+  renderColList(); renderColProgress(); checkAllDone();
 }
 
 function renderColList(){
   if(!activeCarrier){ document.getElementById('colListArea').style.display='none'; return; }
-  const today=todayStr();
-  const all=packages.filter(p=>p.mkt===activeCarrier && p.date===today);
-
+  const all=packages.filter(p=>p.mkt===activeCarrier&&p.date===todayStr());
   document.getElementById('colListArea').style.display='block';
   document.getElementById('colListTitle').textContent=`Pacotes ${MKT[activeCarrier].n} — hoje`;
-
-  if(all.length===0){
-    document.getElementById('colPkgList').innerHTML='<div class="empty"><div class="e-icon">—</div><div>Sem pacotes para esta transportadora</div></div>';
-    return;
-  }
-
-  document.getElementById('colPkgList').innerHTML=all.map(p=>{
-    const scannedNow=colSession.includes(p.etiqueta);
-    const collected=p.status==='coletado';
-    const isScanned=scannedNow||collected;
-    const scan=scans.find(s=>s.etiqueta===p.etiqueta && s.date===today);
-    return `<div class="pkg-row ${isScanned?'scanned':''}">
-      <div class="pkg-code">${p.etiqueta}</div>
-      <div class="pkg-dest">${p.destinatario}</div>
-      ${scan?.photo?`<span class="has-photo" onclick="showPhoto('${p.etiqueta}')">📸</span>`:''}
-      <span class="badge ${isScanned?'b-scan':'b-pend'}">${isScanned?'✓ BIPADO':'AGUARDANDO'}</span>
-    </div>`;
-  }).join('');
+  document.getElementById('colPkgList').innerHTML=all.length===0
+    ?'<div class="empty"><div>Sem pacotes para esta transportadora</div></div>'
+    :all.map(p=>{ const sc=colSession.includes(p.etiqueta)||p.status==='coletado'; const s=scans.find(x=>x.etiqueta===p.etiqueta&&x.date===todayStr());
+      return `<div class="pkg-row ${sc?'scanned':''}"><div class="pkg-code">${p.etiqueta}</div><div class="pkg-dest">${p.destinatario}</div>${s?.photo?`<span class="has-photo" onclick="showPhoto('${p.etiqueta}')">📸</span>`:''}<span class="badge ${sc?'b-scan':'b-pend'}">${sc?'✓ BIPADO':'AGUARDANDO'}</span></div>`;
+    }).join('');
 }
 
 function renderColProgress(){
   if(!activeCarrier){ document.getElementById('progArea').style.display='none'; return; }
-  const pending=todayPkgs().filter(p=>p.mkt===activeCarrier && p.status==='pendente' && !colSession.includes(p.etiqueta));
-  const total=pending.length+colSession.length;
-  if(total===0) return;
-
-  const pct=total>0?Math.round(colSession.length/total*100):0;
+  const pend=todayPkgs().filter(p=>p.mkt===activeCarrier&&p.status==='pendente'&&!colSession.includes(p.etiqueta));
+  const total=pend.length+colSession.length; if(total===0) return;
+  const pct=Math.round(colSession.length/total*100);
   document.getElementById('progArea').style.display='block';
   document.getElementById('progBar').style.width=pct+'%';
   document.getElementById('progPct').textContent=pct+'%';
   document.getElementById('progPct').style.color=pct===100?'var(--gr)':'var(--am)';
   document.getElementById('statOk').textContent=`✓ ${colSession.length} confirmados`;
-  document.getElementById('statPend').textContent=`${pending.length} pendentes`;
+  document.getElementById('statPend').textContent=`${pend.length} pendentes`;
 }
 
 function checkAllDone(){
-  if(!activeCarrier) return;
-  const pending=todayPkgs().filter(p=>p.mkt===activeCarrier && p.status==='pendente' && !colSession.includes(p.etiqueta));
-  if(pending.length===0 && colSession.length>0){
+  const pend=todayPkgs().filter(p=>p.mkt===activeCarrier&&p.status==='pendente'&&!colSession.includes(p.etiqueta));
+  if(pend.length===0&&colSession.length>0){
     document.getElementById('confirmBox').classList.add('show');
-    document.getElementById('confirmTxt').innerHTML=`Todos os <b style="color:var(--gr)">${colSession.length}</b> pacotes de ${MKT[activeCarrier].icon} ${MKT[activeCarrier].n} foram bipados e fotografados.<br><br>Confirme para registrar a entrega ao motorista e atualizar o Bling.`;
+    document.getElementById('confirmTxt').innerHTML=`Todos os <b style="color:var(--gr)">${colSession.length}</b> pacotes de ${MKT[activeCarrier].icon} ${MKT[activeCarrier].n} foram bipados. Confirme a entrega ao motorista.`;
     document.getElementById('missingBox').classList.remove('show');
   }
 }
 
 function finalizeColeta(){
   if(!activeCarrier||colSession.length===0) return;
-  const pending=todayPkgs().filter(p=>p.mkt===activeCarrier && p.status==='pendente' && !colSession.includes(p.etiqueta));
-
-  if(pending.length>0){
-    const mb=document.getElementById('missingBox');
-    mb.classList.add('show');
-    document.getElementById('missList').innerHTML=pending.map(p=>`
-      <div class="miss-item">
-        ⚠ <div class="miss-pkg">
-          <div>${p.etiqueta}</div>
-          <div class="miss-dest">${p.destinatario}</div>
-        </div>
-      </div>`).join('');
+  const pend=todayPkgs().filter(p=>p.mkt===activeCarrier&&p.status==='pendente'&&!colSession.includes(p.etiqueta));
+  if(pend.length>0){
+    document.getElementById('missingBox').classList.add('show');
+    document.getElementById('missList').innerHTML=pend.map(p=>`<div class="miss-item">⚠ <div><div>${p.etiqueta}</div><div style="font-size:11px;color:rgba(240,144,144,.6)">${p.destinatario}</div></div></div>`).join('');
     document.getElementById('confirmBox').classList.remove('show');
-    toast(`${pending.length} pacote(s) faltando!`,'err');
-    return;
+    toast(`${pend.length} pacote(s) faltando!`,'err'); return;
   }
-
   const now=nowT();
-  colSession.forEach(code=>{
-    const pkg=packages.find(p=>p.etiqueta===code && p.date===todayStr());
-    if(pkg){ pkg.status='coletado'; pkg.colT=now; }
-  });
-  sv('expv3_pkgs',packages);
-
-  if(blingToken) colSession.forEach(c=>{
-    const p=packages.find(x=>x.etiqueta===c && x.date===todayStr());
-    if(p?.blingId) updateBlingStatus(p.blingId);
-  });
-
+  colSession.forEach(code=>{ const p=packages.find(x=>x.etiqueta===code&&x.date===todayStr()); if(p){ p.status='coletado'; p.colT=now; } });
+  sv('expv4_pkgs',packages);
+  colSession.forEach(c=>{ const p=packages.find(x=>x.etiqueta===c&&x.date===todayStr()); if(p?.blingId) updateBlingStatus(p.blingId); });
   toast(`${MKT[activeCarrier].n}: ${colSession.length} pacotes entregues ✓`,'ok');
-  colSession=[];
-  stopCamera();
-
-  document.getElementById('carrierSel').value='';
-  selectCarrier();
-  renderRomaneio();
-  updateBadges();
-  renderDia();
+  colSession=[]; stopCamera();
+  document.getElementById('carrierSel').value=''; selectCarrier();
+  renderRomaneio(); updateBadges(); renderDia();
 }
 
-function cancelColeta(){
-  colSession=[];
-  document.getElementById('carrierSel').value='';
-  selectCarrier();
+function cancelColeta(){ colSession=[]; document.getElementById('carrierSel').value=''; selectCarrier(); }
+
+async function updateBlingStatus(id){
+  try{ await apiFetch(`/bling/pedidos/vendas/${id}/situacoes/9`,{method:'PATCH'}); }catch(e){}
 }
 
 // ═══ CAMERA ═══
 async function startCamera(){
   if(!activeCarrier) return;
+  if(!('BarcodeDetector' in window)){ toast('Use Chrome Android ou leitor USB','warn'); return; }
   try{
-    if(!('BarcodeDetector' in window)){
-      toast('BarcodeDetector não disponível — use leitor USB ou Chrome Android','warn');
-      return;
-    }
-
-    camStream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}
-    });
-
-    const video=document.getElementById('camVideo');
-    video.srcObject=camStream;
-    video.style.display='block';
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
+    const v=document.getElementById('camVideo'); v.srcObject=camStream; v.style.display='block';
     document.getElementById('camOff').style.display='none';
     document.getElementById('camOverlay').style.display='flex';
     document.getElementById('camStatus').style.display='block';
     document.getElementById('camWrap').classList.add('active');
-
-    barcodeDetector=new BarcodeDetector({
-      formats:['code_128','code_39','ean_13','ean_8','qr_code','data_matrix','pdf417','itf','aztec','code_93']
-    });
-
-    scanning=true;
-    scanLoop();
-    toast('Câmera ativa — aponte para o código','ok');
-
-  }catch(e){
-    toast('Não foi possível acessar a câmera: '+e.message,'err');
-  }
+    barcodeDetector=new BarcodeDetector({formats:['code_128','code_39','ean_13','ean_8','qr_code','data_matrix','pdf417','itf','aztec']});
+    scanning=true; scanLoop(); toast('Câmera ativa','ok');
+  }catch(e){ toast('Câmera: '+e.message,'err'); }
 }
 
 async function scanLoop(){
   if(!scanning||!barcodeDetector) return;
-  const video=document.getElementById('camVideo');
-  try{
-    const codes=await barcodeDetector.detect(video);
-    if(codes.length>0){
-      const code=codes[0].rawValue.trim().toUpperCase();
-      if(code!==lastScannedCode || Date.now()-lastScannedAt>3000){
-        const photo=capturePhoto(video);
-        handleScan(code,photo);
-      }
-    }
-  }catch(e){}
+  const v=document.getElementById('camVideo');
+  try{ const codes=await barcodeDetector.detect(v); if(codes.length>0){ const code=codes[0].rawValue.trim().toUpperCase(); if(code!==lastCode||Date.now()-lastCodeAt>3000){ const photo=capturePhoto(v); handleScan(code,photo); } } }catch(e){}
   requestAnimationFrame(scanLoop);
 }
 
-function capturePhoto(video){
-  try{
-    const canvas=document.createElement('canvas');
-    canvas.width=video.videoWidth;
-    canvas.height=video.videoHeight;
-    canvas.getContext('2d').drawImage(video,0,0);
-    return canvas.toDataURL('image/jpeg',0.6);
-  }catch(e){return null;}
-}
+function capturePhoto(v){ try{ const c=document.createElement('canvas'); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext('2d').drawImage(v,0,0); return c.toDataURL('image/jpeg',.6); }catch(e){return null;} }
+function flashPhoto(){ const el=document.getElementById('photoFlash'); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),150); }
+function animCam(t){ const w=document.getElementById('camWrap'); w.className='camera-wrap active '+(t==='ok'?'ok-scan':t==='err'?'err-scan':''); setTimeout(()=>w.className='camera-wrap active',600); }
+function stopCamera(){ scanning=false; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } const v=document.getElementById('camVideo'); v.style.display='none'; v.srcObject=null; document.getElementById('camOff').style.display='flex'; document.getElementById('camOverlay').style.display='none'; document.getElementById('camStatus').style.display='none'; document.getElementById('camWrap').classList.remove('active'); }
 
-function flashPhoto(){
-  const el=document.getElementById('photoFlash');
-  el.classList.add('flash');
-  setTimeout(()=>el.classList.remove('flash'),150);
-}
-
-function animCam(type){
-  const w=document.getElementById('camWrap');
-  w.className='camera-wrap active '+(type==='ok'?'ok-scan':type==='err'?'err-scan':'');
-  setTimeout(()=>w.className='camera-wrap active',600);
-}
-
-function stopCamera(){
-  scanning=false;
-  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
-  const video=document.getElementById('camVideo');
-  video.style.display='none';
-  video.srcObject=null;
-  document.getElementById('camOff').style.display='flex';
-  document.getElementById('camOverlay').style.display='none';
-  document.getElementById('camStatus').style.display='none';
-  document.getElementById('camWrap').classList.remove('active');
-}
-
-// ═══ BLING UPDATE ═══
-async function updateBlingStatus(orderId){
-  if(!blingToken||!orderId) return;
-  try{
-    const url=proxyUrl
-      ? `${proxyUrl.replace(/\/$/,'')}/bling/pedidos/vendas/${orderId}/situacoes/${situacaoId}`
-      : `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}/situacoes/${situacaoId}`;
-    await fetch(url,{method:'PATCH',headers:{'Authorization':`Bearer ${blingToken}`,'Accept':'application/json'}});
-  }catch(e){}
-}
-
-// ═══ DIA PANEL ═══
+// ═══ DIA ═══
 function renderDia(){
-  const today=todayPkgs();
-  const todayScans=scans.filter(s=>s.date===todayStr());
+  const today=todayPkgs(); const ts=scans.filter(s=>s.date===todayStr());
   const col=today.filter(p=>p.status==='coletado').length;
-  const pend=today.filter(p=>p.status==='pendente').length;
-  const withPhoto=todayScans.filter(s=>s.photo).length;
-
   document.getElementById('daySummary').innerHTML=`
     <div class="sum-card"><div class="sum-lbl">Total</div><div class="sum-val" style="color:var(--tx)">${today.length}</div></div>
     <div class="sum-card"><div class="sum-lbl">Coletados</div><div class="sum-val" style="color:var(--gr)">${col}</div></div>
-    <div class="sum-card"><div class="sum-lbl">Pendentes</div><div class="sum-val" style="color:var(--am)">${pend}</div></div>
-    <div class="sum-card"><div class="sum-lbl">Fotos</div><div class="sum-val" style="color:var(--pp)">${withPhoto}</div></div>
-  `;
+    <div class="sum-card"><div class="sum-lbl">Pendentes</div><div class="sum-val" style="color:var(--am)">${today.length-col}</div></div>
+    <div class="sum-card"><div class="sum-lbl">Fotos</div><div class="sum-val" style="color:var(--bl)">${ts.filter(s=>s.photo).length}</div></div>`;
 
   const mkts=[...new Set(today.map(p=>p.mkt))];
-  document.getElementById('dayByMkt').innerHTML=mkts.length===0
-    ?'<div style="color:var(--th);font-size:12px">Nenhum pacote hoje</div>'
-    :`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">`+
-     mkts.map(m=>{
-       const mp=today.filter(p=>p.mkt===m);
-       const mc=mp.filter(p=>p.status==='coletado').length;
-       const pct=mp.length?Math.round(mc/mp.length*100):0;
-       return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px">
-         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-           <span class="chip ${MKT[m].cls}">${MKT[m].icon} ${MKT[m].n}</span>
-           <span style="font-family:var(--mono);font-size:11px;color:var(--tm)">${pct}%</span>
-         </div>
-         <div class="prog-bar-wrap" style="margin:0 0 8px"><div class="prog-bar" style="width:${pct}%"></div></div>
-         <div style="font-size:10px;font-family:var(--mono);display:flex;gap:10px">
-           <span style="color:var(--am)">${mp.length-mc} pend.</span>
-           <span style="color:var(--gr)">${mc} col.</span>
-         </div>
-       </div>`;
+  document.getElementById('dayByMkt').innerHTML=mkts.length===0?'<div style="color:var(--th);font-size:13px">Nenhum pacote hoje</div>'
+    :`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px">`+
+     mkts.map(m=>{ const mp=today.filter(p=>p.mkt===m); const mc=mp.filter(p=>p.status==='coletado').length; const pct=mp.length?Math.round(mc/mp.length*100):0;
+       return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span class="chip ${MKT[m].cls}">${MKT[m].icon} ${MKT[m].n}</span><span style="font-family:var(--mono);font-size:12px;color:var(--tm)">${pct}%</span></div><div class="prog-bar-wrap" style="margin:0 0 8px"><div class="prog-bar" style="width:${pct}%"></div></div><div style="font-size:11px;font-family:var(--mono);display:flex;gap:10px"><span style="color:var(--am)">${mp.length-mc} pend.</span><span style="color:var(--gr)">${mc} col.</span></div></div>`;
      }).join('')+'</div>';
 
-  const photos=todayScans.filter(s=>s.photo);
-  document.getElementById('photoCount').textContent=photos.length?`(${photos.length})`:'';
+  const photos=ts.filter(s=>s.photo);
+  document.getElementById('photoCount').textContent=photos.length?` (${photos.length})`:'';
   document.getElementById('photoGrid').innerHTML=photos.length===0
-    ?'<div class="empty" style="grid-column:1/-1"><div class="e-icon">📸</div><div>Nenhuma foto ainda — use a câmera na coleta</div></div>'
-    :photos.map(s=>`
-      <div class="photo-thumb" onclick="showPhoto('${s.etiqueta}')">
-        <img src="${s.photo}" alt="${s.etiqueta}" loading="lazy">
-        <div class="photo-label">${s.etiqueta}</div>
-        <div class="photo-mkt"><span class="chip ${MKT[s.mkt]?.cls||'c-outro'}" style="font-size:9px;padding:1px 5px">${MKT[s.mkt]?.icon||'?'}</span></div>
-      </div>`).join('');
+    ?'<div class="empty" style="grid-column:1/-1"><div class="e-icon">📸</div><div>Nenhuma foto ainda</div></div>'
+    :photos.map(s=>`<div class="photo-thumb" onclick="showPhoto('${s.etiqueta}')"><img src="${s.photo}" loading="lazy"><div class="photo-label">${s.etiqueta}</div><div class="photo-mkt"><span class="chip ${MKT[s.mkt]?.cls||'c-outro'}" style="font-size:9px;padding:1px 5px">${MKT[s.mkt]?.icon||'?'}</span></div></div>`).join('');
+
+  document.getElementById('dashHist').innerHTML=today.length===0
+    ?'<tr><td colspan="7" style="text-align:center;color:var(--th);padding:20px">Nenhum pacote</td></tr>'
+    :today.map(p=>`<tr><td style="color:var(--tx)">${p.etiqueta}</td><td><span class="chip ${MKT[p.mkt].cls}" style="font-size:10px">${MKT[p.mkt].icon} ${MKT[p.mkt].n}</span></td><td>${p.destinatario}</td><td>${p.servico}</td><td>${p.pulledAt||''}</td><td>${p.colT||'—'}</td><td><span class="badge ${p.status==='coletado'?'b-col':'b-pend'}">${p.status==='coletado'?'COLETADO':'PENDENTE'}</span></td></tr>`).join('');
 }
 
-// ═══ PHOTO MODAL ═══
-function showPhoto(etiqueta){
-  const scan=scans.find(s=>s.etiqueta===etiqueta && s.date===todayStr());
-  if(!scan?.photo) return;
-  document.getElementById('photoModalImg').src=scan.photo;
-  document.getElementById('photoModalCode').textContent=etiqueta+' · '+scan.destinatario;
-  document.getElementById('photoModalTime').textContent=scan.time+' · '+MKT[scan.mkt]?.n;
-  document.getElementById('photoModal').classList.add('show');
-}
-
-function closePhoto(){
-  document.getElementById('photoModal').classList.remove('show');
-}
-
-// ═══ CONFIG ═══
-function saveToken(){
-  blingToken=document.getElementById('cfgToken').value.trim();
-  proxyUrl=document.getElementById('cfgProxy').value.trim();
-  situacaoId=parseInt(document.getElementById('cfgSituacao').value)||9;
-  sv('expv3_token',blingToken);
-  sv('expv3_proxy',proxyUrl);
-  sv('expv3_sit',situacaoId);
-  updateDots();
-  toast('Configurações salvas!','ok');
-}
-
-function updateDots(){
-  const d=document.getElementById('blingDot');
-  if(blingToken){
-    d.textContent='● Bling ON'; d.style.background='var(--gr2)';
-    d.style.color='var(--gr)'; d.style.borderColor='var(--gr3)';
-  } else {
-    d.textContent='● Bling OFF'; d.style.background='var(--s2)';
-    d.style.color='var(--tm)'; d.style.borderColor='var(--b1)';
-  }
-}
-
-function checkBarcodeSupport(){
-  const el=document.getElementById('barcodeSupport');
-  if('BarcodeDetector' in window){
-    el.innerHTML='<span style="color:var(--gr)">✓ BarcodeDetector disponível neste navegador</span>';
-  } else {
-    el.innerHTML='<span style="color:var(--am)">✗ BarcodeDetector não disponível — use Chrome 83+ ou Chrome Android</span>';
-  }
-}
+function showPhoto(etiqueta){ const s=scans.find(x=>x.etiqueta===etiqueta&&x.date===todayStr()); if(!s?.photo) return; document.getElementById('photoModalImg').src=s.photo; document.getElementById('photoModalCode').textContent=etiqueta+' · '+s.destinatario; document.getElementById('photoModalTime').textContent=s.time+' · '+MKT[s.mkt]?.n; document.getElementById('photoModal').classList.add('show'); }
+function closePhoto(){ document.getElementById('photoModal').classList.remove('show'); }
 
 // ═══ UTILS ═══
-function flash(id,cls,_,msg){
-  const el=document.getElementById(id);
-  if(!el) return;
-  clearTimeout(el._t);
-  el.className=`fb ${cls} show`;
-  el.textContent=msg;
-  el._t=setTimeout(()=>el.className='fb',4000);
-}
+function updateBadges(){ const t=todayPkgs(); const p=t.filter(x=>x.status==='pendente').length; const n1=document.getElementById('nb-rom'); const n2=document.getElementById('nb-col'); n1.textContent=p; n1.className=p>0?'nbadge show':'nbadge'; n2.textContent=p; n2.className=p>0?'nbadge show':'nbadge'; }
 
-function toast(msg,type='ok'){
-  const a=document.getElementById('toasts');
-  const t=document.createElement('div');
-  t.className=`toast t-${type}`;
-  t.textContent=msg;
-  a.appendChild(t);
-  setTimeout(()=>t.remove(),2800);
-}
+function flash(id,cls,msg){ const el=document.getElementById(id); if(!el) return; clearTimeout(el._t); el.className=`fb ${cls} show`; el.textContent=msg; el._t=setTimeout(()=>el.className='fb',4000); }
 
-function go(id,el){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.getElementById('page-'+id).classList.add('on');
-  if(el) el.classList.add('on');
-  if(id==='romaneio') renderRomaneio();
-  if(id==='dia') renderDia();
-  if(id==='cfg'){ document.getElementById('cfgToken').value=blingToken; document.getElementById('cfgProxy').value=proxyUrl; document.getElementById('cfgSituacao').value=situacaoId; checkBarcodeSupport(); }
-}
+function toast(msg,type='ok'){ const a=document.getElementById('toasts'); const t=document.createElement('div'); t.className=`toast t-${type}`; t.textContent=msg; a.appendChild(t); setTimeout(()=>t.remove(),2800); }
 
-function updateBadges(){
-  const today=todayPkgs();
-  const pend=today.filter(p=>p.status==='pendente').length;
-  const nb1=document.getElementById('nb-rom');
-  const nb2=document.getElementById('nb-col');
-  nb1.textContent=pend; nb1.className=pend>0?'nbadge show':'nbadge';
-  nb2.textContent=pend; nb2.className=pend>0?'nbadge show':'nbadge';
-}
+function go(id,el){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on')); document.getElementById('page-'+id).classList.add('on'); if(el) el.classList.add('on'); if(id==='dia') renderDia(); if(id==='cfg') checkBarcodeSupport(); if(id==='coleta') setTimeout(()=>document.getElementById('manualIn').focus(),50); }
 
-function exportRomCSV(){
-  const today=todayPkgs();
-  const rows=[['Etiqueta','Número','Destinatário','Marketplace','Serviço','Status','Coletado em']];
-  today.forEach(p=>rows.push([p.etiqueta,p.numero||'',p.destinatario,MKT[p.mkt].n,p.servico,p.status==='coletado'?'COLETADO':'PENDENTE',p.colT||'']));
-  dl(rows,'romaneio_'+todayStr()+'.csv');
-}
+function checkBarcodeSupport(){ const el=document.getElementById('barcodeSupport'); el.innerHTML='BarcodeDetector' in window?'<span style="color:var(--gr)">✓ Disponível neste navegador</span>':'<span style="color:var(--am)">✗ Não disponível — use Chrome 83+ ou Chrome Android</span>'; }
 
-function exportCSV(){
-  exportRomCSV();
-}
-
-function exportData(){
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify({packages,scans:scans.map(s=>({...s,photo:null}))},null,2)],{type:'application/json'}));
-  a.download=`expedicao_${todayStr()}.json`;
-  a.click();
-}
-
-function dl(rows,name){
-  const csv=rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download=name; a.click();
-}
-
-function clearDay(){
-  if(!confirm('Limpar todos os registros de hoje?')) return;
-  packages=packages.filter(p=>p.date!==todayStr());
-  scans=scans.filter(s=>s.date!==todayStr());
-  sv('expv3_pkgs',packages); sv('expv3_scans',scans);
-  renderRomaneio(); renderDia(); updateBadges();
-  toast('Limpo','warn');
-}
-
-function resetAll(){
-  if(!confirm('Resetar TUDO? Isso apaga todos os dados.')) return;
-  ['expv3_pkgs','expv3_scans','expv3_token','expv3_proxy','expv3_sit'].forEach(k=>localStorage.removeItem(k));
-  location.reload();
-}
+function exportRomCSV(){ const t=todayPkgs(); dl([['Etiqueta','Número','Destinatário','Marketplace','Serviço','Status','Coletado em'],...t.map(p=>[p.etiqueta,p.numero||'',p.destinatario,MKT[p.mkt].n,p.servico,p.status==='coletado'?'COLETADO':'PENDENTE',p.colT||''])],'romaneio_'+todayStr()+'.csv'); }
+function exportCSV(){ exportRomCSV(); }
+function exportData(){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({packages,scans:scans.map(s=>({...s,photo:null}))},null,2)],{type:'application/json'})); a.download=`expedicao_${todayStr()}.json`; a.click(); }
+function dl(rows,name){ const csv=rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})); a.download=name; a.click(); }
+function clearDay(){ if(!confirm('Limpar todos os registros de hoje?')) return; packages=packages.filter(p=>p.date!==todayStr()); scans=scans.filter(s=>s.date!==todayStr()); sv('expv4_pkgs',packages); sv('expv4_scans',scans); renderRomaneio(); renderDia(); updateBadges(); toast('Limpo','warn'); }
+function resetAll(){ if(!confirm('Resetar TUDO?')) return; ['expv4_pkgs','expv4_scans','expv4_session','expv4_user'].forEach(k=>localStorage.removeItem(k)); location.reload(); }
 
 // ═══ INIT ═══
-if(blingToken){ document.getElementById('cfgToken').value=blingToken; }
-updateDots();
-renderRomaneio();
-updateBadges();
+async function initApp(){
+  document.getElementById('userChip').textContent='👤 '+currentUser;
+  document.getElementById('blingDot').textContent='● Bling';
+  document.getElementById('blingDot').style.background='var(--gr2)';
+  document.getElementById('blingDot').style.color='var(--gr)';
+  document.getElementById('blingDot').style.borderColor='var(--gr3)';
+  renderRomaneio(); updateBadges();
+}
+
+(async()=>{
+  if(sessionToken){ const ok=await checkSession(); if(ok){ document.getElementById('loginScreen').style.display='none'; document.getElementById('appWrap').classList.add('show'); initApp(); return; } }
+  document.getElementById('loginUser').focus();
+})();
 </script>
 </body>
 </html>
