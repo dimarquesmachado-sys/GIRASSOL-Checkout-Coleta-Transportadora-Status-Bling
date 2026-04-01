@@ -186,8 +186,19 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .nav-badge{position:absolute;top:6px;right:calc(50% - 18px);background:var(--rd);color:#fff;font-size:9px;font-weight:700;font-family:var(--mono);padding:1px 5px;border-radius:10px;min-width:16px;text-align:center;display:none}
 .nav-badge.show{display:block}
 
-.main{padding-bottom:80px}
-</style>
+.veiculo-fotos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.veiculo-thumb{width:80px;height:80px;object-fit:cover;border-radius:var(--r);border:2px solid var(--gr3);position:relative;cursor:pointer}
+.veiculo-thumb-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
+.veiculo-thumb-wrap .del-btn{position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;line-height:1}
+.veiculo-btn{flex:1;height:44px;background:var(--s2);color:var(--tx);border:1.5px solid var(--b2);border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:6px}
+.veiculo-btn:active{transform:scale(.97)}
+.veiculo-btn.done{border-color:var(--gr3);color:var(--gr)}
+.problema-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--r);margin-bottom:6px;font-size:12px;font-family:var(--mono);color:#F09090}
+.problema-item button{background:none;border:none;color:var(--rd);font-size:16px;cursor:pointer;padding:0 4px;line-height:1}
+.problema-select-item{padding:10px 12px;font-size:12px;font-family:var(--mono);color:var(--tx);border-bottom:1px solid var(--b1);cursor:pointer}
+.problema-select-item:last-child{border-bottom:none}
+.problema-select-item:active{background:var(--s2)}
+
 </head>
 <body>
 
@@ -308,9 +319,51 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
           <div id="missingList"></div>
         </div>
 
+        <!-- PAINEL DE FINALIZAÇÃO: fotos veículo + observações -->
         <div class="confirm-area" id="confirmArea">
           <div class="confirm-text" id="confirmText"></div>
-          <button class="confirm-btn" onclick="finalizeColeta()">✓ Confirmar entrega ao motorista</button>
+
+          <!-- FOTOS DO VEÍCULO -->
+          <div id="veiculoSection">
+            <div style="font-size:12px;font-weight:700;color:var(--am);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
+              📸 Fotos do veículo (mín. 3)
+            </div>
+            <div style="font-size:11px;color:var(--tm);margin-bottom:10px;line-height:1.5">
+              Tire fotos do veículo, placa e motorista antes de liberar o lote.
+            </div>
+            <div class="veiculo-fotos" id="veiculoFotos"></div>
+            <div style="display:flex;gap:8px;margin-bottom:14px">
+              <button class="veiculo-btn" onclick="capturarFotoVeiculo()" id="btnFotoVeiculo">
+                📷 Tirar foto
+              </button>
+              <input type="file" id="fotoVeiculoInput" accept="image/*" capture="environment" style="display:none" onchange="processarFotoVeiculo(this)">
+            </div>
+            <div id="veiculoFotoAlert" style="display:none;background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--r);padding:10px;font-size:12px;color:var(--rd);margin-bottom:10px">
+              ⚠ Tire pelo menos 3 fotos antes de confirmar.
+            </div>
+          </div>
+
+          <!-- OBSERVAÇÕES -->
+          <div style="margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
+              📝 Observações do lote
+            </div>
+            <textarea id="obsLote" placeholder="Ex: 1 pacote recusado por não caber no veículo, devolvido ao estoque..." style="width:100%;min-height:80px;background:var(--bg);border:1.5px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:var(--sans);font-size:13px;padding:10px 12px;outline:none;resize:vertical;-webkit-appearance:none;line-height:1.5" oninput="this.style.borderColor='var(--bl)'"></textarea>
+          </div>
+
+          <!-- PACOTES COM PROBLEMA -->
+          <div style="margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
+              🚫 Pacotes com problema (não foram)
+            </div>
+            <div id="problemaList" style="margin-bottom:8px"></div>
+            <button onclick="toggleProblemaSelect()" style="width:100%;height:40px;background:var(--s2);color:var(--tm);border:1px solid var(--b2);border-radius:var(--r);font-size:12px;cursor:pointer;font-family:var(--sans)">
+              + Marcar pacote com problema
+            </button>
+            <div id="problemaSelect" style="display:none;margin-top:8px;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);max-height:160px;overflow-y:auto"></div>
+          </div>
+
+          <button class="confirm-btn" onclick="finalizeColeta()" id="btnConfirmarLote">✓ Confirmar entrega ao motorista</button>
         </div>
 
         <div class="pkg-list" id="pkgList"></div>
@@ -386,9 +439,12 @@ let sessionToken=ld('expv5_session','');
 let currentUser=ld('expv5_user','');
 let colSession=[];
 let activeMkt='';
+let fotosVeiculo=[]; // base64 das fotos do veículo
+let problemaPkgs=[]; // etiquetas marcadas com problema
 let camStream=null;
 let barcodeDetector=null;
 let scanning=false;
+let scanPaused=false;
 let lastCode='';
 let lastCodeAt=0;
 
@@ -649,6 +705,9 @@ function selectMkt(mkt){
   stopCamera();
   activeMkt=mkt;
   colSession=[];
+  scanPaused=false;
+  fotosVeiculo=[];
+  problemaPkgs=[];
   ['wrongAlert','confirmArea','missingArea'].forEach(id=>document.getElementById(id).classList.remove('show'));
   document.getElementById('coletaFb').className='fb';
   document.getElementById('coletaPanel').classList.add('show');
@@ -707,8 +766,13 @@ function renderProgress(){
 
 function showConfirm(){
   document.getElementById('confirmArea').classList.add('show');
-  document.getElementById('confirmText').innerHTML=`Todos os <b style="color:var(--gr)">${colSession.length}</b> pacotes de ${MKT[activeMkt].icon} ${MKT[activeMkt].n} foram bipados.<br>Confirme a entrega ao motorista.`;
+  document.getElementById('confirmText').innerHTML=`Todos os <b style="color:var(--gr)">${colSession.length}</b> pacotes de ${MKT[activeMkt].icon} ${MKT[activeMkt].n} foram bipados.<br><span style="color:var(--tm);font-size:12px">Preencha as informações abaixo para finalizar.</span>`;
   document.getElementById('missingArea').classList.remove('show');
+  renderFotosVeiculo();
+  renderProblemaList();
+  renderProblemaSelect();
+  document.getElementById('obsLote').value='';
+  document.getElementById('veiculoFotoAlert').style.display='none';
 }
 
 // ═══ SCAN ═══
@@ -736,21 +800,65 @@ async function startCamera(){
 
 async function scanLoop(){
   if(!scanning||!barcodeDetector) return;
+  if(scanPaused){ requestAnimationFrame(scanLoop); return; }
   const v=document.getElementById('camVideo');
   try{
     const codes=await barcodeDetector.detect(v);
     if(codes.length>0){
       const raw=codes[0].rawValue.trim();
-      if(raw!==lastCode||Date.now()-lastCodeAt>3000){
-        handleScan(raw,null);
+      // Debounce: ignora mesmo código por 4 segundos
+      if(raw!==lastCode||Date.now()-lastCodeAt>4000){
+        const photo=capturePhoto(v);
+        handleScan(raw,photo);
       }
     }
   }catch(e){}
   requestAnimationFrame(scanLoop);
 }
 
+function capturePhoto(v){
+  try{
+    const c=document.createElement('canvas');
+    c.width=v.videoWidth; c.height=v.videoHeight;
+    c.getContext('2d').drawImage(v,0,0);
+    return c.toDataURL('image/jpeg',.6);
+  }catch(e){return null;}
+}
+
+// Beep de sucesso via Web Audio API
+function beepSuccess(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type='sine';
+    osc.frequency.setValueAtTime(1046,ctx.currentTime); // Dó alto
+    osc.frequency.setValueAtTime(1318,ctx.currentTime+0.1); // Mi
+    gain.gain.setValueAtTime(0.4,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.35);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.35);
+  }catch(e){}
+}
+
+// Beep de erro
+function beepError(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type='sawtooth';
+    osc.frequency.setValueAtTime(220,ctx.currentTime);
+    gain.gain.setValueAtTime(0.3,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.4);
+  }catch(e){}
+}
+
 function stopCamera(){
   scanning=false;
+  scanPaused=false;
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   const v=document.getElementById('camVideo');
   v.srcObject=null;
@@ -767,7 +875,7 @@ function manualScan(){
 
 document.getElementById('manualIn').addEventListener('keydown',e=>{ if(e.key==='Enter') manualScan(); });
 
-// ─── CORREÇÃO BIPAGEM: match inclui numeracao (número de envio) ──────────────
+// ─── CORREÇÃO BIPAGEM ────────────────────────────────────────────────────────
 function handleScan(rawCode, photo){
   if(!rawCode||!activeMkt) return;
   let code=rawCode.trim().toUpperCase().replace(/\s/g,'');
@@ -778,6 +886,7 @@ function handleScan(rawCode, photo){
     if(qr.id) code=String(qr.id).trim().toUpperCase().replace(/\s/g,'');
   }catch(e){}
 
+  // Debounce global: mesmo código nos últimos 2s → ignora
   if(code===lastCode&&Date.now()-lastCodeAt<2000) return;
   lastCode=code; lastCodeAt=Date.now();
 
@@ -786,41 +895,70 @@ function handleScan(rawCode, photo){
   const wrongEl=document.getElementById('wrongAlert');
   wrongEl.classList.remove('show');
 
-  // ── MATCH: etiqueta (número Bling) OU numero OU blingId OU numeracao (envio/rastreio)
+  // MATCH: etiqueta (número Bling) OU numero OU blingId OU numeracao (envio/rastreio)
   const match=p=>(
     p.etiqueta===code ||
     p.numero===code ||
     String(p.blingId)===code ||
     (p.numeracao && p.numeracao===code)
   );
-  // ─────────────────────────────────────────────────────────────────────────────
 
   const pkg=packages.find(p=>match(p)&&p.date===today&&p.status==='pendente'&&(activeMkt==='flex'?p.urgente:p.mkt===activeMkt));
   const wrongPkg=activeMkt==='flex'
     ? null
     : packages.find(p=>match(p)&&p.date===today&&p.mkt!==activeMkt&&p.status==='pendente');
   const already=packages.find(p=>match(p)&&p.date===today&&p.status==='coletado');
-  const inSession=colSession.includes(code);
 
-  if(inSession||already){ showFb('⚠ Já bipado: '+code,'warn'); return; }
+  // ── BUG FIX: inSession deve checar pela etiqueta canônica, não pelo código lido
+  // pois colSession armazena pkg.etiqueta (número Bling), não o código do QR/barras
+  const pkgParaCheck = pkg || packages.find(p=>match(p)&&p.date===today);
+  const inSession = pkgParaCheck ? colSession.includes(pkgParaCheck.etiqueta) : colSession.includes(code);
+
+  if(inSession||already){
+    showFb('⚠ Já bipado: '+(pkgParaCheck?.numero||code),'warn');
+    beepError();
+    return;
+  }
   if(wrongPkg){
-    document.getElementById('wrongBody').innerHTML=`Este pacote é de <b>${MKT[wrongPkg.mkt].icon} ${MKT[wrongPkg.mkt].n}</b><br><span style="font-size:14px">${code}</span>`;
+    document.getElementById('wrongBody').innerHTML=`Este pacote é de <b>${MKT[wrongPkg.mkt].icon} ${MKT[wrongPkg.mkt].n}</b><br><span style="font-size:14px">${wrongPkg.numero}</span>`;
     wrongEl.classList.add('show');
-    toast(`ERRADO: ${code} é ${MKT[wrongPkg.mkt].n}!`,'err');
+    toast(`ERRADO: ${wrongPkg.numero} é ${MKT[wrongPkg.mkt].n}!`,'err');
+    beepError();
     flashPhoto(false); return;
   }
   if(!pkg){
     showFb('Código não encontrado: '+code,'warn');
+    beepError();
     console.warn('SCAN não encontrado:', code, '| Pacotes FLEX:', todayPkgs().filter(p=>p.urgente).map(p=>({num:p.numero,et:p.etiqueta,rastreio:p.numeracao})));
     return;
   }
 
-  // Usa a etiqueta canônica (número do pedido Bling) para rastrear o scan
-  const chave = pkg.etiqueta;
+  // ── SUCESSO ──
+  // Pausa o scanner por 3s para não bipar o mesmo pacote múltiplas vezes
+  scanPaused=true;
+  document.getElementById('camStatus').textContent='✓ Bipado! Aguarde...';
+  document.getElementById('camStatus').style.background='rgba(46,204,138,.7)';
+  setTimeout(()=>{
+    scanPaused=false;
+    document.getElementById('camStatus').textContent='Aponte para o código de barras';
+    document.getElementById('camStatus').style.background='rgba(0,0,0,.55)';
+  },3000);
+
+  const chave = pkg.etiqueta; // sempre salva pelo número Bling
   colSession.push(chave);
   const sr={etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),photo,destinatario:pkg.destinatario,numero:pkg.numero};
   scans.unshift(sr); sv('expv5_scans',scans);
-  if(photo){ const el=document.getElementById('photoFlash'); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),150); }
+
+  // Flash de foto na câmera
+  if(photo){
+    const el=document.getElementById('photoFlash');
+    el.classList.add('flash');
+    setTimeout(()=>el.classList.remove('flash'),150);
+  }
+
+  // Beep de sucesso
+  beepSuccess();
+
   showFb('✓ '+pkg.numero+' · '+pkg.destinatario,'ok');
   toast('✓ '+pkg.numero,'ok');
   renderPkgList();
@@ -841,29 +979,161 @@ function flashPhoto(ok){
   setTimeout(()=>el.classList.remove('flash'),150);
 }
 
+// ═══ FOTOS DO VEÍCULO ═══
+function capturarFotoVeiculo(){
+  document.getElementById('fotoVeiculoInput').click();
+}
+
+function processarFotoVeiculo(input){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    fotosVeiculo.push(e.target.result);
+    renderFotosVeiculo();
+    if(fotosVeiculo.length>=3){
+      document.getElementById('btnFotoVeiculo').classList.add('done');
+      document.getElementById('btnFotoVeiculo').textContent='✓ '+fotosVeiculo.length+' fotos';
+      document.getElementById('veiculoFotoAlert').style.display='none';
+    } else {
+      document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto ('+(3-fotosVeiculo.length)+' restantes)';
+    }
+    toast('Foto '+fotosVeiculo.length+' salva ✓','ok');
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+function renderFotosVeiculo(){
+  const el=document.getElementById('veiculoFotos');
+  el.innerHTML=fotosVeiculo.map((f,i)=>`
+    <div class="veiculo-thumb-wrap">
+      <img src="${f}" class="veiculo-thumb" onclick="verFotoVeiculo(${i})">
+      <button class="del-btn" onclick="removerFotoVeiculo(${i})">✕</button>
+    </div>`).join('');
+}
+
+function removerFotoVeiculo(i){
+  fotosVeiculo.splice(i,1);
+  renderFotosVeiculo();
+  const btn=document.getElementById('btnFotoVeiculo');
+  if(fotosVeiculo.length<3){
+    btn.classList.remove('done');
+    btn.innerHTML='📷 Tirar foto'+(fotosVeiculo.length>0?' ('+(3-fotosVeiculo.length)+' restantes)':'');
+  }
+}
+
+function verFotoVeiculo(i){
+  const modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML=`<div style="position:relative;max-width:100%;max-height:100%">
+    <img src="${fotosVeiculo[i]}" style="max-width:100%;max-height:90vh;border-radius:8px">
+    <button onclick="this.closest('div').parentElement.remove()" style="position:absolute;top:-12px;right:-12px;width:32px;height:32px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer">✕</button>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+// ═══ PACOTES COM PROBLEMA ═══
+function toggleProblemaSelect(){
+  const el=document.getElementById('problemaSelect');
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function renderProblemaSelect(){
+  const pkgs=(activeMkt==='flex'
+    ? todayPkgs().filter(p=>p.urgente)
+    : todayPkgs().filter(p=>p.mkt===activeMkt)
+  ).filter(p=>!problemaPkgs.includes(p.etiqueta));
+  document.getElementById('problemaSelect').innerHTML=pkgs.length===0
+    ? '<div style="padding:12px;font-size:12px;color:var(--tm);text-align:center">Nenhum pacote disponível</div>'
+    : pkgs.map(p=>`<div class="problema-select-item" onclick="adicionarProblema('${p.etiqueta}')">
+        ${p.numero} · ${p.destinatario}
+      </div>`).join('');
+}
+
+function adicionarProblema(etiqueta){
+  if(!problemaPkgs.includes(etiqueta)) problemaPkgs.push(etiqueta);
+  document.getElementById('problemaSelect').style.display='none';
+  renderProblemaList();
+  renderProblemaSelect();
+}
+
+function removerProblema(etiqueta){
+  problemaPkgs=problemaPkgs.filter(e=>e!==etiqueta);
+  renderProblemaList();
+  renderProblemaSelect();
+}
+
+function renderProblemaList(){
+  const el=document.getElementById('problemaList');
+  if(problemaPkgs.length===0){ el.innerHTML=''; return; }
+  el.innerHTML=problemaPkgs.map(et=>{
+    const p=packages.find(x=>x.etiqueta===et);
+    return `<div class="problema-item">
+      <span>🚫 ${p?.numero||et} · ${p?.destinatario||''}</span>
+      <button onclick="removerProblema('${et}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
 async function finalizeColeta(){
   if(!activeMkt||colSession.length===0) return;
   const pend=(activeMkt==='flex'
     ? todayPkgs().filter(p=>p.urgente)
     : todayPkgs().filter(p=>p.mkt===activeMkt)
-  ).filter(p=>p.status==='pendente'&&!colSession.includes(p.etiqueta));
+  ).filter(p=>p.status==='pendente'&&!colSession.includes(p.etiqueta)&&!problemaPkgs.includes(p.etiqueta));
   if(pend.length>0){
     document.getElementById('missingArea').classList.add('show');
     document.getElementById('missingList').innerHTML=pend.map(p=>`<div class="missing-item">⚠ ${p.numero} · ${p.destinatario}</div>`).join('');
     document.getElementById('confirmArea').classList.remove('show');
-    toast(`${pend.length} pacote(s) faltando!`,'err'); return;
+    toast(`${pend.length} pacote(s) faltando!`,'err'); beepError(); return;
+  }
+  // Exige mínimo 3 fotos do veículo
+  if(fotosVeiculo.length<3){
+    document.getElementById('veiculoFotoAlert').style.display='block';
+    document.getElementById('veiculoFotoAlert').textContent=`⚠ Faltam ${3-fotosVeiculo.length} foto(s) do veículo. Tire pelo menos 3.`;
+    document.getElementById('btnFotoVeiculo').scrollIntoView({behavior:'smooth',block:'center'});
+    beepError();
+    toast(`Tire mais ${3-fotosVeiculo.length} foto(s) do veículo!`,'err'); return;
   }
   const now=nowTS();
+  const obs=document.getElementById('obsLote').value.trim();
+  // Marca coletados (exceto os com problema)
   colSession.forEach(chave=>{
+    if(problemaPkgs.includes(chave)) return;
     const p=packages.find(x=>x.etiqueta===chave&&x.date===todayStr());
-    if(p){ p.status='coletado'; p.colT=now; }
+    if(p){ p.status='coletado'; p.colT=now; if(obs) p.obs=obs; }
+  });
+  // Marca problemas
+  problemaPkgs.forEach(chave=>{
+    const p=packages.find(x=>x.etiqueta===chave&&x.date===todayStr());
+    if(p){ p.status='problema'; p.colT=now; p.obs=obs||'Problema na coleta'; }
   });
   sv('expv5_pkgs',packages);
-  colSession.forEach(chave=>{
+  // Salva fotos do veículo nos scans do lote
+  const loteId=`lote_${activeMkt}_${now}_${todayStr()}`;
+  scans.unshift({
+    tipo:'lote',
+    id:loteId,
+    mkt:activeMkt,
+    date:todayStr(),
+    time:now,
+    qtd:colSession.length-problemaPkgs.filter(e=>colSession.includes(e)).length,
+    problemas:problemaPkgs.length,
+    obs,
+    fotosVeiculo:[...fotosVeiculo],
+  });
+  sv('expv5_scans',scans);
+  // Atualiza Bling apenas dos coletados com sucesso
+  colSession.filter(c=>!problemaPkgs.includes(c)).forEach(chave=>{
     const p=packages.find(x=>x.etiqueta===chave&&x.date===todayStr());
     if(p?.blingId) updateBlingStatus(p.blingId);
   });
-  toast(`${MKT[activeMkt].n}: ${colSession.length} entregues ✓`,'ok');
+  const msg=problemaPkgs.length>0
+    ? `${MKT[activeMkt].n}: ${colSession.length-problemaPkgs.length} entregues, ${problemaPkgs.length} com problema ✓`
+    : `${MKT[activeMkt].n}: ${colSession.length} entregues ✓`;
+  toast(msg,'ok');
+  beepSuccess();
   closeColeta();
   renderMktGrid(); updateBadge();
 }
@@ -876,15 +1146,19 @@ async function updateBlingStatus(id){
 function renderDia(){
   const today=todayPkgs();
   const col=today.filter(p=>p.status==='coletado').length;
+  const prob=today.filter(p=>p.status==='problema').length;
   document.getElementById('dayCards').innerHTML=`
     <div class="day-card"><div class="day-lbl">Total</div><div class="day-val">${today.length}</div></div>
     <div class="day-card"><div class="day-lbl">Coletados</div><div class="day-val" style="color:var(--gr)">${col}</div></div>
-    <div class="day-card"><div class="day-lbl">Pendentes</div><div class="day-val" style="color:var(--am)">${today.length-col}</div></div>
-    <div class="day-card"><div class="day-lbl">Fotos</div><div class="day-val" style="color:var(--bl)">${scans.filter(s=>s.photo&&s.date===todayStr()).length}</div></div>`;
+    <div class="day-card"><div class="day-lbl">Pendentes</div><div class="day-val" style="color:var(--am)">${today.length-col-prob}</div></div>
+    <div class="day-card"><div class="day-lbl">Problemas</div><div class="day-val" style="color:var(--rd)">${prob}</div></div>`;
   const mkts=[...new Set(today.map(p=>p.mkt))];
-  document.getElementById('dayByMkt').innerHTML=mkts.map(m=>{
+  // Lotes registrados hoje
+  const lotes=scans.filter(s=>s.tipo==='lote'&&s.date===todayStr());
+  let html=mkts.map(m=>{
     const mp=today.filter(p=>p.mkt===m);
     const mc=mp.filter(p=>p.status==='coletado').length;
+    const mp2=mp.filter(p=>p.status==='problema').length;
     const pct=mp.length?Math.round(mc/mp.length*100):0;
     return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -892,12 +1166,42 @@ function renderDia(){
         <span style="font-family:var(--mono);font-size:12px;color:var(--tm)">${pct}%</span>
       </div>
       <div class="prog-bar-wrap" style="margin:0 0 6px"><div class="prog-bar" style="width:${pct}%"></div></div>
-      <div style="font-size:11px;font-family:var(--mono);display:flex;gap:12px">
-        <span style="color:var(--am)">${mp.length-mc} pend.</span>
+      <div style="font-size:11px;font-family:var(--mono);display:flex;gap:12px;flex-wrap:wrap">
+        <span style="color:var(--am)">${mp.length-mc-mp2} pend.</span>
         <span style="color:var(--gr)">${mc} col.</span>
+        ${mp2>0?`<span style="color:var(--rd)">${mp2} prob.</span>`:''}
       </div>
     </div>`;
   }).join('');
+  // Lotes com fotos e obs
+  if(lotes.length>0){
+    html+=`<div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin:16px 0 8px">Lotes fechados hoje</div>`;
+    html+=lotes.map(l=>`
+      <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:600">${MKT[l.mkt]?.icon||'📦'} ${MKT[l.mkt]?.n||l.mkt}</span>
+          <span style="font-size:11px;color:var(--tm)">${l.time}</span>
+        </div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--tm);margin-bottom:8px">
+          ✓ ${l.qtd} entregues${l.problemas>0?' · 🚫 '+l.problemas+' problemas':''}
+        </div>
+        ${l.obs?`<div style="font-size:11px;color:var(--am);background:var(--am2);border-radius:6px;padding:6px 8px;margin-bottom:8px">📝 ${l.obs}</div>`:''}
+        ${l.fotosVeiculo?.length>0?`<div style="display:flex;gap:6px;flex-wrap:wrap">${l.fotosVeiculo.map((f,i)=>`<img src="${f}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b2)" onclick="verFotoLote('${l.id}',${i})">`).join('')}</div>`:''}
+      </div>`).join('');
+  }
+  document.getElementById('dayByMkt').innerHTML=html;
+}
+
+function verFotoLote(loteId, idx){
+  const lote=scans.find(s=>s.id===loteId);
+  if(!lote?.fotosVeiculo?.[idx]) return;
+  const modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML=`<div style="position:relative;max-width:100%;max-height:100%">
+    <img src="${lote.fotosVeiculo[idx]}" style="max-width:100%;max-height:90vh;border-radius:8px">
+    <button onclick="this.closest('div').parentElement.remove()" style="position:absolute;top:-12px;right:-12px;width:32px;height:32px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer">✕</button>
+  </div>`;
+  document.body.appendChild(modal);
 }
 
 function showPage(page){
