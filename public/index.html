@@ -634,36 +634,52 @@ function detectTrackingPkgs(pkgs){
   function next(){
     if(i>=pkgs.length) return;
     var pkg=pkgs[i++];
-    if(pkg.numeracao){next();return;} // já tem tracking, pula
+    if(pkg.numeracao){next();return;}
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
       .then(function(r){if(!r.ok)return null;return r.json();})
       .then(function(d){
         if(!d) return;
         var order=d.data||d;
-        // Tracking pode estar em vários lugares no Bling v3
-        var track=(order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].numeracao)||
-                  (order.transporte&&order.transporte.codigoRastreamento)||
-                  (order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].codigoRastreio)||
-                  (order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].tracking)||'';
-        // NF também captura aqui se não tinha
-        var nfDetalhe=(order.notaFiscal&&order.notaFiscal.numero)||
-                      (order.nfe&&order.nfe.numero)||
-                      (order.notasFiscais&&order.notasFiscais[0]&&order.notasFiscais[0].numero)||'';
-        // Atualiza o pacote na memória
+
+        // DEBUG: loga objeto transporte completo do 1º pedido de cada mkt
+        if(i<=2){
+          console.log('🔍 TRANSPORTE '+pkg.blingId+' ('+pkg.mkt+'):', JSON.stringify(order.transporte||{}).substring(0,600));
+          console.log('🔍 NOTA_FISCAL:', JSON.stringify(order.notaFiscal||order.nfe||order.nota||{}));
+        }
+
+        // Tenta TODOS os caminhos conhecidos do Bling v3 para tracking
+        var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
+        var track = (vol&&vol.numeracao)
+                 || (vol&&vol.codigoRastreio)
+                 || (vol&&vol.codigoRastreamento)
+                 || (vol&&vol.tracking)
+                 || (vol&&vol.numero)
+                 || (order.transporte&&order.transporte.codigoRastreamento)
+                 || (order.transporte&&order.transporte.codigoRastreio)
+                 || (order.transporte&&order.transporte.numeroRastreio)
+                 || '';
+
+        // NF — tenta todos os caminhos
+        var nfDetalhe = (order.notaFiscal&&order.notaFiscal.numero)
+                     || (order.nfe&&order.nfe.numero)
+                     || (order.notasFiscais&&order.notasFiscais[0]&&order.notasFiscais[0].numero)
+                     || (order.nota&&order.nota.numero)
+                     || (order.notaFiscal&&order.notaFiscal.chave&&order.notaFiscal.chave.substring(25,34)) // extrai nº da chave DANFE
+                     || '';
+
         var p=null;
         for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
         if(p){
-          if(track) p.numeracao=String(track).replace(/\s/g,'').toUpperCase();
-          if(nfDetalhe&&!p.nf) p.nf=String(nfDetalhe).trim();
+          if(track){p.numeracao=String(track).replace(/\s/g,'').toUpperCase(); console.log('✅ Tracking '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.numeracao);}
+          else{console.warn('⚠ SEM tracking para '+p.mkt.toUpperCase()+' #'+p.numero+' — campos disponíveis em transporte: '+JSON.stringify(Object.keys(order.transporte||{})));}
+          if(nfDetalhe&&!p.nf){p.nf=String(nfDetalhe).trim(); console.log('✅ NF '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.nf);}
           sv('expv5_pkgs',packages);
-          if(track) console.log('📦 Tracking '+p.mkt.toUpperCase()+': '+p.numero+' → '+p.numeracao);
-          if(nfDetalhe) console.log('🧾 NF '+p.mkt.toUpperCase()+': '+p.numero+' → '+p.nf);
           renderMktGrid();
         }
         next();
       })
-      .catch(function(){next();});
+      .catch(function(e){console.error('❌ detectTracking erro:',e.message);next();});
     },600);
   }
   next();
@@ -1056,8 +1072,28 @@ document.getElementById('manualIn').addEventListener('keydown',function(e){if(e.
 // ═══ SCAN ═══
 function handleScan(rawCode,photo){
   if(!rawCode||!activeMkt) return;
-  var code=rawCode.trim().toUpperCase().replace(/\s/g,'');
-  try{var qr=JSON.parse(rawCode);if(qr.id)code=String(qr.id).trim().toUpperCase().replace(/\s/g,'');}catch(e){}
+  var code=rawCode.trim().replace(/\s/g,'');
+
+  // ── Formato 1: JSON ML antigo {"id":"12345","t":"lm"}
+  try{
+    var qr=JSON.parse(rawCode);
+    if(qr.id) code=String(qr.id).trim().replace(/\s/g,'');
+  }catch(e){}
+
+  // ── Formato 2: QR FLEX ML  `^id^Ç^46767751180^,^sender_id^...
+  // Extrai o número depois de ^id^ (ignora caracteres especiais entre a chave e o valor)
+  if(!code.match(/^[0-9]+$/)&&rawCode.indexOf('^id^')!==-1){
+    var flexMatch=rawCode.match(/\^id\^[^0-9]*([0-9]+)/);
+    if(flexMatch) code=flexMatch[1];
+  }
+
+  // ── Formato 3: QR FLEX ML alternativo com "id" sem acento
+  if(!code.match(/^[0-9A-Z]+$/)&&rawCode.toLowerCase().indexOf('"id"')!==-1){
+    var altMatch=rawCode.match(/"id"\s*:\s*"?([0-9]+)"?/i);
+    if(altMatch) code=altMatch[1];
+  }
+
+  code=code.toUpperCase();
   if(code===lastCode&&Date.now()-lastCodeAt<2000) return;
   lastCode=code; lastCodeAt=Date.now();
   var today=todayStr();
