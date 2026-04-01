@@ -329,6 +329,73 @@ app.get('/info/verificados', async (req, res) => {
   } catch(e) { res.json({ error: e.message }); }
 });
 
+
+// ── MIGRAÇÃO: mover todos VERIFICADOS antigos para DESPACHADOS ────
+let migrationRunning = false;
+let migrationLog = [];
+
+app.get('/admin/migrar-verificados', async (req, res) => {
+  if(migrationRunning) return res.json({ status: 'rodando', log: migrationLog.slice(-20) });
+
+  migrationRunning = true;
+  migrationLog = ['Iniciando migração...'];
+  res.json({ status: 'iniciado', msg: 'Acesse /admin/migrar-status para acompanhar' });
+
+  // Roda em background
+  (async () => {
+    try {
+      let page = 1;
+      let total = 0;
+      let erros = 0;
+      let hasMore = true;
+
+      while(hasMore) {
+        await sleep(400);
+        const r = await blingFetch(
+          `${BLING_BASE}/pedidos/vendas?idSituacao=24&pagina=${page}&limite=100`
+        );
+        const d = await r.json();
+        const orders = d.data || [];
+
+        if(orders.length === 0) { hasMore = false; break; }
+
+        migrationLog.push(`Página ${page}: ${orders.length} pedidos encontrados`);
+
+        for(const o of orders) {
+          try {
+            await sleep(700);
+            const patch = await blingFetch(
+              `${BLING_BASE}/pedidos/${o.id}/situacoes`,
+              { method: 'PATCH', body: JSON.stringify({ situacao: { id: 743515 } }) }
+            );
+            if(patch.ok) total++;
+            else erros++;
+          } catch(e) { erros++; }
+        }
+
+        migrationLog.push(`✓ Página ${page} concluída — ${total} movidos, ${erros} erros`);
+
+        // Se retornou menos que 100, é a última página
+        if(orders.length < 100) hasMore = false;
+        else page++;
+      }
+
+      migrationLog.push(`✅ CONCLUÍDO! Total movidos: ${total}, Erros: ${erros}`);
+    } catch(e) {
+      migrationLog.push('❌ Erro: ' + e.message);
+    } finally {
+      migrationRunning = false;
+    }
+  })();
+});
+
+app.get('/admin/migrar-status', (req, res) => {
+  res.json({
+    rodando: migrationRunning,
+    log: migrationLog
+  });
+});
+
 // ── ROTA PÚBLICA: listar situações (só para descobrir IDs) ────────
 app.get('/info/situacoes', async (req, res) => {
   if (!accessToken) {
