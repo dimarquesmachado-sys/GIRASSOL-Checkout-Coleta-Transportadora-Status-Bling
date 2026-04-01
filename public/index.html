@@ -775,7 +775,12 @@ function renderMktGrid(){
   }
   var flexPkgs=today.filter(function(p){return p.urgente;}); // todos para barra de progresso
   var byMkt={};
-  today.forEach(function(p){if(!byMkt[p.mkt])byMkt[p.mkt]=[];byMkt[p.mkt].push(p);});
+  // Exclui pacotes FLEX dos cards de marketplace — ficam só no card FLEX URGENTE
+  today.forEach(function(p){
+    if(p.urgente) return;
+    if(!byMkt[p.mkt])byMkt[p.mkt]=[];
+    byMkt[p.mkt].push(p);
+  });
   var cards=[];
   if(flexPkgs.length>0){
     var fc=flexPkgs.filter(function(p){return p.status==='coletado';}).length;
@@ -834,12 +839,12 @@ function closeColeta(){
 }
 
 function getPkgsAtivos(){
-  // Retorna todos os pacotes do mkt para exibição (coletados aparecem com ✓)
-  // mas a bipagem só processa pendentes
   if(activeMkt==='flex'){
+    // FLEX: retorna todos os urgentes (coletados aparecem com ✓, pendentes para bipar)
     return todayPkgs().filter(function(p){return p.urgente;});
   }
-  return todayPkgs().filter(function(p){return p.mkt===activeMkt;});
+  // Outros marketplaces: exclui urgentes (FLEX) — eles só aparecem no card FLEX
+  return todayPkgs().filter(function(p){return p.mkt===activeMkt&&!p.urgente;});
 }
 
 function renderPkgList(){
@@ -1003,7 +1008,9 @@ function handleScan(rawCode,photo){
     var p=packages[i];
     if(!match(p)||p.date!==today) continue;
     if(p.status==='coletado'){already=p;break;}
-    if(activeMkt==='flex'?p.urgente:p.mkt===activeMkt){if(p.status==='pendente'){pkg=p;break;}}
+    // Quando mkt normal, exclui urgentes (FLEX só é bipado pelo card FLEX)
+    var mktMatch=activeMkt==='flex'?p.urgente:(p.mkt===activeMkt&&!p.urgente);
+    if(mktMatch){if(p.status==='pendente'){pkg=p;break;}}
     else if(activeMkt!=='flex'&&p.mkt!==activeMkt&&p.status==='pendente'){wrongPkg=p;}
   }
 
