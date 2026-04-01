@@ -217,9 +217,9 @@ app.all('/bling/*', requireAuth, async (req, res) => {
   const url = BLING_BASE + blingPath + query;
 
   try {
-    // Rate limit: 700ms para escrita, 300ms para leitura
+    // Rate limit: só aplica delay em escrita
     const writeMethod = ['POST','PUT','PATCH','DELETE'].includes(req.method);
-    await sleep(writeMethod ? 700 : 300);
+    if(writeMethod) await sleep(700);
 
     const r = await blingFetch(url, {
       method: req.method,
