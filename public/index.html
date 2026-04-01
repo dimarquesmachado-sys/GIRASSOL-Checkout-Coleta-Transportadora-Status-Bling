@@ -527,7 +527,10 @@ function apiFetch(path,opts){
   var url=path.indexOf('/bling/')!==-1?path+sep+'_='+Date.now():path;
   return fetch(url,Object.assign({},opts,{headers:Object.assign({},opts.headers||{},{'x-session-token':sessionToken,'Content-Type':'application/json','Cache-Control':'no-cache'})}))
   .then(function(r){
+    // 401 = sessão expirada no NOSSO servidor → logout
+    // 502 = token Bling expirado → mostra erro, não faz logout
     if(r.status===401){doLogout();throw new Error('Sessão expirada');}
+    if(r.status===502){throw new Error('Token Bling expirado — acesse /callback para renovar');}
     return r;
   });
 }
