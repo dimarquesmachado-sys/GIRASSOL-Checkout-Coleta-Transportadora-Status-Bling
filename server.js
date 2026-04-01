@@ -212,7 +212,9 @@ app.all('/bling/*', requireAuth, async (req, res) => {
     });
 
     const data = await r.json().catch(() => ({}));
-    res.status(r.status).json(data);
+    // Bling 401 vira 502 para não confundir com erro de sessão do nosso servidor
+    const statusOut = r.status === 401 ? 502 : r.status;
+    res.status(statusOut).json(data);
   } catch (err) {
     console.error('Erro proxy Bling:', err.message);
     res.status(500).json({ error: err.message });
