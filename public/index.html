@@ -493,7 +493,10 @@ async function pullFromBling(){
     const dateFrom=d30.toISOString().split('T')[0];
 
     while(more&&page<=5){  // max 5 páginas = 500 pedidos
+      const syncBtn=document.getElementById('syncBtn');
+      if(syncBtn) syncBtn.innerHTML=`<span class="spin"></span> Pág. ${page}...`;
       const r=await apiFetch(`/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial=${dateFrom}&dataEmissaoFinal=${today}&pagina=${page}&limite=100`);
+      if(!r.ok){ more=false; break; }
       const d=await r.json();
       const orders=d.data||[];
       all=all.concat(orders);
@@ -581,18 +584,23 @@ function renderMktGrid(){
     </div>`);
   }
 
-  // Regular marketplace cards
-  Object.keys(byMkt).sort().forEach(m=>{
-    const list=byMkt[m];
+  // Regular marketplace cards (by loja)
+  const mktOrder = ['ml','shopee','amazon','magalu','tiktok','shein','melhorenvio','velozz','lalamove','outro'];
+  mktOrder.forEach(m=>{
+    const list=byMkt[m]||[];
     const col=list.filter(p=>p.status==='coletado').length;
     const pend=list.filter(p=>p.status==='pendente').length;
-    const pct=Math.round(col/list.length*100);
+    const pct=list.length?Math.round(col/list.length*100):0;
     const isActive=activeMkt===m;
-    const isDone=pend===0;
-    cards.push(`<div class="mkt-card ${isActive?'active':''} ${isDone?'done':''}" onclick="selectMkt('${m}')">
+    const isDone=list.length>0&&pend===0;
+    const isEmpty=list.length===0;
+    // Always show Melhor Envio, Velozz, Lalamove even if 0 (so user can use manual)
+    const alwaysShow=['melhorenvio','velozz','lalamove'];
+    if(isEmpty && !alwaysShow.includes(m)) return;
+    cards.push(`<div class="mkt-card ${isActive?'active':''} ${isDone?'done':''}" onclick="selectMkt('${m}')" style="${isEmpty?'opacity:.45':''}">
       <div class="mkt-head"><span class="mkt-chip ${MKT[m]?.cls||'c-outro'}">${MKT[m]?.icon||'📦'} ${MKT[m]?.n||m}</span></div>
-      <div class="mkt-count" style="color:${isDone?'var(--gr)':'var(--tx)'}">${list.length}</div>
-      <div class="mkt-sub">${col} col · ${pend} pend</div>
+      <div class="mkt-count" style="color:${isDone?'var(--gr)':isEmpty?'var(--th)':'var(--tx)'}">${list.length}</div>
+      <div class="mkt-sub">${isEmpty?'nenhum hoje':col+' col · '+pend+' pend'}</div>
       <div class="mkt-prog"><div class="mkt-prog-bar" style="width:${pct}%"></div></div>
     </div>`);
   });
