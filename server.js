@@ -167,7 +167,7 @@ async function blingFetch(url, options = {}, retries = 3) {
 
     // Rate limit — espera e tenta de novo
     if (r.status === 429) {
-      const waitMs = Math.pow(2, i) * 500; // 500ms, 1s, 2s
+      const waitMs = i === 0 ? 2000 : Math.pow(2, i) * 1000; // 2s, 2s, 4s
       console.warn(`⚠ Rate limit (429) — aguardando ${waitMs}ms antes de tentar novamente`);
       await sleep(waitMs);
       continue;
@@ -217,8 +217,9 @@ app.all('/bling/*', requireAuth, async (req, res) => {
   const url = BLING_BASE + blingPath + query;
 
   try {
-    // Delay de 300ms entre requisições para evitar rate limit
-    await sleep(300);
+    // Rate limit: 700ms para escrita, 300ms para leitura
+    const writeMethod = ['POST','PUT','PATCH','DELETE'].includes(req.method);
+    await sleep(writeMethod ? 700 : 300);
 
     const r = await blingFetch(url, {
       method: req.method,
