@@ -729,17 +729,13 @@ function detectTrackingPkgs(pkgs){
         }
 
         var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
+        // Mesmos campos que o detectFlexML usa — sem fallback genérico
         var track = extractTrackStr(vol&&vol.numeracao)
                  || extractTrackStr(vol&&vol.codigoRastreio)
                  || extractTrackStr(vol&&vol.codigoRastreamento)
                  || extractTrackStr(vol&&vol.tracking)
-                 || extractTrackStr(vol&&vol.numero)
-                 || extractTrackStr(vol&&vol.rastreio)
                  || extractTrackStr(order.transporte&&order.transporte.codigoRastreamento)
                  || extractTrackStr(order.transporte&&order.transporte.codigoRastreio)
-                 || extractTrackStr(order.transporte&&order.transporte.numeroRastreio)
-                 // Fallback: varre TODO o objeto transporte buscando número de tracking
-                 || extractTrackStr(order.transporte)
                  || '';
 
         // NF — tenta todos os caminhos
@@ -824,8 +820,6 @@ function detectFlexML(mlPkgs, onDone){
                 ||extractTrackStr(vol&&vol.numero)
                 ||extractTrackStr(order.transporte&&order.transporte.codigoRastreamento)
                 ||extractTrackStr(order.transporte&&order.transporte.codigoRastreio)
-                // Fallback: varre TODO o objeto transporte
-                ||extractTrackStr(order.transporte)
                 ||'';
             // Log para debug
             console.log('🔍 FLEX ML #'+p.numero+' transporte:', JSON.stringify(order.transporte||{}).substring(0,400));
