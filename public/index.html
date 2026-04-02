@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -1201,7 +1201,16 @@ function renderMktGrid(){
   var days=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
   document.getElementById('statusDate').textContent=days[d.getDay()]+', '+d.getDate()+' de '+d.toLocaleString('pt-BR',{month:'long'});
   var col=today.filter(function(p){return p.status==='coletado';}).length;
-  document.getElementById('statusSub').textContent=today.length+' pedidos · '+col+' coletados';
+  var mktLabel='';
+  if(activeMkt){
+    var info=MKT[activeMkt]||{n:activeMkt};
+    var mktPkgs=activeMkt==='flex'?today.filter(function(p){return p.urgente;}):today.filter(function(p){return p.mkt===activeMkt&&!p.urgente;});
+    var mktCol=mktPkgs.filter(function(p){return p.status==='coletado';}).length;
+    mktLabel=mktPkgs.length+' pedidos · '+mktCol+' coletados';
+  } else {
+    mktLabel=today.length+' pedidos · '+col+' coletados';
+  }
+  document.getElementById('statusSub').textContent=mktLabel;
   var urgentes=today.filter(function(p){return p.urgente&&p.status==='pendente';});
   var fb=document.getElementById('flexBanner');
   if(urgentes.length>0){
@@ -1467,6 +1476,7 @@ function handleScan(rawCode,photo){
   }
 
   code=code.toUpperCase();
+  console.log('🔍 Código lido:', code, '| packages:', packages.filter(function(p){return p.date===todayStr();}).map(function(p){return p.numero+'→'+p.numeracao;}).join(', '));
   if(code===lastCode&&Date.now()-lastCodeAt<2000) return;
   lastCode=code; lastCodeAt=Date.now();
   var today=todayStr();
