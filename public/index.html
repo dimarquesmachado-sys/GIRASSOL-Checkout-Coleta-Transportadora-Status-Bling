@@ -755,6 +755,7 @@ function detectFlexML(mlPkgs, onDone){
             var numLojaDetalhe=(order.numeroPedidoLoja)||(order.loja&&order.loja.numeroPedido)||'';
             if(numLojaDetalhe&&!p.numLoja) p.numLoja=String(numLojaDetalhe).trim();
             sv('expv5_pkgs',packages);
+            if(i%5===0) syncToServer(); // sync a cada 5 pedidos
             renderMktGrid();
           }
         }
@@ -858,6 +859,7 @@ function pullFromBling(){
     packages=packages.filter(function(p){return p.date!==today;});
     packages=newPkgs.concat(packages);
     sv('expv5_pkgs',packages);
+    syncToServer(); // sincroniza packages para outros dispositivos (desktop)
     toast(newPkgs.length+' pedidos carregados','ok');
     if(semTracking_count>0) toast('Buscando tracking de '+semTracking_count+' pedido(s)... aguarde','warn');
     renderMktGrid(); updateBadge();
@@ -1703,7 +1705,10 @@ function showPage(page){
   document.getElementById('navDia').className='nav-btn'+(page==='dia'?' active':'');
   document.getElementById('navHist').className='nav-btn'+(page==='historico'?' active':'');
   if(page==='dia') renderDia();
-  if(page==='historico') renderHistorico();
+  if(page==='historico'){
+    // Busca dados atualizados do servidor antes de renderizar
+    loadFromServer(function(){renderHistorico();});
+  }
   if(page==='romaneio'){
     // Auto-refresh: se passaram mais de 2 minutos desde a última busca, atualiza
     var mins2=2*60*1000;
@@ -1752,8 +1757,9 @@ function detectNF(pkgsSemNF, onDone){
   function next(){
     if(i>=pkgsSemNF.length){
       sv('expv5_pkgs',packages);
+      syncToServer(); // atualiza servidor com NFs recém-carregadas
       if(onDone) onDone();
-      toast('✅ NFs carregadas!','ok');
+      toast('✅ NFs carregadas! Pode bipar.','ok');
       return;
     }
     var pkg=pkgsSemNF[i++];
