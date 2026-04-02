@@ -1173,8 +1173,10 @@ function pullFromBling(){
         } else {
           // Após FLEX, busca NF de TODOS (ML + outros)
           var semNF2=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
-          if(semNF2.length>0) setTimeout(function(){detectNF(semNF2,null);},1200);
-          else toast('✅ Tudo carregado!','ok');
+          if(semNF2.length>0){
+            console.log('🧾 Chamando detectNF após FLEX para '+semNF2.length+' pedidos');
+            setTimeout(function(){detectNF(semNF2,null);},1200);
+          } else toast('✅ Tudo carregado!','ok');
         }
       });
     } else if(semTracking.length>0){
@@ -2514,6 +2516,7 @@ function clearDay(){
 // ═══ BUSCA NF ═══
 // A NF não vem no pedido — precisa consultar endpoint separado /nfe
 function detectNF(pkgsSemNF, onDone){
+  console.log('🧾 detectNF iniciado para '+pkgsSemNF.length+' pedidos sem NF');
   var i=0;
   function next(){
     if(i>=pkgsSemNF.length){
@@ -2539,6 +2542,7 @@ function detectNF(pkgsSemNF, onDone){
           for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
           if(p){
             if(num){p.nf=String(num).trim(); console.log('✅ NF #'+p.numero+': '+p.nf);}
+          else{console.warn('⚠ NF não encontrada para #'+pkg.numero+' — d.data:', JSON.stringify(d.data));}
             if(chave&&!p.nfChave){p.nfChave=String(chave).replace(/\s/g,'');}
             renderMktGrid();
             if(activeMkt) renderPkgList();
