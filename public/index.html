@@ -581,7 +581,7 @@ var MKT = {
 var LOJA_MAP = {'203146903':'ml','203583169':'shopee','203967708':'amazon','203262016':'magalu','205523707':'tiktok'};
 var MKT_ORDER = ['ml','shopee','amazon','magalu','tiktok','melhorenvio','velozz','lalamove','outro'];
 var ALWAYS_SHOW = ['melhorenvio','velozz','lalamove'];
-var FLEX_KEYWORDS = ['flex','entrega local','vapt','entrega direta','logistica shopee','shopee entrega direta','mercado envios flex'];
+var FLEX_KEYWORDS = ['flex','entrega local','vapt','entrega direta','logistica shopee','shopee entrega direta','shopee xpress','mercado envios flex','shopeelogistic','shplogistic'];
 
 // ═══ STATE ═══
 var packages = [], scans = [], sessionToken = '', currentUser = '';
@@ -765,9 +765,36 @@ function detectTrackingPkgs(pkgs){
         if(p){
           if(track){p.numeracao=String(track).replace(/\s/g,'').toUpperCase(); console.log('✅ Tracking '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.numeracao);}
           else{console.warn('⚠ SEM tracking para '+p.mkt.toUpperCase()+' #'+p.numero);}
+          // Detecta urgente pelo serviço (Shopee Xpress, VAPT, etc)
+          if(!p.urgente){
+            var svcDetect=((order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||'').toLowerCase()+' '+
+                          ((order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico)||'').toLowerCase();
+            if(FLEX_KEYWORDS.some(function(f){return svcDetect.indexOf(f)!==-1;})){
+              p.urgente=true;
+              p.servico=(order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||
+                        (order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico)||'Expresso';
+              console.log('⚡ URGENTE: '+p.mkt.toUpperCase()+' #'+p.numero+' → '+p.servico);
+            }
+          }
           if(nfDetalhe&&!p.nf){p.nf=String(nfDetalhe).trim(); console.log('✅ NF '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.nf);}
-          // nfChave já foi capturado acima e salvo diretamente
-          if(nfChave&&!p.nfChave){p.nfChave=nfChave; console.log('✅ Chave DANFE #'+p.numero+': '+nfChave.substring(0,20)+'...');}
+          if(nfChave&&!p.nfChave){p.nfChave=nfChave;}
+          // Se ainda sem NF, busca no endpoint /nfe
+          if(!p.nf){
+            (function(pkgRef){
+              setTimeout(function(){
+                apiFetch('/bling/nfe?idPedidoVenda='+pkgRef.blingId+'&limite=1')
+                .then(function(r){return r.ok?r.json():null;})
+                .then(function(nd){
+                  if(!nd||!nd.data||!nd.data[0]) return;
+                  var nfr=nd.data[0];
+                  var nnum=(nfr.numero)||(nfr.nfe&&nfr.nfe.numero)||(nfr.numeroDocumento)||'';
+                  var nch=(nfr.chaveAcesso)||(nfr.chave)||'';
+                  if(nnum){pkgRef.nf=String(nnum).trim(); sv('expv5_pkgs',packages); renderPkgList(); renderMktGrid(); console.log('✅ NF /nfe '+pkgRef.mkt.toUpperCase()+' #'+pkgRef.numero+': '+pkgRef.nf);}
+                  if(nch&&!pkgRef.nfChave) pkgRef.nfChave=String(nch).replace(/\s/g,'');
+                }).catch(function(){});
+              },500);
+            })(p);
+          }
           sv('expv5_pkgs',packages);
           renderMktGrid();
           if(activeMkt) renderPkgList(); // atualiza lista aberta com novos dados
@@ -1167,19 +1194,17 @@ function pullFromBling(){
     toast(newPkgs.length+' pedidos carregados','ok');
     if(semTracking_count>0) toast('Buscando tracking de '+semTracking_count+' pedido(s)... aguarde','warn');
     renderMktGrid(); updateBadge();
-    // Detecta FLEX em TODOS os ML pendentes (não só novos)
-    // Isso garante que devoluções de dias anteriores sejam detectadas como FLEX
-    var mlPkgs=newPkgs.filter(function(p){return p.mkt==='ml';});
-    // Se já tem urgente no merge, não precisa re-detectar
+    // Detecta FLEX em todos os ML e Shopee pendentes
+    var mlPkgs=newPkgs.filter(function(p){return p.mkt==='ml'||p.mkt==='shopee';});
     var mlSemFlex=mlPkgs.filter(function(p){return !p.urgente;});
     var mlJaFlex=mlPkgs.filter(function(p){return p.urgente;});
-    if(mlJaFlex.length>0) console.log('⚡ '+mlJaFlex.length+' ML já marcados como FLEX (do merge)');
+    if(mlJaFlex.length>0) console.log('⚡ '+mlJaFlex.length+' já marcados como FLEX (do merge)');
     // Busca tracking: primeiro FLEX ML, depois TikTok/Shopee/etc em SEQUÊNCIA
     // (evita rate limit 429 do Bling ao rodar os dois em paralelo)
     var semTracking=newPkgs.filter(function(p){
-      // Inclui ML sem numLoja para buscar número loja virtual (2000015489054448)
       if(p.mkt==='ml'&&!p.urgente&&(!p.numLoja||!p.numeracao)) return true;
-      return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='shopee'||p.mkt==='magalu'||p.mkt==='amazon');
+      // Shopee vai pelo detectFlexML — não duplicar aqui
+      return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='magalu'||p.mkt==='amazon');
     });
     var semTracking_count=semTracking.length;
     if(mlSemFlex.length>0||mlPkgs.length>0){
