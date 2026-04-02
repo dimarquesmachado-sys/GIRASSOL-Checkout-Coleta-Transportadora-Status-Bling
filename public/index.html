@@ -778,11 +778,11 @@ function pullFromBlingMkt(mkt){
   var lojaId=MKT_TO_LOJA[mkt]||null;
   if(!lojaId) return; // FLEX e outros sem lojaId fixo não filtram
   var today=todayStr();
-  var d1=new Date(); d1.setDate(d1.getDate()-1);
-  var dateFrom=d1.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  var d30b=new Date(); d30b.setDate(d30b.getDate()-30);
+  var dateFrom30=d30b.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
   // Mostra mini-indicador
   toast('🔄 Verificando '+( MKT[mkt]||{n:mkt}).n+'...','warn');
-  apiFetch('/bling/pedidos/vendas?idSituacao=24&idLoja='+lojaId+'&dataEmissaoInicial='+dateFrom+'&dataEmissaoFinal='+today+'&pagina=1&limite=100')
+  apiFetch('/bling/pedidos/vendas?idSituacao=24&idLoja='+lojaId+'&dataEmissaoInicial='+dateFrom30+'&pagina=1&limite=100')
   .then(function(r){
     if(!r.ok) return;
     return r.json().then(function(d){
@@ -848,11 +848,11 @@ function pullFromBling(){
   var today=todayStr();
   // Busca só hoje: evita puxar centenas de pedidos antigos ainda em VERIFICADO
   // Usa ontem como margem de segurança para pedidos emitidos ontem mas verificados hoje
-  var d1=new Date(); d1.setDate(d1.getDate()-1);
-  var dateFrom=d1.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  var d30=new Date(); d30.setDate(d30.getDate()-30);
+  var dateFrom30=d30.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
   var all=[]; var page=1;
   function fetchPage(){
-    apiFetch('/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial='+dateFrom+'&dataEmissaoFinal='+today+'&pagina='+page+'&limite=100')
+    apiFetch('/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial='+dateFrom30+'&pagina='+page+'&limite=100')
     .then(function(r){
       if(r.status===304||r.status!==200){finishFetch(all);return;}
       return r.json().then(function(d){
@@ -915,13 +915,9 @@ function pullFromBling(){
         dataPedido:o.data||'',date:today,pulledAt:nowTS(),
         status:'pendente',colT:null,obs:'',blingId:o.id};
     }).filter(function(p){
-      if(!p.etiqueta||p.blingStatus!==24) return false;
-      // FIX DEFINITIVO: só aceita pedidos de hoje ou ontem
-      // Impede que pedidos antigos ainda em VERIFICADO apareçam na lista
-      if(!p.dataPedido) return true; // sem data: deixa passar
-      var d1=new Date(); d1.setDate(d1.getDate()-1);
-      var ontem=d1.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
-      return p.dataPedido===today||p.dataPedido.startsWith(today)||p.dataPedido.startsWith(ontem);
+      // Filtra só por status VERIFICADO (24) — sem filtro de data
+      // ML e outros marketplaces podem ter pedidos com datas futuras (entrega agendada)
+      return p.etiqueta && p.blingStatus===24;
     });
     var existingToday=packages.filter(function(p){return p.date===today;});
     newPkgs.forEach(function(p){
