@@ -2360,11 +2360,20 @@ function renderHistContent(){
   var lotes=scans.filter(function(s){
     return s.tipo==='lote'&&s.date===date&&(!histFilterMkt||s.mkt===histFilterMkt);
   });
+  lotes.sort(function(a,b){
+    var ta=a.time||''; var tb=b.time||'';
+    return tb>ta?1:tb<ta?-1:0;
+  });
   // Scans individuais do dia filtrado
   var pkgScans=scans.filter(function(s){
     if(s.tipo==='lote'||s.date!==date) return false;
-    if(!histFilterMkt) return true; // Todos
+    if(!histFilterMkt) return true;
     return s.mkt===histFilterMkt;
+  });
+  // Mais recente primeiro
+  pkgScans.sort(function(a,b){
+    var ta=a.time||''; var tb=b.time||'';
+    return tb>ta?1:tb<ta?-1:0;
   });
 
   // Filtro de busca textual
@@ -2705,7 +2714,27 @@ function loadFromServer(cb){
       if(novos.length>0){
         scans=scans.concat(novos);
         sv('expv5_scans',scans);
+        console.log('📥 '+novos.length+' scans novos do servidor (incluindo lotes)');
       }
+    }
+    // Merge packages: atualiza status dos pacotes que foram coletados em outro dispositivo
+    if(serverPkgs.length>0){
+      var today=todayStr();
+      var localPkgMap={};
+      packages.forEach(function(p){localPkgMap[p.blingId]=p;});
+      serverPkgs.forEach(function(sp){
+        if(localPkgMap[sp.blingId]&&sp.date===today){
+          // Atualiza status se o servidor tem status mais avançado
+          var statusOrder={pendente:0,problema:1,coletado:2};
+          var localStatus=statusOrder[localPkgMap[sp.blingId].status]||0;
+          var serverStatus=statusOrder[sp.status]||0;
+          if(serverStatus>localStatus){
+            localPkgMap[sp.blingId].status=sp.status;
+            localPkgMap[sp.blingId].colT=sp.colT;
+          }
+        }
+      });
+      sv('expv5_pkgs',packages);
     }
 
     if(cb) cb();
@@ -2731,7 +2760,10 @@ function initApp(){
   document.getElementById('userChip').textContent='👤 '+currentUser;
   renderMktGrid(); updateBadge();
   // 1. Envia dados locais para o servidor (para outros dispositivos verem)
-  if(packages.length>0||scans.length>0) syncToServer();
+  if(packages.length>0||scans.length>0){
+    syncToServer();
+    console.log('📤 initApp: enviando '+packages.length+' pacotes e '+scans.length+' scans ao servidor');
+  }
   // 2. Busca dados do servidor e faz merge
   loadFromServer(function(){
     renderMktGrid(); updateBadge();
