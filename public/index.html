@@ -740,7 +740,7 @@ function detectTrackingPkgs(pkgs){
 
         // NF — tenta todos os caminhos
         // numLoja — número da venda no marketplace
-        var numLojaD=(order.numeroPedidoLoja)||(order.loja&&order.loja.numeroPedido)||'';
+        var numLojaD=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
         if(numLojaD&&p&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
         // Para ML: numeroPedidoLoja = número loja virtual (2000015489054448)
         // numeracao = número de envio (46625715803)
@@ -826,11 +826,6 @@ function detectFlexML(mlPkgs, onDone){
           if(nr){
             p.numeracao=String(nr).replace(/\s/g,'').toUpperCase();
             console.log('✅ Tracking ML'+(isFlex?' FLEX':'')+'  #'+p.numero+': '+p.numeracao);
-          } else if(!isFlex){
-            // Mostra campos disponíveis em toast para debug
-            var tJson=JSON.stringify(order.transporte||{});
-            console.warn('⚠ ML SEM TRACKING #'+p.numero+' — transporte: '+tJson);
-            toast('DEBUG ML #'+p.numero+': '+tJson.substring(0,120),'warn');
           }
           // NF e chave DANFE
           var nfFlex=(order.notaFiscal&&order.notaFiscal.numero)||(order.nfe&&order.nfe.numero)||'';
@@ -838,7 +833,7 @@ function detectFlexML(mlPkgs, onDone){
           if(nfFlex&&!p.nf) p.nf=String(nfFlex).trim();
           if(nfChaveFlex&&!p.nfChave) p.nfChave=String(nfChaveFlex).replace(/\s/g,'');
           // numLoja
-          var numLojaDetalhe=(order.numeroPedidoLoja)||(order.loja&&order.loja.numeroPedido)||'';
+          var numLojaDetalhe=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
           if(numLojaDetalhe&&!p.numLoja) p.numLoja=String(numLojaDetalhe).trim();
           sv('expv5_pkgs',packages);
           if(i%5===0) syncToServer();
@@ -1082,7 +1077,7 @@ function pullFromBling(){
            ||'';
       if(nf) nf=String(nf).trim();
       // Número do pedido no marketplace (Bling guarda em numeroPedidoLoja ou loja.numeroPedido)
-      var numLoja=(o.numeroPedidoLoja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
+      var numLoja=(o.numeroPedidoLoja)||(o.numeroloja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
       // Extrai tracking da listagem (pode já estar disponível para Shopee, TikTok etc.)
       var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
                          (o.transporte&&o.transporte.codigoRastreamento)||'';
