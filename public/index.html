@@ -102,7 +102,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 @keyframes pulse-btn{0%,100%{box-shadow:0 0 0 0 rgba(224,85,85,.4)}50%{box-shadow:0 0 0 8px rgba(224,85,85,0)}}
 
 /* CAMERA */
-.cam-wrap{margin:0 14px;border-radius:var(--rl);overflow:hidden;background:#000;position:relative;aspect-ratio:4/3;display:none}
+.cam-wrap{margin:0 14px;border-radius:var(--rl);overflow:hidden;background:#000;position:relative;aspect-ratio:16/9;max-height:42vh;display:none}
 .cam-wrap.show{display:block}
 #camVideo{width:100%;height:100%;object-fit:cover;display:block}
 .cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
@@ -1304,7 +1304,9 @@ function selectMkt(mkt){
   document.getElementById('biparBtn').innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="8" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="12" y="4" width="3" height="16" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="21" y="4" width="1" height="16" rx="1" fill="currentColor"/></svg> BIPAR ETIQUETAS';
   document.getElementById('progArea').style.display='none';
   renderPkgList(); renderMktGrid();
-  document.getElementById('coletaPanel').scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('coletaPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+  // Scroll para o topo da página para câmera ficar visível
+  window.scrollTo({top:0,behavior:'smooth'});
   // Atualiza só essa loja no Bling — verifica se tem pedido novo
   var agoraMs=Date.now();
   var lastMktPull=window['_lastMktPull_'+mkt]||0;
@@ -2658,6 +2660,18 @@ function loadFromServer(cb){
 // ═══ INIT ═══
 function initApp(){
   packages=ld('expv5_pkgs',[]); scans=ld('expv5_scans',[]);
+  // Limpa valores [object Object] salvos incorretamente
+  var cleaned=false;
+  packages.forEach(function(p){
+    if(p.numeracao&&String(p.numeracao).indexOf('object')!==-1){
+      console.log('🧹 Limpando numeracao inválida: #'+p.numero+' → '+p.numeracao);
+      p.numeracao=''; cleaned=true;
+    }
+    if(p.numLoja&&String(p.numLoja).indexOf('object')!==-1){
+      p.numLoja=''; cleaned=true;
+    }
+  });
+  if(cleaned){sv('expv5_pkgs',packages); console.log('🧹 localStorage limpo');}
   document.getElementById('userChip').textContent='👤 '+currentUser;
   renderMktGrid(); updateBadge();
   // 1. Envia dados locais para o servidor (para outros dispositivos verem)
