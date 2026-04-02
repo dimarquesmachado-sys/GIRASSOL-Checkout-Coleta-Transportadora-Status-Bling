@@ -946,6 +946,14 @@ function pullFromBlingMkt(mkt){
     return r.json().then(function(d){
       var orders=d.data||[];
       if(orders.length===0) return;
+      // Filtro de 30 dias no cliente (igual ao pullFromBling principal)
+      orders=orders.filter(function(o){
+        if(!o.data) return true;
+        var d=new Date(o.data.substring(0,10)+'T12:00:00');
+        var diffDias=(Date.now()-d.getTime())/(1000*60*60*24);
+        return diffDias<=30;
+      });
+      if(orders.length===0) return;
       var novos=0;
       orders.forEach(function(o){
         var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
@@ -1551,10 +1559,15 @@ function verFotoScan(etiqueta){
       if(serverPhoto){
         _showScanPhotoModal(serverPhoto, scanItem);
       } else {
-        openModal('<div class="modal-img-wrap" style="text-align:center;padding:20px">'+
-          '<div style="font-size:48px;margin-bottom:16px">📷</div>'+
-          '<div style="color:var(--tx);font-size:14px;font-weight:600;margin-bottom:8px">Foto não encontrada</div>'+
-          '<div style="color:var(--tm);font-size:12px;line-height:1.6">A foto ainda não foi sincronizada<br>com o servidor, ou o pacote<br>foi bipado sem câmera.</div>'+
+        var msg=scanItem?'Bipado em '+formatDate(scanItem.date)+' às '+scanItem.time:'';
+        openModal('<div class="modal-img-wrap" style="text-align:center;padding:24px 20px">'+
+          '<div style="font-size:52px;margin-bottom:14px">📷</div>'+
+          '<div style="color:var(--tx);font-size:15px;font-weight:700;margin-bottom:8px">Foto não disponível</div>'+
+          '<div style="color:var(--tm);font-size:12px;line-height:1.8">'+
+            (msg?'<div style="color:var(--tm);margin-bottom:8px">'+msg+'</div>':'')+
+            'Fotos bipadas antes de 02/04/2026<br>não foram sincronizadas com o servidor.<br><br>'+
+            '📱 Acesse pelo celular da expedição<br>para ver imagens antigas.'+
+          '</div>'+
           '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
           '</div>'+
           '<button class="modal-back" onclick="closeTopModal()">← Fechar</button>');
@@ -1576,7 +1589,7 @@ function _showScanPhotoModal(photo, scanItem){
   if(p&&p.numLoja) infoBar+=' · <span style="color:var(--bl)">🛒 '+p.numLoja+'</span>';
   infoBar+='</div>';
   infoBar+='<div style="font-size:11px;color:var(--tm);margin-top:2px">'+scanItem.destinatario+'</div>';
-  infoBar+='<div style="font-size:10px;color:var(--th);margin-top:2px">📅 '+scanItem.date+' '+scanItem.time+'</div>';
+  infoBar+='<div style="font-size:10px;color:var(--th);margin-top:2px">📅 '+formatDate(scanItem.date)+' às '+scanItem.time+'</div>';
   infoBar+='</div>';
   openModal('<div class="modal-img-wrap">'+
     '<img src="'+photo+'" alt="etiqueta">'+
@@ -2088,6 +2101,19 @@ document.addEventListener('click',function(e){
   });
 });
 
+function formatDate(dateStr){
+  if(!dateStr) return '';
+  var today=todayStr();
+  var d1=new Date(); d1.setDate(d1.getDate()-1);
+  var ontem=d1.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  if(dateStr===today) return 'Hoje';
+  if(dateStr===ontem) return 'Ontem';
+  // Formata como DD/MM
+  var parts=dateStr.split('-');
+  if(parts.length===3) return parts[2]+'/'+parts[1]+'/'+parts[0];
+  return dateStr;
+}
+
 function highlight(text, q){
   if(!q||!text) return String(text||'');
   var re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
@@ -2242,7 +2268,7 @@ function renderHistContent(){
       var nf=pkg&&pkg.nf?pkg.nf:'';
       var numLoja=pkg&&pkg.numLoja?pkg.numLoja:'';
       var track=pkg&&pkg.numeracao?pkg.numeracao:'';
-      var diaLabel=s.date===todayStr()?'Hoje':s.date;
+      var diaLabel=formatDate(s.date);
       html+='<div class="hist-pkg">';
       if(s.photo){
         html+='<img src="'+s.photo+'" data-et="'+s.etiqueta+'" onclick="verFotoScan(this.dataset.et)" alt="etiqueta">';
