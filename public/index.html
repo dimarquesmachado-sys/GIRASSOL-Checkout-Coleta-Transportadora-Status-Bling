@@ -996,7 +996,7 @@ function pullFromBling(){
       var ex=existingMap[p.blingId];
       if(!ex) return; // pacote novo — fica com defaults
       // Preserva campos enriquecidos independente da data
-      if(ex.urgente) p.urgente=true;
+      if(ex.urgente) p.urgente=true; // CRITICAL: preserva flag FLEX/urgente
       if(ex.servico) p.servico=ex.servico;
       if(ex.numeracao) p.numeracao=ex.numeracao;
       if(ex.nfChave) p.nfChave=ex.nfChave;
@@ -1015,6 +1015,13 @@ function pullFromBling(){
       // Se era de outro dia e não foi devolvido: fica como pendente (novo pull)
     });
 
+    // Log de rastreamento para qualquer pacote devolvido
+    newPkgs.forEach(function(p){
+      if(p.urgente&&p.status==='pendente'){
+        console.log('✅ URGENTE pendente após merge: #'+p.numero+' urgente='+p.urgente+' mkt='+p.mkt);
+      }
+    });
+
     // Preserva expedidos de HOJE que não voltaram do Bling (já estão em DESPACHADO)
     var idsNovos={};
     newPkgs.forEach(function(p){idsNovos[p.blingId]=true;});
@@ -1029,15 +1036,23 @@ function pullFromBling(){
     toast(newPkgs.length+' pedidos carregados','ok');
     if(semTracking_count>0) toast('Buscando tracking de '+semTracking_count+' pedido(s)... aguarde','warn');
     renderMktGrid(); updateBadge();
+    // Detecta FLEX em TODOS os ML pendentes (não só novos)
+    // Isso garante que devoluções de dias anteriores sejam detectadas como FLEX
     var mlPkgs=newPkgs.filter(function(p){return p.mkt==='ml';});
+    // Se já tem urgente no merge, não precisa re-detectar
+    var mlSemFlex=mlPkgs.filter(function(p){return !p.urgente;});
+    var mlJaFlex=mlPkgs.filter(function(p){return p.urgente;});
+    if(mlJaFlex.length>0) console.log('⚡ '+mlJaFlex.length+' ML já marcados como FLEX (do merge)');
     // Busca tracking: primeiro FLEX ML, depois TikTok/Shopee/etc em SEQUÊNCIA
     // (evita rate limit 429 do Bling ao rodar os dois em paralelo)
     var semTracking=newPkgs.filter(function(p){
       return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='shopee'||p.mkt==='magalu'||p.mkt==='amazon');
     });
     var semTracking_count=semTracking.length;
-    if(mlPkgs.length>0){
-      detectFlexML(mlPkgs, function(){
+    if(mlSemFlex.length>0||mlPkgs.length>0){
+      // Só busca individualmente os que ainda não têm urgente
+      var mlParaDetectar=typeof mlSemFlex!=='undefined'?mlSemFlex:mlPkgs;
+      detectFlexML(mlParaDetectar, function(){
         // Só começa tracking dos outros APÓS o FLEX terminar
         if(semTracking.length>0){
           detectTrackingPkgs(semTracking);
@@ -1428,7 +1443,17 @@ function verFotoScan(etiqueta){
       scanItem=scans[i]; break;
     }
   }
-  if(!scanItem||!scanItem.photo){toast('Sem foto para este pacote','warn');return;}
+  if(!scanItem||!scanItem.photo){
+    // Foto existe só no dispositivo onde foi capturada (localStorage local)
+    openModal('<div class="modal-img-wrap" style="text-align:center;padding:20px">'+
+      '<div style="font-size:48px;margin-bottom:16px">📷</div>'+
+      '<div style="color:var(--tx);font-size:14px;font-weight:600;margin-bottom:8px">Foto não disponível neste dispositivo</div>'+
+      '<div style="color:var(--tm);font-size:12px;line-height:1.6">As fotos das etiquetas são salvas no<br>celular onde foram capturadas.<br><br>Acesse pelo celular da expedição<br>para ver esta imagem.</div>'+
+      '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
+      '</div>'+
+      '<button class="modal-back" onclick="closeTopModal()">← Fechar</button>');
+    return;
+  }
   var p=null;
   for(var i=0;i<packages.length;i++){if(packages[i].etiqueta===etiqueta){p=packages[i];break;}}
   var infoBar='<div class="modal-info">';
@@ -2108,7 +2133,7 @@ function renderHistContent(){
       if(s.photo){
         html+='<img src="'+s.photo+'" data-et="'+s.etiqueta+'" onclick="verFotoScan(this.dataset.et)" alt="etiqueta">';
       } else {
-        html+='<div style="width:44px;height:44px;border-radius:6px;background:var(--s2);border:1px dashed var(--b2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📷</div>';
+        html+='<div style="width:44px;height:44px;border-radius:6px;background:var(--s2);border:1px dashed var(--b2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;cursor:pointer" data-et="'+s.etiqueta+'" onclick="verFotoScan(this.dataset.et)" title="Ver no celular da expedição">📷</div>';
       }
       html+='<div class="hist-pkg-info">';
       if(nf) html+='<div style="font-size:12px;font-weight:700;color:var(--gr);font-family:var(--mono)">'+highlight('NF '+nf,q)+'</div>';
