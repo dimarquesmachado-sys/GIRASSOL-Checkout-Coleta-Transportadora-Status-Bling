@@ -718,28 +718,43 @@ function detectTrackingPkgs(pkgs){
 
         // DEBUG: loga transporte completo para ML sem tracking
         if(pkg.mkt==='ml'&&!track){
-          console.log('🔍 ML SEM TRACKING #'+pkg.blingId+' — TRANSPORTE COMPLETO:', JSON.stringify(order.transporte||{}));
-          console.log('🔍 KEYS DO ORDER:', Object.keys(order).join(', '));
-          // Tenta campos alternativos
-          var allKeys=JSON.stringify(order);
-          var rastreioMatch=allKeys.match(/"(?:rastreio|tracking|numeracao|codigoRastreio|codigoRastreamento)":\s*"([0-9A-Za-z]+)"/gi);
-          if(rastreioMatch) console.log('🔍 POSSÍVEIS TRACKINGS:', rastreioMatch.join(' | '));
+          // Loga tudo para diagnóstico
+          console.log('🔍 ML SEM TRACKING #'+pkg.blingId);
+          console.log('🔍 TRANSPORTE:', JSON.stringify(order.transporte||{}));
+          console.log('🔍 TODAS KEYS:', Object.keys(order).join(', '));
+          // Procura qualquer chave com número de 8+ dígitos no objeto inteiro
+          var str=JSON.stringify(order);
+          var nums=str.match(/:\s*"([0-9]{8,})"/g)||[];
+          console.log('🔍 NÚMEROS LONGOS NO ORDER:', nums.slice(0,10).join(', '));
         }
 
-        // Tenta TODOS os caminhos conhecidos do Bling v3 para tracking
+        // Extrai string de tracking — campo pode ser string, número ou objeto
+        function extractStr(v){
+          if(!v) return '';
+          if(typeof v==='string') return v.trim();
+          if(typeof v==='number') return String(v);
+          // objeto: tenta pegar campo interno com número longo
+          if(typeof v==='object'){
+            var keys=Object.keys(v);
+            for(var ki=0;ki<keys.length;ki++){
+              var val=v[keys[ki]];
+              if(typeof val==='string'&&val.match(/^[0-9A-Z]{6,}$/i)) return val.trim();
+              if(typeof val==='number'&&String(val).length>=6) return String(val);
+            }
+          }
+          return '';
+        }
         var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
-        var track = (vol&&vol.numeracao)
-                 || (vol&&vol.codigoRastreio)
-                 || (vol&&vol.codigoRastreamento)
-                 || (vol&&vol.tracking)
-                 || (vol&&vol.numero)
-                 || (vol&&vol.rastreio)
-                 || (vol&&vol.etiqueta)
-                 || (order.transporte&&order.transporte.codigoRastreamento)
-                 || (order.transporte&&order.transporte.codigoRastreio)
-                 || (order.transporte&&order.transporte.numeroRastreio)
-                 || (order.transporte&&order.transporte.rastreio)
-                 || (order.transporte&&order.transporte.etiqueta)
+        var track = extractStr(vol&&vol.numeracao)
+                 || extractStr(vol&&vol.codigoRastreio)
+                 || extractStr(vol&&vol.codigoRastreamento)
+                 || extractStr(vol&&vol.tracking)
+                 || extractStr(vol&&vol.numero)
+                 || extractStr(vol&&vol.rastreio)
+                 || extractStr(vol&&vol.etiqueta)
+                 || extractStr(order.transporte&&order.transporte.codigoRastreamento)
+                 || extractStr(order.transporte&&order.transporte.codigoRastreio)
+                 || extractStr(order.transporte&&order.transporte.numeroRastreio)
                  || '';
 
         // NF — tenta todos os caminhos
@@ -774,6 +789,7 @@ function detectTrackingPkgs(pkgs){
           if(nfChave&&!p.nfChave){p.nfChave=nfChave; console.log('✅ Chave DANFE #'+p.numero+': '+nfChave.substring(0,20)+'...');}
           sv('expv5_pkgs',packages);
           renderMktGrid();
+          if(activeMkt) renderPkgList(); // atualiza lista aberta com novos dados
           // Avisa quando último tracking carregou
           if(i>=pkgs.length){
             toast('✅ Trackings carregados — buscando NFs...','ok');
@@ -816,13 +832,14 @@ function detectFlexML(mlPkgs, onDone){
               (svcNome||'ML Flex');
             // Extrai tracking com TODOS os caminhos possíveis
             var vol=order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
-            var nr=(vol&&vol.numeracao)
-                ||(vol&&vol.codigoRastreio)
-                ||(vol&&vol.codigoRastreamento)
-                ||(vol&&vol.tracking)
-                ||(vol&&vol.numero)
-                ||(order.transporte&&order.transporte.codigoRastreamento)
-                ||(order.transporte&&order.transporte.codigoRastreio)
+            function exStr(v){if(!v)return '';if(typeof v==='string')return v.trim();if(typeof v==='number')return String(v);if(typeof v==='object'){var ks=Object.keys(v);for(var ki=0;ki<ks.length;ki++){var vv=v[ks[ki]];if(typeof vv==='string'&&vv.match(/^[0-9A-Z]{6,}$/i))return vv.trim();if(typeof vv==='number'&&String(vv).length>=6)return String(vv);}}return '';}
+            var nr=exStr(vol&&vol.numeracao)
+                ||exStr(vol&&vol.codigoRastreio)
+                ||exStr(vol&&vol.codigoRastreamento)
+                ||exStr(vol&&vol.tracking)
+                ||exStr(vol&&vol.numero)
+                ||exStr(order.transporte&&order.transporte.codigoRastreamento)
+                ||exStr(order.transporte&&order.transporte.codigoRastreio)
                 ||'';
             // Log para debug
             console.log('🔍 FLEX ML #'+p.numero+' transporte:', JSON.stringify(order.transporte||{}).substring(0,400));
@@ -1495,6 +1512,8 @@ function handleScan(rawCode,photo){
     if(String(p.etiqueta).toUpperCase()===c) return true;
     if(String(p.numero)===c) return true;
     if(String(p.blingId)===c) return true;
+    // Número do pedido como string com e sem zeros
+    if(String(p.numero)===c||String(parseInt(p.numero,10))===c) return true;
     if(p.numeracao){
       var pnum=String(p.numeracao).toUpperCase().replace(/\s/g,'');
       if(pnum===c) return true;                                   // exato
