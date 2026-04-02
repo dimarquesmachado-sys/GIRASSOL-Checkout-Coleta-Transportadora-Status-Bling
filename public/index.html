@@ -716,10 +716,14 @@ function detectTrackingPkgs(pkgs){
         if(!d) return;
         var order=d.data||d;
 
-        // DEBUG: loga objeto transporte completo do 1º pedido de cada mkt
-        if(i<=2){
-          console.log('🔍 TRANSPORTE '+pkg.blingId+' ('+pkg.mkt+'):', JSON.stringify(order.transporte||{}).substring(0,600));
-          console.log('🔍 NOTA_FISCAL:', JSON.stringify(order.notaFiscal||order.nfe||order.nota||{}));
+        // DEBUG: loga transporte completo para ML sem tracking
+        if(pkg.mkt==='ml'&&!track){
+          console.log('🔍 ML SEM TRACKING #'+pkg.blingId+' — TRANSPORTE COMPLETO:', JSON.stringify(order.transporte||{}));
+          console.log('🔍 KEYS DO ORDER:', Object.keys(order).join(', '));
+          // Tenta campos alternativos
+          var allKeys=JSON.stringify(order);
+          var rastreioMatch=allKeys.match(/"(?:rastreio|tracking|numeracao|codigoRastreio|codigoRastreamento)":\s*"([0-9A-Za-z]+)"/gi);
+          if(rastreioMatch) console.log('🔍 POSSÍVEIS TRACKINGS:', rastreioMatch.join(' | '));
         }
 
         // Tenta TODOS os caminhos conhecidos do Bling v3 para tracking
@@ -729,9 +733,13 @@ function detectTrackingPkgs(pkgs){
                  || (vol&&vol.codigoRastreamento)
                  || (vol&&vol.tracking)
                  || (vol&&vol.numero)
+                 || (vol&&vol.rastreio)
+                 || (vol&&vol.etiqueta)
                  || (order.transporte&&order.transporte.codigoRastreamento)
                  || (order.transporte&&order.transporte.codigoRastreio)
                  || (order.transporte&&order.transporte.numeroRastreio)
+                 || (order.transporte&&order.transporte.rastreio)
+                 || (order.transporte&&order.transporte.etiqueta)
                  || '';
 
         // NF — tenta todos os caminhos
