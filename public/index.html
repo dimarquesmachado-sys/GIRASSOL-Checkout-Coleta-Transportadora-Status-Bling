@@ -247,6 +247,26 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .motivo-confirm-btn{width:100%;height:46px;background:var(--am);color:#1A0B00;border:none;border-radius:var(--r);font-size:14px;font-weight:800;cursor:pointer;font-family:var(--sans)}
 .motivo-confirm-btn:active{transform:scale(.98)}
 
+/* CALENDÁRIO PICKER */
+.cal-wrap{position:relative;display:inline-block}
+.cal-btn{height:32px;padding:0 10px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-size:12px;cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.cal-btn:active{opacity:.8}
+.cal-popup{position:absolute;top:38px;right:0;background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:12px;z-index:500;min-width:260px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.cal-popup.left{right:auto;left:0}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-title{font-size:13px;font-weight:700}
+.cal-nav{width:28px;height:28px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow{font-size:9px;text-align:center;color:var(--tm);padding:2px 0;font-family:var(--mono)}
+.cal-day{font-size:11px;font-family:var(--mono);text-align:center;padding:5px 2px;border-radius:6px;cursor:pointer;color:var(--tx)}
+.cal-day:hover{background:var(--s2)}
+.cal-day.today{color:var(--bl);font-weight:700}
+.cal-day.selected{background:var(--bl);color:#fff!important;font-weight:700}
+.cal-day.has-data{position:relative}
+.cal-day.has-data::after{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gr)}
+.cal-day.empty{cursor:default;color:var(--th)}
+.cal-day.future{opacity:.3;cursor:default;pointer-events:none}
+
 /* BUSCA HISTÓRICO */
 .hist-highlight{background:rgba(74,158,255,.25);border-radius:3px;color:var(--bl);font-weight:700}
 .hist-stat-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:8px 12px;text-align:center;flex:1;min-width:70px}
@@ -471,7 +491,10 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
         <div style="font-size:16px;font-weight:700;color:var(--bl)" id="diaTitulo">Resumo do Dia</div>
         <div style="display:flex;align-items:center;gap:6px">
           <button onclick="diaNavDate(-1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-size:16px;cursor:pointer">‹</button>
-          <span id="diaDateLabel" style="font-size:12px;font-family:var(--mono);color:var(--tm);min-width:70px;text-align:center">Hoje</span>
+          <div class="cal-wrap">
+            <button class="cal-btn" id="diaDateLabel" onclick="toggleCalDia()" style="min-width:70px">Hoje</button>
+            <div class="cal-popup" id="calDia" style="display:none;right:0"></div>
+          </div>
           <button onclick="diaNavDate(1)" id="diaBtnNext" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-size:16px;cursor:pointer">›</button>
         </div>
       </div>
@@ -502,7 +525,13 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
       <div id="histStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
 
       <!-- Filtro de data -->
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-bottom:6px">Data</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm)">Data</div>
+        <div class="cal-wrap">
+          <button class="cal-btn" onclick="toggleCalHist()">📅 Escolher data</button>
+          <div class="cal-popup" id="calHist" style="display:none;right:0"></div>
+        </div>
+      </div>
       <div class="filter-row" id="filterDateRow"></div>
 
       <!-- Filtro de marketplace -->
@@ -958,49 +987,43 @@ function pullFromBling(){
       // ML e outros marketplaces podem ter pedidos com datas futuras (entrega agendada)
       return p.etiqueta && p.blingStatus===24;
     });
-    var existingToday=packages.filter(function(p){return p.date===today;});
+    // ── MERGE ROBUSTO: busca por blingId em TODOS os packages (qualquer data)
+    // Isso resolve devoluções de dias anteriores
+    var existingMap={};
+    packages.forEach(function(p){existingMap[p.blingId]=p;});
+
     newPkgs.forEach(function(p){
-      for(var i=0;i<existingToday.length;i++){
-        if(existingToday[i].blingId===p.blingId){
-          // Preserva campos enriquecidos
-          if(existingToday[i].urgente) p.urgente=true;
-          if(existingToday[i].servico) p.servico=existingToday[i].servico;
-          if(existingToday[i].numeracao) p.numeracao=existingToday[i].numeracao;
-          if(existingToday[i].nfChave) p.nfChave=existingToday[i].nfChave;
-          if(existingToday[i].nf) p.nf=existingToday[i].nf;
-          // ⚠ DEVOLUÇÃO: se estava coletado/problema mas voltou pro Bling como
-          // VERIFICADO (24), reseta para pendente — permite reexpedir
-          if((existingToday[i].status==='coletado'||existingToday[i].status==='problema')
-            && p.blingStatus===24){
-            p.status='pendente'; p.colT=null;
-            console.log('↩ Devolvido/reaberto: #'+p.numero+' — resetado para pendente');
-            toast('↩ '+p.numero+' voltou para pendente (Bling: VERIFICADO)','warn');
-          } else {
-            // Mantém status local (coletado/problema/pendente)
-            p.status=existingToday[i].status;
-            p.colT=existingToday[i].colT;
-            p.obs=existingToday[i].obs;
-          }
-          break;
-        }
+      var ex=existingMap[p.blingId];
+      if(!ex) return; // pacote novo — fica com defaults
+      // Preserva campos enriquecidos independente da data
+      if(ex.urgente) p.urgente=true;
+      if(ex.servico) p.servico=ex.servico;
+      if(ex.numeracao) p.numeracao=ex.numeracao;
+      if(ex.nfChave) p.nfChave=ex.nfChave;
+      if(ex.nf) p.nf=ex.nf;
+      // ⚠ DEVOLUÇÃO: estava coletado/problema mas voltou ao Bling como VERIFICADO (24)
+      if((ex.status==='coletado'||ex.status==='problema') && p.blingStatus===24){
+        p.status='pendente'; p.colT=null;
+        console.log('↩ Devolvido #'+p.numero+' (era '+ex.status+', data anterior: '+ex.date+') → pendente hoje');
+        toast('↩ '+p.numero+' devolvido — volta para expedição!','warn');
+      } else if(ex.date===today){
+        // Mesmo dia: mantém status local
+        p.status=ex.status;
+        p.colT=ex.colT;
+        p.obs=ex.obs;
       }
+      // Se era de outro dia e não foi devolvido: fica como pendente (novo pull)
     });
-    // Preserva pacotes de hoje que já foram expedidos (coletado/problema)
-    // Eles não voltam do Bling (estão em DESPACHADO), mas precisam ficar no histórico do dia
-    var jaExpedidos=packages.filter(function(p){
-      return p.date===today && (p.status==='coletado'||p.status==='problema');
-    });
-    // Remove todos os de hoje (pendentes e expedidos)
-    packages=packages.filter(function(p){return p.date!==today;});
-    // Adiciona os novos do Bling + recoloca os já expedidos que não vieram no Bling
+
+    // Preserva expedidos de HOJE que não voltaram do Bling (já estão em DESPACHADO)
     var idsNovos={};
     newPkgs.forEach(function(p){idsNovos[p.blingId]=true;});
-    var expedidosNaoNosBling=jaExpedidos.filter(function(p){return !idsNovos[p.blingId];});
-    packages=newPkgs.concat(expedidosNaoNosBling).concat(packages);
-    // DEBUG: mostra status do 103803 após merge
-    var debug103803=packages.find(function(p){return String(p.numero)==='103803'||String(p.etiqueta)==='103803';});
-    if(debug103803) console.log('🔍 103803 após merge:',JSON.stringify({status:debug103803.status,urgente:debug103803.urgente,blingStatus:debug103803.blingStatus,date:debug103803.date,mkt:debug103803.mkt}));
-    else console.warn('⚠ 103803 NÃO encontrado no array packages após merge — não veio do Bling');
+    var expedidosHoje=packages.filter(function(p){
+      return p.date===today&&(p.status==='coletado'||p.status==='problema')&&!idsNovos[p.blingId];
+    });
+    // Remove todos os de hoje e substitui
+    packages=packages.filter(function(p){return p.date!==today;});
+    packages=newPkgs.concat(expedidosHoje).concat(packages);
     sv('expv5_pkgs',packages);
     syncToServer(); // sincroniza packages para outros dispositivos (desktop)
     toast(newPkgs.length+' pedidos carregados','ok');
@@ -1683,7 +1706,8 @@ function updateDiaLabel(){
     var days=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
     label=days[d.getDay()]+' '+d.getDate()+'/'+String(d.getMonth()+1).padStart(2,'0');
   }
-  document.getElementById('diaDateLabel').textContent=label;
+  var lbl=document.getElementById('diaDateLabel');
+  if(lbl) lbl.textContent='📅 '+label;
   // Oculta botão ">" quando está em hoje
   var btnNext=document.getElementById('diaBtnNext');
   if(btnNext) btnNext.style.opacity=date===today?'0.3':'1';
@@ -1818,6 +1842,113 @@ function verFotoLote(loteId,idx){
 }
 
 // ═══ HISTÓRICO ═══
+// ═══ CALENDÁRIO PICKER ═══
+var calState={month:0,year:0}; // mês/ano atual do cal visível
+
+function buildCal(containerId, selectedDate, onSelect, datesWithData){
+  var today=todayStr();
+  var sel=selectedDate||today;
+  var d=new Date(sel+'T12:00:00');
+  if(!calState.month){calState.month=d.getMonth();calState.year=d.getFullYear();}
+  var m=calState.month, y=calState.year;
+  var meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var dias=['D','S','T','Q','Q','S','S'];
+  var firstDay=new Date(y,m,1).getDay();
+  var daysInMonth=new Date(y,m+1,0).getDate();
+  var html='<div class="cal-header">';
+  html+='<button class="cal-nav" data-dir="-1" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calNav(Number(this.dataset.dir),this.dataset.cid,this.dataset.os)">‹</button>';
+  html+='<span class="cal-title">'+meses[m]+' '+y+'</span>';
+  var todayD=new Date(today+'T12:00:00');
+  var isCurrentMonthYear=(y===todayD.getFullYear()&&m===todayD.getMonth());
+  html+='<button class="cal-nav" '+(isCurrentMonthYear?'style="opacity:.3" disabled':'')+' data-dir="1" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calNav(Number(this.dataset.dir),this.dataset.cid,this.dataset.os)">›</button>';
+  html+='</div>';
+  html+='<div class="cal-grid">';
+  dias.forEach(function(d){html+='<div class="cal-dow">'+d+'</div>';});
+  for(var i=0;i<firstDay;i++) html+='<div class="cal-day empty"></div>';
+  for(var day=1;day<=daysInMonth;day++){
+    var dateStr=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    var isSel=dateStr===sel;
+    var isToday2=dateStr===today;
+    var isFuture=dateStr>today;
+    var hasData=datesWithData&&datesWithData.indexOf(dateStr)!==-1;
+    var cls='cal-day'+(isSel?' selected':isToday2?' today':'')+(isFuture?' future':'')+(hasData?' has-data':'');
+    html+='<div class="'+cls+'" data-date="'+dateStr+'" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calSelect(this.dataset.date,this.dataset.cid,this.dataset.os)">'+day+'</div>';
+  }
+  html+='</div>';
+  html+='<div style="text-align:center;margin-top:8px"><button data-date="'+today+'" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calSelect(this.dataset.date,this.dataset.cid,this.dataset.os)" style="font-size:11px;color:var(--bl);background:none;border:none;cursor:pointer;font-family:var(--sans)">Hoje</button></div>';
+  document.getElementById(containerId).innerHTML=html;
+}
+
+function calNav(dir, containerId, onSelect){
+  calState.month+=dir;
+  if(calState.month>11){calState.month=0;calState.year++;}
+  if(calState.month<0){calState.month=11;calState.year--;}
+  var selDate=containerId==='calDia'?getDiaDate():(histFilterDate||todayStr());
+  var datas=getDatasComDados();
+  buildCal(containerId,selDate,onSelect,datas);
+}
+
+function calSelect(date, containerId, onSelect){
+  calState.month=0;calState.year=0; // reseta estado do cal
+  document.getElementById(containerId).style.display='none';
+  window[onSelect](date);
+}
+
+function getDatasComDados(){
+  var datas=[];
+  scans.forEach(function(s){if(s.date&&datas.indexOf(s.date)===-1)datas.push(s.date);});
+  packages.forEach(function(p){if(p.date&&(p.status==='coletado'||p.status==='problema')&&datas.indexOf(p.date)===-1)datas.push(p.date);});
+  return datas;
+}
+
+function toggleCalDia(){
+  var cal=document.getElementById('calDia');
+  var isOpen=cal.style.display!=='none';
+  // Fecha outros calendários
+  document.getElementById('calHist').style.display='none';
+  if(isOpen){cal.style.display='none';return;}
+  calState.month=0;calState.year=0;
+  buildCal('calDia',getDiaDate(),'onCalDiaSelect',getDatasComDados());
+  cal.style.display='block';
+}
+
+function onCalDiaSelect(date){
+  var today=todayStr();
+  diaSelectedDate=date===today?'':date;
+  updateDiaLabel();
+  renderDia();
+}
+
+function toggleCalHist(){
+  var cal=document.getElementById('calHist');
+  var isOpen=cal.style.display!=='none';
+  document.getElementById('calDia').style.display='none';
+  if(isOpen){cal.style.display='none';return;}
+  calState.month=0;calState.year=0;
+  buildCal('calHist',histFilterDate||todayStr(),'onCalHistSelect',getDatasComDados());
+  cal.style.display='block';
+}
+
+function onCalHistSelect(date){
+  histFilterDate=date;
+  // Atualiza chip de data ativo
+  var chips=document.getElementById('filterDateRow').querySelectorAll('.filter-chip');
+  chips.forEach(function(c){c.className='filter-chip'+(c.dataset.d===date?' on':'');});
+  renderHistContent();
+}
+
+// Fecha calendários ao clicar fora
+document.addEventListener('click',function(e){
+  ['calDia','calHist'].forEach(function(id){
+    var cal=document.getElementById(id);
+    if(!cal) return;
+    var btn=cal.previousElementSibling;
+    if(!cal.contains(e.target)&&(!btn||!btn.contains(e.target))){
+      cal.style.display='none';
+    }
+  });
+});
+
 function highlight(text, q){
   if(!q||!text) return String(text||'');
   var re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
@@ -1844,11 +1975,27 @@ function renderHistorico(){
     return '<button class="filter-chip'+(on?' on':'')+'" data-d="'+d+'" onclick="setHistDate(this.dataset.d)">'+label+'</button>';
   }).join('');
 
-  // Chips de marketplace
-  var mktsDisp=['todos'].concat(Object.keys(MKT).filter(function(m){return m!=='flex'&&m!=='outro';}));
-  document.getElementById('filterMktRow').innerHTML=mktsDisp.map(function(m){
+  // Chips de marketplace — gerado dos scans reais da data selecionada
+  var mktsReais=['todos'];
+  scans.forEach(function(s){
+    if(s.tipo==='lote') return;
+    var m=s.mkt||'outro';
+    if(mktsReais.indexOf(m)===-1) mktsReais.push(m);
+  });
+  // Também adiciona FLEX se houver scans urgentes
+  var temFlex=scans.some(function(s){return s.tipo!=='lote'&&s.mkt==='flex';});
+  if(!temFlex&&mktsReais.indexOf('flex')===-1){
+    // Verifica nos packages coletados se há urgentes
+    packages.forEach(function(p){
+      if(p.urgente&&(p.status==='coletado'||p.status==='problema')&&mktsReais.indexOf('flex')===-1){
+        mktsReais.push('flex');
+      }
+    });
+  }
+  document.getElementById('filterMktRow').innerHTML=mktsReais.map(function(m){
     var on=(!histFilterMkt&&m==='todos')||(histFilterMkt===m);
-    var label=m==='todos'?'Todos':(MKT[m]?MKT[m].icon+' '+MKT[m].n:m);
+    var info=MKT[m]||{icon:'📦',n:m};
+    var label=m==='todos'?'Todos':info.icon+' '+info.n;
     return '<button class="filter-chip'+(on?' on-am':'')+'" data-m="'+m+'" onclick="setHistMkt(this.dataset.m)">'+label+'</button>';
   }).join('');
 
@@ -1881,7 +2028,9 @@ function renderHistContent(){
   });
   // Scans individuais do dia filtrado
   var pkgScans=scans.filter(function(s){
-    return s.tipo!=='lote'&&s.date===date&&(!histFilterMkt||s.mkt===histFilterMkt);
+    if(s.tipo==='lote'||s.date!==date) return false;
+    if(!histFilterMkt) return true; // Todos
+    return s.mkt===histFilterMkt;
   });
 
   // Filtro de busca textual
@@ -1998,15 +2147,18 @@ window.addEventListener('popstate',function(e){
 });
 
 function openModal(html){
-  // Empurra estado no histórico para que o Voltar feche o modal
   history.pushState({modal:true},'');
   var modal=document.createElement('div');
   modal.className='modal-overlay';
-  // Toca no overlay (fora da imagem) para fechar
+  modal.innerHTML=html;
+  // Fecha ao clicar no overlay (não nos elementos internos)
   modal.addEventListener('click',function(e){
     if(e.target===modal) closeTopModal();
   });
-  modal.innerHTML=html;
+  // Impede propagação de cliques internos (resolve problema no desktop)
+  modal.addEventListener('click',function(e){
+    if(e.target!==modal) e.stopPropagation();
+  });
   document.body.appendChild(modal);
   return modal;
 }
