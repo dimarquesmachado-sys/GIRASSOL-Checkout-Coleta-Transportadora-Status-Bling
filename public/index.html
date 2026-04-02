@@ -1073,9 +1073,15 @@ function pullFromBling(){
         dataPedido:o.data||'',date:today,pulledAt:nowTS(),
         status:'pendente',colT:null,obs:'',blingId:o.id};
     }).filter(function(p){
-      // Filtra só por status VERIFICADO (24) — sem filtro de data
-      // ML e outros marketplaces podem ter pedidos com datas futuras (entrega agendada)
-      return p.etiqueta && p.blingStatus===24;
+      if(!p.etiqueta || p.blingStatus!==24) return false;
+      // Rejeita pedidos com mais de 30 dias (ex: 2024)
+      // Pedidos com data futura (entrega agendada) são aceitos normalmente
+      if(p.dataPedido){
+        var d=new Date(p.dataPedido.substring(0,10)+'T12:00:00');
+        var diffDias=(Date.now()-d.getTime())/(1000*60*60*24);
+        if(diffDias>30) return false;
+      }
+      return true;
     });
     // ── MERGE ROBUSTO: busca por blingId em TODOS os packages (qualquer data)
     // Isso resolve devoluções de dias anteriores
