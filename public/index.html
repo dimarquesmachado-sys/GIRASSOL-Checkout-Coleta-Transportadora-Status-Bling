@@ -327,8 +327,8 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
     </div>
     <div class="field-lbl">Senha</div>
     <div class="field-wrap">
-      <input type="password" class="field-input" id="loginPass" placeholder="" autocomplete="current-password" style="padding-right:46px">
-      <button class="eye-btn" id="eyeBtn" onclick="togglePass()" type="button">👁</button>
+      <input type="password" class="field-input" id="loginPass" placeholder="" autocomplete="current-password" style="padding-right:46px" autocorrect="off" autocapitalize="none" spellcheck="false">
+      <button class="eye-btn" id="eyeBtn" onclick="togglePass()" type="button" tabindex="-1">👁</button>
     </div>
     <button class="login-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
     <div class="login-err" id="loginErr"></div>
@@ -356,6 +356,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
         </div>
         <span class="bling-badge" id="blingBadge">● Bling</span>
       </div>
+      <div id="activeBanner" style="display:none;background:var(--am2);color:var(--am);border:1px solid var(--am3);border-radius:var(--r);padding:8px 14px;font-size:12px;margin-bottom:8px;text-align:center"></div>
 
       <div style="display:flex;gap:8px;margin-bottom:14px">
         <button class="sync-btn" id="syncBtn" onclick="pullFromBling()" style="margin-bottom:0;flex:1">
@@ -2686,13 +2687,15 @@ function getPhotoFromServer(key, cb){
 }
 
 function syncToServer(){
-  // Envia packages e scans (sem fotos) para o servidor
   var today=todayStr();
-  // Envia só packages e scans de hoje (não envia histórico antigo desnecessariamente)
   var pkgHoje=packages.filter(function(p){return p.date===today;});
   var scanHoje=stripPhotos(scans.filter(function(s){return s.date===today;}));
+  // Inclui estado ativo (quem está fazendo expedição de qual loja)
+  var activeState=activeMkt?{user:currentUser,mkt:activeMkt,ts:Date.now()}:null;
   apiFetch('/sync/packages',{method:'POST',body:JSON.stringify({packages:pkgHoje})}).catch(function(){});
   apiFetch('/sync/scans',{method:'POST',body:JSON.stringify({scans:scanHoje})}).catch(function(){});
+  if(activeState) apiFetch('/sync/active',{method:'POST',body:JSON.stringify(activeState)}).catch(function(){});
+  else apiFetch('/sync/active',{method:'POST',body:JSON.stringify({user:currentUser,mkt:null,ts:Date.now()})}).catch(function(){});
 }
 
 function loadFromServer(cb){
@@ -2760,9 +2763,29 @@ function loadFromServer(cb){
       sv('expv5_pkgs',packages);
     }
 
+    // Atualiza indicador de quem está fazendo expedição
+    if(d.activeUsers) renderActiveUsers(d.activeUsers);
     if(cb) cb();
   })
   .catch(function(){if(cb) cb();});
+}
+
+function renderActiveUsers(activeUsers){
+  var outros=activeUsers.filter(function(u){
+    return u.user!==currentUser&&u.mkt&&(Date.now()-u.ts)<1800000; // ativo nos últimos 2min
+  });
+  var banner=document.getElementById('activeBanner');
+  if(!banner) return;
+  if(outros.length>0){
+    var html=outros.map(function(u){
+      var info=MKT[u.mkt]||{icon:'📦',n:u.mkt};
+      return '👤 '+u.user+' está expedindo '+info.icon+' '+info.n;
+    }).join(' · ');
+    banner.textContent=html;
+    banner.style.display='block';
+  } else {
+    banner.style.display='none';
+  }
 }
 
 // ═══ INIT ═══
