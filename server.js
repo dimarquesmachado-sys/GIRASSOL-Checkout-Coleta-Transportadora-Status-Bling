@@ -356,10 +356,71 @@ app.get('/admin/migrar-status', (req, res) => {
 let sharedPackages = [];
 let sharedScans    = [];
 
-// ═══ FOTOS — armazenadas em memória no servidor (acessíveis de qualquer dispositivo) ═══
-// Key: "scan_{etiqueta}_{date}" ou "lote_{loteId}_{idx}"
+// ═══ FOTOS — Supabase Storage (permanente, acessível de qualquer dispositivo) ═══
+// Configurar no Render: SUPABASE_URL e SUPABASE_KEY
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://wexikjzztxpfdbzjfnxl.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndleGlranp6dHhwZmRiempmbnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwOTg2MjMsImV4cCI6MjA5MDY3NDYyM30.s-Vu3pJETbVw9VbmqhtFhKiDgnPocubFgkHPVeQyMus';
+const SUPABASE_BUCKET = 'expedicao';
+
+// Fallback em memória enquanto Supabase não estiver configurado
 const photoStore = new Map();
-const MAX_PHOTOS = 2000; // limite de fotos em memória
+const MAX_PHOTOS = 500;
+
+async function supabaseUpload(fileName, base64Data) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    // Sem Supabase: usa memória
+    if (photoStore.size >= MAX_PHOTOS) {
+      const firstKey = photoStore.keys().next().value;
+      photoStore.delete(firstKey);
+    }
+    photoStore.set(fileName, base64Data);
+    return { ok: true, url: null };
+  }
+  try {
+    // Remove prefixo base64 se houver
+    const base64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64, 'base64');
+    const contentType = base64Data.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${fileName}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': contentType,
+        'x-upsert': 'true',
+      },
+      body: buffer,
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      console.error('Supabase upload erro:', err);
+      // Fallback para memória
+      photoStore.set(fileName, base64Data);
+      return { ok: false };
+    }
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${fileName}`;
+    console.log('✅ Foto salva no Supabase:', fileName);
+    return { ok: true, url: publicUrl };
+  } catch(e) {
+    console.error('Supabase erro:', e.message);
+    photoStore.set(fileName, base64Data); // fallback memória
+    return { ok: false };
+  }
+}
+
+async function supabaseGet(fileName) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return photoStore.get(fileName) || null;
+  }
+  // Tenta memória primeiro (mais rápido)
+  if (photoStore.has(fileName)) return photoStore.get(fileName);
+  try {
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${fileName}`;
+    // Retorna URL pública diretamente — cliente carrega a imagem
+    return publicUrl;
+  } catch(e) {
+    return null;
+  }
+}
 
 app.get('/sync/data', requireAuth, (req, res) => {
   res.json({ packages: sharedPackages, scans: sharedScans });
@@ -382,38 +443,36 @@ app.post('/sync/scans', requireAuth, (req, res) => {
 });
 
 // ─── Upload de foto de scan ─────────────────────────────────────────────────
-app.post('/photos/scan', requireAuth, (req, res) => {
+app.post('/photos/scan', requireAuth, async (req, res) => {
   const { key, photo } = req.body;
   if(!key || !photo) return res.status(400).json({ error: 'key e photo obrigatórios' });
-  if(photoStore.size >= MAX_PHOTOS){
-    // Remove a mais antiga
-    const firstKey = photoStore.keys().next().value;
-    photoStore.delete(firstKey);
-  }
-  photoStore.set(key, photo);
+  await supabaseUpload(key, photo);
   res.json({ ok: true });
 });
 
-app.get('/photos/scan/:key', requireAuth, (req, res) => {
-  const photo = photoStore.get(req.params.key);
+app.get('/photos/scan/:key', requireAuth, async (req, res) => {
+  const photo = await supabaseGet(req.params.key);
   if(!photo) return res.status(404).json({ error: 'Foto não encontrada' });
+  // Se for URL pública do Supabase, retorna a URL (cliente carrega direto)
+  if(photo.startsWith('http')) return res.json({ url: photo });
   res.json({ photo });
 });
 
 // ─── Upload de fotos do veículo (lote) ─────────────────────────────────────
-app.post('/photos/lote', requireAuth, (req, res) => {
+app.post('/photos/lote', requireAuth, async (req, res) => {
   const { loteId, fotos } = req.body;
   if(!loteId || !Array.isArray(fotos)) return res.status(400).json({ error: 'loteId e fotos obrigatórios' });
-  fotos.forEach((f, idx) => {
-    if(f) photoStore.set('lote_'+loteId+'_'+idx, f);
-  });
+  for(let idx = 0; idx < fotos.length; idx++) {
+    if(fotos[idx]) await supabaseUpload('lote_'+loteId+'_'+idx, fotos[idx]);
+  }
   res.json({ ok: true, count: fotos.length });
 });
 
-app.get('/photos/lote/:loteId/:idx', requireAuth, (req, res) => {
+app.get('/photos/lote/:loteId/:idx', requireAuth, async (req, res) => {
   const key = 'lote_'+req.params.loteId+'_'+req.params.idx;
-  const photo = photoStore.get(key);
+  const photo = await supabaseGet(key);
   if(!photo) return res.status(404).json({ error: 'Foto não encontrada' });
+  if(photo.startsWith('http')) return res.json({ url: photo });
   res.json({ photo });
 });
 
