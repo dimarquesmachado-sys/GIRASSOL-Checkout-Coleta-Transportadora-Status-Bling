@@ -1166,14 +1166,12 @@ function pullFromBling(){
     });
     var semTracking_count=semTracking.length;
     if(mlSemFlex.length>0||mlPkgs.length>0){
-      // Só busca individualmente os que ainda não têm urgente
       var mlParaDetectar=typeof mlSemFlex!=='undefined'?mlSemFlex:mlPkgs;
       detectFlexML(mlParaDetectar, function(){
-        // Só começa tracking dos outros APÓS o FLEX terminar
         if(semTracking.length>0){
           detectTrackingPkgs(semTracking);
         } else {
-          // Sem semTracking: busca NF direto após FLEX
+          // Após FLEX, busca NF de TODOS (ML + outros)
           var semNF2=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
           if(semNF2.length>0) setTimeout(function(){detectNF(semNF2,null);},1200);
           else toast('✅ Tudo carregado!','ok');
@@ -1181,6 +1179,10 @@ function pullFromBling(){
       });
     } else if(semTracking.length>0){
       detectTrackingPkgs(semTracking);
+    } else {
+      // Sem ML nem semTracking: busca NF direto
+      var semNF3=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
+      if(semNF3.length>0) setTimeout(function(){detectNF(semNF3,null);},1200);
     }
     resetSyncBtn();
   }
