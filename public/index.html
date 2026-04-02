@@ -247,6 +247,19 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .motivo-confirm-btn{width:100%;height:46px;background:var(--am);color:#1A0B00;border:none;border-radius:var(--r);font-size:14px;font-weight:800;cursor:pointer;font-family:var(--sans)}
 .motivo-confirm-btn:active{transform:scale(.98)}
 
+/* DIA — SEÇÕES EXPANDÍVEIS */
+.dia-toggle{width:100%;background:none;border:none;text-align:left;cursor:pointer;padding:0;font-family:var(--sans);display:flex;align-items:center;justify-content:space-between}
+.dia-toggle:active{opacity:.7}
+.dia-section-box{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px}
+.dia-pkg-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)}
+.dia-pkg-row:last-child{border-bottom:none}
+.dia-pkg-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.dia-pkg-info{flex:1;min-width:0}
+.dia-pkg-num{font-family:var(--mono);font-size:12px;font-weight:600}
+.dia-pkg-nf{font-size:10px;font-family:var(--mono);color:var(--gr)}
+.dia-pkg-dest{font-size:11px;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dia-pkg-time{font-size:10px;font-family:var(--mono);color:var(--th);flex-shrink:0;text-align:right}
+
 /* HISTÓRICO / FILTROS */
 .filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .filter-chip{height:30px;padding:0 12px;background:var(--s2);color:var(--tm);border:1px solid var(--b2);border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:.15s}
@@ -1564,34 +1577,86 @@ function updateBlingStatus(id){
 }
 
 // ═══ DIA ═══
+function diaPkgRow(p){
+  var statusColor=p.status==='coletado'?'var(--gr)':p.status==='problema'?'var(--rd)':'var(--am)';
+  var colT=p.colT?'<span class="dia-pkg-time">'+p.colT+'</span>':'';
+  return '<div class="dia-pkg-row">'+
+    '<div class="dia-pkg-status" style="background:'+statusColor+'"></div>'+
+    '<div class="dia-pkg-info">'+
+      '<div class="dia-pkg-num">'+p.numero+
+        (p.nf?'<span class="dia-pkg-nf"> · NF '+p.nf+'</span>':'')+
+        (p.numLoja?'<span style="font-size:10px;font-family:var(--mono);color:var(--bl)"> · 🛒'+p.numLoja+'</span>':'')+
+      '</div>'+
+      '<div class="dia-pkg-dest">'+p.destinatario+'</div>'+
+    '</div>'+
+    colT+
+  '</div>';
+}
+
+function diaToggle(id){
+  var el=document.getElementById(id);
+  var btn=document.getElementById('btn_'+id);
+  if(!el) return;
+  var open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  btn.querySelector('.dia-arrow').textContent=open?'▶':'▼';
+}
+
 function renderDia(){
   var today=todayPkgs();
   var col=today.filter(function(p){return p.status==='coletado';}).length;
   var prob=today.filter(function(p){return p.status==='problema';}).length;
+  var pend=today.length-col-prob;
   document.getElementById('dayCards').innerHTML=
     '<div class="day-card"><div class="day-lbl">Total</div><div class="day-val">'+today.length+'</div></div>'+
-    '<div class="day-card"><div class="day-lbl">Coletados</div><div class="day-val" style="color:var(--gr)">'+col+'</div></div>'+
-    '<div class="day-card"><div class="day-lbl">Pendentes</div><div class="day-val" style="color:var(--am)">'+(today.length-col-prob)+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Expedidos</div><div class="day-val" style="color:var(--gr)">'+col+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Pendentes</div><div class="day-val" style="color:var(--am)">'+pend+'</div></div>'+
     '<div class="day-card"><div class="day-lbl">Problemas</div><div class="day-val" style="color:var(--rd)">'+prob+'</div></div>';
+
   var mkts=[];
   today.forEach(function(p){if(mkts.indexOf(p.mkt)===-1)mkts.push(p.mkt);});
+
   document.getElementById('dayByMkt').innerHTML=mkts.map(function(m){
     var mp=today.filter(function(p){return p.mkt===m;});
-    var mc=mp.filter(function(p){return p.status==='coletado';}).length;
-    var mpb=mp.filter(function(p){return p.status==='problema';}).length;
-    var pct=mp.length?Math.round(mc/mp.length*100):0;
+    var mc=mp.filter(function(p){return p.status==='coletado';});
+    var mpb=mp.filter(function(p){return p.status==='problema';});
+    var mpp=mp.filter(function(p){return p.status==='pendente';});
+    var pct=mp.length?Math.round(mc.length/mp.length*100):0;
     var info=MKT[m]||{cls:'c-outro',icon:'📦',n:m};
-    return '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-      '<span class="mkt-chip '+info.cls+'">'+info.icon+' '+info.n+'</span>'+
-      '<span style="font-family:var(--mono);font-size:12px;color:var(--tm)">'+pct+'%</span>'+
-      '</div>'+
-      '<div class="prog-bar-wrap" style="margin:0 0 6px"><div class="prog-bar" style="width:'+pct+'%"></div></div>'+
-      '<div style="font-size:11px;font-family:var(--mono);display:flex;gap:12px">'+
-      '<span style="color:var(--am)">'+(mp.length-mc-mpb)+' pend.</span>'+
-      '<span style="color:var(--gr)">'+mc+' col.</span>'+
-      (mpb>0?'<span style="color:var(--rd)">'+mpb+' prob.</span>':'')+
-      '</div></div>';
+    var uid='dia_mkt_'+m;
+    var html='<div class="dia-section-box">';
+    // Cabeçalho clicável
+    html+='<button class="dia-toggle" id="btn_'+uid+'" data-uid="'+uid+'" onclick="diaToggle(this.dataset.uid)">';
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<span class="mkt-chip '+info.cls+'">'+info.icon+' '+info.n+'</span>';
+    html+='<span style="font-family:var(--mono);font-size:11px;color:var(--tm)">'+
+      '<span style="color:var(--gr)">'+mc.length+' exp.</span> · '+
+      '<span style="color:var(--am)">'+mpp.length+' pend.</span>'+
+      (mpb.length>0?' · <span style="color:var(--rd)">'+mpb.length+' prob.</span>':'')+
+    '</span></div>';
+    html+='<span style="color:var(--tm);font-size:12px"><span class="dia-arrow">▶</span> '+pct+'%</span>';
+    html+='</button>';
+    // Barra de progresso
+    html+='<div class="prog-bar-wrap" style="margin:8px 0 0"><div class="prog-bar" style="width:'+pct+'%"></div></div>';
+    // Lista de pedidos (colapsada por padrão)
+    html+='<div id="'+uid+'" style="display:none;margin-top:10px">';
+    // Expedidos
+    if(mc.length>0){
+      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gr);margin-bottom:4px">✓ Expedidos ('+mc.length+')</div>';
+      html+=mc.map(diaPkgRow).join('');
+    }
+    // Pendentes
+    if(mpp.length>0){
+      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--am);margin:'+(mc.length>0?'10':'0')+'px 0 4px">⏳ Pendentes ('+mpp.length+')</div>';
+      html+=mpp.map(diaPkgRow).join('');
+    }
+    // Problemas
+    if(mpb.length>0){
+      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--rd);margin:10px 0 4px">🚫 Problemas ('+mpb.length+')</div>';
+      html+=mpb.map(diaPkgRow).join('');
+    }
+    html+='</div></div>';
+    return html;
   }).join('');
   // Lotes
   var lotes=scans.filter(function(s){return s.tipo==='lote'&&s.date===todayStr();});
