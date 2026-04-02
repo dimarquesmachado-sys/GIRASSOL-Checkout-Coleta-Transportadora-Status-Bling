@@ -2546,14 +2546,23 @@ function stripPhotos(arr){
 function uploadScanPhoto(etiqueta, date, photo){
   if(!photo||!etiqueta) return;
   var key='scan_'+etiqueta+'_'+date;
+  console.log('📤 Enviando foto etiqueta: '+key+' ('+Math.round(photo.length/1024)+'KB)');
   apiFetch('/photos/scan',{method:'POST',body:JSON.stringify({key:key,photo:photo})})
-  .catch(function(){});
+  .then(function(r){return r.json();})
+  .then(function(d){console.log('✅ Foto etiqueta enviada:', key);})
+  .catch(function(e){console.error('❌ Erro upload foto etiqueta:', e.message);});
 }
 
 function uploadLotePhotos(loteId, fotos){
-  if(!loteId||!fotos||!fotos.length) return;
+  if(!loteId||!fotos||!fotos.length){
+    console.warn('uploadLotePhotos: sem fotos para enviar', loteId, fotos&&fotos.length);
+    return;
+  }
+  console.log('📤 Enviando '+fotos.length+' foto(s) do veículo para servidor... loteId='+loteId);
   apiFetch('/photos/lote',{method:'POST',body:JSON.stringify({loteId:loteId,fotos:fotos})})
-  .catch(function(){});
+  .then(function(r){return r.json();})
+  .then(function(d){console.log('✅ Fotos veículo enviadas:', JSON.stringify(d));})
+  .catch(function(e){console.error('❌ Erro upload fotos veículo:', e.message);});
 }
 
 function getPhotoFromServer(key, cb){
