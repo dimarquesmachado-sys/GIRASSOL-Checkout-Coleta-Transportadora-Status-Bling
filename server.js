@@ -107,28 +107,26 @@ const RENDER_API_KEY    = process.env.RENDER_API_KEY    || '';
 // Persiste tokens no Render para sobreviver a restarts
 async function persistTokensToRender(newAccess, newRefresh) {
   if (!RENDER_SERVICE_ID || !RENDER_API_KEY) {
-    // Sem credenciais do Render — apenas loga
     console.log('💾 Tokens atualizados em memória (sem RENDER_API_KEY para persistir)');
     return;
   }
   try {
-    const url = `https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars`;
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${RENDER_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify([
-        { key: 'BLING_ACCESS_TOKEN',  value: newAccess  },
-        { key: 'BLING_REFRESH_TOKEN', value: newRefresh },
-      ]),
-    });
-    if (r.ok) {
-      console.log('✅ Tokens persistidos no Render!');
-    } else {
-      const err = await r.text();
-      console.warn('⚠ Render API erro:', err.substring(0,200));
+    // Usa PATCH individual em cada variável — não substitui as outras
+    for (const [key, value] of [['BLING_ACCESS_TOKEN', newAccess], ['BLING_REFRESH_TOKEN', newRefresh]]) {
+      const r = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars/${key}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${RENDER_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ value }),
+      });
+      if (r.ok) {
+        console.log('✅ '+key+' persistido no Render!');
+      } else {
+        const err = await r.text();
+        console.warn('⚠ Render API erro para '+key+':', err.substring(0,200));
+      }
     }
   } catch(e) {
     console.warn('⚠ Não foi possível persistir tokens:', e.message);
