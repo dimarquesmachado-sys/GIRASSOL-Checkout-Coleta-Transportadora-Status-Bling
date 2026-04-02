@@ -735,6 +735,11 @@ function detectTrackingPkgs(pkgs){
                  || '';
 
         // NF — tenta todos os caminhos
+        // numLoja — número da venda no marketplace
+        var numLojaD=(order.numeroPedidoLoja)||(order.loja&&order.loja.numeroPedido)||'';
+        if(numLojaD&&p&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
+        // Para ML: numeroPedidoLoja = número loja virtual (2000015489054448)
+        // numeracao = número de envio (46625715803)
         var nfDetalhe = (order.notaFiscal&&order.notaFiscal.numero)
                      || (order.nfe&&order.nfe.numero)
                      || (order.notasFiscais&&order.notasFiscais[0]&&order.notasFiscais[0].numero)
@@ -824,9 +829,14 @@ function detectFlexML(mlPkgs, onDone){
             var nfChaveFlex=(order.notaFiscal&&order.notaFiscal.chave)||(order.nfe&&order.nfe.chave)||'';
             if(nfFlex&&!p.nf){p.nf=String(nfFlex).trim(); console.log('✅ NF FLEX #'+p.numero+': '+p.nf);}
             if(nfChaveFlex&&!p.nfChave){p.nfChave=String(nfChaveFlex).replace(/\s/g,'');}
-            // Também captura numLoja da resposta individual (não vem na listagem)
+            // Captura numLoja E Pack ID / número de envio do ML
             var numLojaDetalhe=(order.numeroPedidoLoja)||(order.loja&&order.loja.numeroPedido)||'';
             if(numLojaDetalhe&&!p.numLoja) p.numLoja=String(numLojaDetalhe).trim();
+            // Pack ID (campo diferente no ML)
+            var packId=(order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&
+                       (order.transporte.volumes[0].codigoPedido||order.transporte.volumes[0].packId||
+                        order.transporte.volumes[0].numeroRemessa))||'';
+            if(packId&&!p.numLoja) p.numLoja=String(packId).trim();
             sv('expv5_pkgs',packages);
             if(i%5===0) syncToServer(); // sync a cada 5 pedidos
             renderMktGrid();
@@ -998,9 +1008,11 @@ function pullFromBlingMkt(mkt){
       } else {
         toast('✅ '+(MKT[mkt]||{n:mkt}).n+' atualizado','ok');
       }
-      // Busca tracking se necessário
+      // Busca tracking e numLoja se necessário
       var semTrack=packages.filter(function(p){
-        return p.mkt===mkt&&p.date===today&&!p.numeracao&&(mkt==='tiktok'||mkt==='shopee'||mkt==='amazon'||mkt==='magalu');
+        if(p.mkt!==mkt) return false;
+        if(mkt==='ml') return !p.numLoja; // ML: busca numLoja (número loja virtual)
+        return !p.numeracao&&(mkt==='tiktok'||mkt==='shopee'||mkt==='amazon'||mkt==='magalu');
       });
       if(semTrack.length>0) setTimeout(function(){detectTrackingPkgs(semTrack);},800);
     });
@@ -1150,6 +1162,8 @@ function pullFromBling(){
     // Busca tracking: primeiro FLEX ML, depois TikTok/Shopee/etc em SEQUÊNCIA
     // (evita rate limit 429 do Bling ao rodar os dois em paralelo)
     var semTracking=newPkgs.filter(function(p){
+      // Inclui ML sem numLoja para buscar número loja virtual (2000015489054448)
+      if(p.mkt==='ml'&&!p.urgente&&!p.numLoja) return true;
       return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='shopee'||p.mkt==='magalu'||p.mkt==='amazon');
     });
     var semTracking_count=semTracking.length;
@@ -1312,9 +1326,10 @@ function renderPkgList(){
       '<div class="pkg-num">'+p.numero+'</div>'+
       // Linha 2: NF · marketplace · tracking (tudo visível)
       '<div class="pkg-sub">'+
-        (p.nf?'<span style="color:var(--gr)">NF '+p.nf+'</span>':'<span style="color:var(--am);font-size:9px">NF carregando...</span>')+
-        (p.numLoja?'<span style="color:var(--bl)">🛒 '+p.numLoja+'</span>':'')+
-        (p.numeracao?'<span style="color:var(--tm)">📦 '+p.numeracao+'</span>':'')+
+        (p.nf?'<span style="color:var(--gr)">NF '+p.nf+'</span>':
+              '<span style="color:var(--th);font-style:italic">NF ...</span>')+
+        (p.numLoja?'<span style="color:var(--bl)"> · 🛒 '+p.numLoja+'</span>':'')+
+        (p.numeracao?'<span style="color:var(--tm)"> · 📦 '+p.numeracao+'</span>':'')+
       '</div>'+
       '<div class="pkg-dest">'+p.destinatario+'</div>'+
       '</div>'+
@@ -1463,6 +1478,8 @@ function handleScan(rawCode,photo){
     if(String(p.numero)===c) return true;
     if(String(p.blingId)===c) return true;
     if(p.numeracao&&String(p.numeracao).toUpperCase()===c) return true;
+    // Parte final do número de envio ML (ex: bipar "15803" bate em "46625715803")
+    if(p.numeracao&&c.length>=5&&String(p.numeracao).toUpperCase().endsWith(c)) return true;
     if(p.numLoja&&String(p.numLoja).replace(/\s/g,'').toUpperCase()===c) return true;
     // Chave DANFE completa (44 dígitos) — câmera TikTok lê o código de barras da NF
     if(p.nfChave&&p.nfChave===c) return true;
