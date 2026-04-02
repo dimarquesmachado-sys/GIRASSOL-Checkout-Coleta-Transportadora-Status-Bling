@@ -100,6 +100,41 @@ app.get('/callback', async (req, res) => {
   }
 });
 
+// Variáveis de ambiente do Render (necessário para persistir tokens)
+const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || '';
+const RENDER_API_KEY    = process.env.RENDER_API_KEY    || '';
+
+// Persiste tokens no Render para sobreviver a restarts
+async function persistTokensToRender(newAccess, newRefresh) {
+  if (!RENDER_SERVICE_ID || !RENDER_API_KEY) {
+    // Sem credenciais do Render — apenas loga
+    console.log('💾 Tokens atualizados em memória (sem RENDER_API_KEY para persistir)');
+    return;
+  }
+  try {
+    const url = `https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars`;
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${RENDER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        { key: 'BLING_ACCESS_TOKEN',  value: newAccess  },
+        { key: 'BLING_REFRESH_TOKEN', value: newRefresh },
+      ]),
+    });
+    if (r.ok) {
+      console.log('✅ Tokens persistidos no Render!');
+    } else {
+      const err = await r.text();
+      console.warn('⚠ Render API erro:', err.substring(0,200));
+    }
+  } catch(e) {
+    console.warn('⚠ Não foi possível persistir tokens:', e.message);
+  }
+}
+
 async function refreshAccessToken() {
   if (!refreshToken || !CLIENT_ID || !CLIENT_SECRET) {
     console.warn('⚠ Sem refresh token ou credenciais para renovar');
@@ -124,6 +159,9 @@ async function refreshAccessToken() {
     tokenExpires = Date.now() + (data.expires_in * 1000) - (5 * 60 * 1000);
 
     console.log('✅ Token renovado! Próxima renovação:', new Date(tokenExpires).toLocaleTimeString('pt-BR'));
+
+    // Persiste os novos tokens no Render para sobreviver a restarts
+    await persistTokensToRender(accessToken, refreshToken).catch(() => {});
     return true;
   } catch (e) {
     console.error('❌ Erro ao renovar token:', e.message);
