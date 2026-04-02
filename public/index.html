@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -1477,10 +1477,22 @@ function handleScan(rawCode,photo){
     if(String(p.etiqueta).toUpperCase()===c) return true;
     if(String(p.numero)===c) return true;
     if(String(p.blingId)===c) return true;
-    if(p.numeracao&&String(p.numeracao).toUpperCase()===c) return true;
-    // Parte final do número de envio ML (ex: bipar "15803" bate em "46625715803")
-    if(p.numeracao&&c.length>=5&&String(p.numeracao).toUpperCase().endsWith(c)) return true;
-    if(p.numLoja&&String(p.numLoja).replace(/\s/g,'').toUpperCase()===c) return true;
+    if(p.numeracao){
+      var pnum=String(p.numeracao).toUpperCase().replace(/\s/g,'');
+      if(pnum===c) return true;                                   // exato
+      if(c.length>=8&&pnum.endsWith(c)) return true;             // sufixo (ex: 46625715803 bate em 15803)
+      if(c.length>=8&&pnum.indexOf(c)!==-1) return true;         // contém
+      if(c.length>=8&&c.indexOf(pnum)!==-1) return true;         // código contém numeracao
+      // Ignora zeros à esquerda
+      if(parseInt(pnum,10)===parseInt(c,10)) return true;
+    }
+    if(p.numLoja){
+      var ploja=String(p.numLoja).replace(/\s/g,'').toUpperCase();
+      if(ploja===c) return true;
+      if(c.length>=8&&ploja.endsWith(c)) return true;
+      if(c.length>=8&&ploja.indexOf(c)!==-1) return true;
+      if(parseInt(ploja,10)===parseInt(c,10)) return true;
+    }
     // Chave DANFE completa (44 dígitos) — câmera TikTok lê o código de barras da NF
     if(p.nfChave&&p.nfChave===c) return true;
     // Últimos 13 dígitos da chave DANFE (código que algumas câmeras lêem)
