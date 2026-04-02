@@ -1,0 +1,2885 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Expedição — Magazine Girassol</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0C0E13;--s1:#111318;--s2:#181B24;
+  --b1:rgba(255,255,255,.06);--b2:rgba(255,255,255,.1);--b3:rgba(255,255,255,.18);
+  --tx:#EBE9E2;--tm:#8B8D9B;--th:#484C5C;
+  --gr:#2ECC8A;--gr2:rgba(46,204,138,.13);--gr3:rgba(46,204,138,.28);
+  --am:#F0A442;--am2:rgba(240,164,66,.13);--am3:rgba(240,164,66,.28);
+  --rd:#E05555;--rd2:rgba(224,85,85,.13);--rd3:rgba(224,85,85,.28);
+  --bl:#4A9EFF;--bl2:rgba(74,158,255,.13);--bl3:rgba(74,158,255,.28);
+  --mono:'SF Mono','Fira Code',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --r:10px;--rl:14px;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:15px;-webkit-tap-highlight-color:transparent}
+
+/* LOGIN */
+#loginScreen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px}
+.login-box{background:var(--s1);border:1px solid var(--b2);border-radius:22px;padding:36px 28px;width:100%;max-width:380px}
+.login-title{font-size:20px;font-weight:700;text-align:center;margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--tm);text-align:center;margin-bottom:28px}
+.field-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:6px}
+.field-wrap{position:relative;margin-bottom:16px}
+.field-input{width:100%;height:52px;background:var(--bg);border:1.5px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:var(--sans);font-size:16px;padding:0 14px;outline:none;transition:.2s;-webkit-appearance:none}
+.field-input:focus{border-color:var(--gr);box-shadow:0 0 0 3px var(--gr2)}
+.eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tm);cursor:pointer;padding:8px;font-size:18px;line-height:1}
+.login-btn{width:100%;height:54px;background:var(--gr);color:#071A0F;border:none;border-radius:var(--r);font-family:var(--sans);font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.login-btn:active{transform:scale(.98)}
+.login-err{background:var(--rd2);border:1px solid var(--rd3);color:var(--rd);border-radius:var(--r);padding:12px;font-size:13px;text-align:center;margin-top:12px;display:none}
+
+/* APP */
+.app{display:none;flex-direction:column;min-height:100vh}
+.app.show{display:flex}
+
+/* HEADER */
+header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.hdr-left{display:flex;align-items:center;gap:10px}
+.hdr-title{font-size:15px;font-weight:700}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.user-pill{font-size:12px;color:var(--tm);background:var(--s2);border:1px solid var(--b1);border-radius:20px;padding:5px 10px}
+.logout-btn{height:32px;padding:0 12px;background:transparent;color:var(--tm);border:1px solid var(--b2);border-radius:var(--r);font-size:12px;cursor:pointer;font-family:var(--sans)}
+
+/* MAIN */
+.main{flex:1;padding:16px;max-width:600px;margin:0 auto;width:100%;padding-bottom:80px}
+
+/* STATUS */
+.status-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.status-date{font-size:14px;font-weight:600}
+.status-sub{font-size:12px;color:var(--tm);margin-top:1px}
+.bling-badge{font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:20px;background:var(--gr2);color:var(--gr);border:1px solid var(--gr3)}
+
+/* SYNC BTN */
+.sync-btn{width:100%;height:52px;background:var(--am);color:#1A0B00;border:none;border-radius:var(--rl);font-family:var(--sans);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;transition:.15s}
+.sync-btn:active{transform:scale(.98)}
+.sync-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* FLEX BANNER */
+.flex-banner{background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--rl);padding:14px;margin-bottom:14px;display:none}
+.flex-banner.show{display:block}
+.flex-banner-title{font-size:14px;font-weight:700;color:var(--rd);margin-bottom:8px}
+.flex-tags{display:flex;flex-wrap:wrap;gap:6px}
+.flex-tag{font-size:11px;font-family:var(--mono);background:rgba(0,0,0,.2);color:#F09090;padding:4px 8px;border-radius:6px}
+
+/* MKT GRID */
+.mkt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.mkt-card{background:var(--s1);border:1.5px solid var(--b1);border-radius:var(--rl);overflow:hidden;cursor:pointer;transition:.15s}
+.mkt-card:active{transform:scale(.97)}
+.mkt-card.active{border-color:var(--am);background:var(--s2)}
+.mkt-card.done{border-color:var(--gr3);opacity:.7}
+.mkt-head{padding:12px 14px}
+.mkt-chip{font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;white-space:nowrap}
+.c-ml{background:rgba(255,226,0,.1);color:#D4C000;border:1px solid rgba(212,192,0,.2)}
+.c-shopee{background:rgba(232,85,45,.12);color:#E86040;border:1px solid rgba(232,85,45,.25)}
+.c-amazon{background:rgba(255,155,0,.1);color:#E09500;border:1px solid rgba(255,155,0,.2)}
+.c-magalu{background:rgba(70,135,220,.12);color:#5A9AE0;border:1px solid rgba(70,135,220,.25)}
+.c-tiktok{background:rgba(0,240,255,.08);color:#00D4E6;border:1px solid rgba(0,212,230,.2)}
+.c-rd{background:rgba(224,85,85,.12);color:#F09090;border:1px solid rgba(224,85,85,.3)}
+.c-outro{background:var(--s2);color:var(--tm);border:1px solid var(--b2)}
+.mkt-count{font-size:28px;font-weight:700;font-family:var(--mono);padding:2px 14px 10px;line-height:1}
+.mkt-prog{height:3px;background:var(--bg)}
+.mkt-prog-bar{height:100%;background:var(--gr);transition:width .4s}
+.mkt-sub{font-size:10px;color:var(--tm);font-family:var(--mono);padding:0 14px 10px}
+
+/* COLETA PANEL */
+.coleta-panel{background:var(--s1);border:1.5px solid var(--am3);border-radius:var(--rl);margin-top:10px;overflow:hidden;display:none;animation:slideDown .25s ease}
+.coleta-panel.show{display:block}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.coleta-header{padding:14px 16px;background:var(--am2);display:flex;align-items:center;justify-content:space-between}
+.coleta-title{font-size:14px;font-weight:700;color:var(--am)}
+.coleta-close{background:none;border:none;color:var(--am);font-size:20px;cursor:pointer;padding:0 4px;line-height:1}
+
+/* BIPAR BTN */
+.bipar-btn{margin:14px;height:58px;background:var(--gr);color:#071A0F;border:none;border-radius:var(--rl);font-family:var(--sans);font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;width:calc(100% - 28px);transition:.15s}
+.bipar-btn:active{transform:scale(.97)}
+.bipar-btn.scanning{background:var(--rd);color:#fff;animation:pulse-btn 1.5s infinite}
+@keyframes pulse-btn{0%,100%{box-shadow:0 0 0 0 rgba(224,85,85,.4)}50%{box-shadow:0 0 0 8px rgba(224,85,85,0)}}
+
+/* CAMERA */
+.cam-wrap{margin:0 14px;border-radius:var(--rl);overflow:hidden;background:#000;position:relative;aspect-ratio:4/3;display:none}
+.cam-wrap.show{display:block}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block}
+.cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.scan-frame{width:65%;aspect-ratio:1;border:2px solid rgba(255,255,255,.4);border-radius:8px;position:relative}
+.scan-frame::before,.scan-frame::after,.scan-frame .sc,.scan-frame .sd{content:'';position:absolute;width:22px;height:22px;border-color:var(--gr);border-style:solid}
+.scan-frame::before{top:-1px;left:-1px;border-width:2.5px 0 0 2.5px;border-radius:6px 0 0 0}
+.scan-frame::after{top:-1px;right:-1px;border-width:2.5px 2.5px 0 0;border-radius:0 6px 0 0}
+.scan-frame .sc{bottom:-1px;left:-1px;border-width:0 0 2.5px 2.5px;border-radius:0 0 0 6px}
+.scan-frame .sd{bottom:-1px;right:-1px;border-width:0 2.5px 2.5px 0;border-radius:0 0 6px 0}
+.scan-line{position:absolute;left:8%;right:8%;height:2px;background:var(--gr);top:50%;animation:scanLine 2s ease-in-out infinite;box-shadow:0 0 8px var(--gr)}
+@keyframes scanLine{0%,100%{top:15%}50%{top:85%}}
+.cam-status{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,.9);background:rgba(0,0,0,.6);padding:5px}
+.photo-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .1s}
+.photo-flash.flash{opacity:.9;transition:none}
+
+/* MANUAL */
+.manual-area{padding:10px 14px 0}
+.manual-row{display:flex;gap:8px}
+.manual-input{flex:1;height:48px;background:var(--bg);border:1.5px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:var(--mono);font-size:14px;padding:0 12px;outline:none;transition:.15s;-webkit-appearance:none}
+.manual-input:focus{border-color:var(--bl)}
+.manual-ok{height:48px;padding:0 16px;background:var(--s2);color:var(--tx);border:1.5px solid var(--b2);border-radius:var(--r);font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+
+/* PROGRESSO */
+.prog-area{padding:12px 14px 0}
+.prog-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.prog-label{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--tm)}
+.prog-pct{font-family:var(--mono);font-size:16px;font-weight:700}
+.prog-bar-wrap{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.prog-bar{height:100%;border-radius:3px;background:var(--gr);transition:width .4s}
+.prog-stats{display:flex;gap:12px;margin-top:6px;font-size:11px;font-family:var(--mono)}
+
+/* FEEDBACK */
+.fb-area{padding:8px 14px 0}
+.fb{padding:10px 12px;border-radius:var(--r);font-size:13px;font-family:var(--mono);display:none}
+.fb.show{display:block}
+.fb.ok{background:var(--gr2);border:1px solid var(--gr3);color:var(--gr)}
+.fb.warn{background:var(--am2);border:1px solid var(--am3);color:var(--am)}
+.fb.err{background:var(--rd2);border:1px solid var(--rd3);color:var(--rd)}
+
+/* WRONG ALERT */
+.wrong-alert{margin:10px 14px 0;background:var(--rd2);border:2px solid var(--rd);border-radius:var(--rl);padding:16px;text-align:center;display:none;animation:shake .4s}
+.wrong-alert.show{display:block}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.wrong-title{font-size:16px;font-weight:800;color:var(--rd);margin-bottom:6px}
+.wrong-body{font-size:12px;color:#F09090;font-family:var(--mono);line-height:1.5}
+
+/* PKG LIST */
+.pkg-list{margin:10px 14px 0}
+.pkg-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1)}
+.pkg-row:last-child{border-bottom:none}
+.pkg-row.scanned{opacity:.5}
+.pkg-num{font-family:var(--mono);font-size:13px;font-weight:600;flex:1;min-width:0}
+.pkg-sub{font-size:10px;font-family:var(--mono);color:var(--tm);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.pkg-dest{font-size:11px;color:var(--tm);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.pkg-badge{font-size:10px;font-weight:700;padding:3px 7px;border-radius:4px;font-family:var(--mono)}
+.b-pend{background:var(--am2);color:var(--am);border:1px solid var(--am3)}
+.b-scan{background:var(--gr2);color:var(--gr);border:1px solid var(--gr3)}
+
+/* MISSING */
+.missing-area{margin:10px 14px 0;background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--rl);padding:14px;display:none}
+.missing-area.show{display:block}
+.missing-title{font-size:13px;font-weight:700;color:var(--rd);margin-bottom:8px}
+.missing-item{font-size:12px;font-family:var(--mono);color:#F09090;padding:5px 0;border-bottom:1px solid rgba(224,85,85,.15)}
+.missing-item:last-child{border-bottom:none}
+
+/* CONFIRM AREA */
+.confirm-area{margin:12px 14px;background:var(--gr2);border:1.5px solid var(--gr3);border-radius:var(--rl);padding:14px;display:none}
+.confirm-area.show{display:block}
+.confirm-text{font-size:13px;color:var(--gr);margin-bottom:14px;line-height:1.5}
+.confirm-btn{width:100%;height:52px;background:var(--gr);color:#071A0F;border:none;border-radius:var(--r);font-size:15px;font-weight:800;cursor:pointer;font-family:var(--sans)}
+.confirm-btn:active{transform:scale(.98)}
+
+/* FOTOS VEÍCULO */
+.sec-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.veiculo-fotos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;min-height:4px}
+.vthumb-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
+.vthumb-wrap img{width:80px;height:80px;object-fit:cover;border-radius:var(--r);border:2px solid var(--gr3);display:block;cursor:pointer}
+.vthumb-del{position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;line-height:1;padding:0}
+.foto-btn{width:100%;height:44px;background:var(--s2);color:var(--tx);border:1.5px solid var(--b2);border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);margin-bottom:8px}
+.foto-btn.done{border-color:var(--gr3);color:var(--gr)}
+.foto-alert{background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--rd);margin-bottom:10px;display:none}
+
+/* OBSERVAÇÕES */
+.obs-textarea{width:100%;min-height:72px;background:var(--bg);border:1.5px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:var(--sans);font-size:13px;padding:10px 12px;outline:none;resize:vertical;-webkit-appearance:none;line-height:1.5;margin-bottom:14px}
+.obs-textarea:focus{border-color:var(--bl)}
+
+/* PROBLEMAS */
+.problema-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--rd2);border:1px solid var(--rd3);border-radius:var(--r);margin-bottom:6px;font-size:12px;font-family:var(--mono);color:#F09090}
+.problema-item button{background:none;border:none;color:var(--rd);font-size:16px;cursor:pointer;padding:0 4px;line-height:1}
+.add-problema-btn{width:100%;height:40px;background:var(--s2);color:var(--tm);border:1px solid var(--b2);border-radius:var(--r);font-size:12px;cursor:pointer;font-family:var(--sans);margin-bottom:6px}
+.problema-select{background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);max-height:160px;overflow-y:auto;display:none;margin-bottom:10px}
+.problema-select-item{padding:10px 12px;font-size:12px;font-family:var(--mono);color:var(--tx);border-bottom:1px solid var(--b1);cursor:pointer}
+.problema-select-item:last-child{border-bottom:none}
+.problema-select-item:active{background:var(--s2)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;overflow-y:auto}
+.modal-img-wrap{position:relative;width:100%;max-width:480px;display:flex;flex-direction:column;align-items:center}
+.modal-img-wrap img{max-width:100%;max-height:60vh;border-radius:8px 8px 0 0;display:block;object-fit:contain}
+.modal-close{position:absolute;top:-12px;right:-12px;width:40px;height:40px;background:var(--rd);color:#fff;border:none;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;-webkit-tap-highlight-color:transparent;touch-action:manipulation;z-index:1}
+.modal-back{width:100%;max-width:480px;height:52px;background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.2);border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:var(--sans);-webkit-tap-highlight-color:transparent;touch-action:manipulation;margin-top:12px;display:block}
+.modal-back:active{background:rgba(255,255,255,.22)}
+.modal-info{width:100%;max-width:480px;background:rgba(0,0,0,.75);border-radius:0 0 8px 8px;padding:10px 14px}
+
+/* DIA */
+.day-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.day-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:14px}
+.day-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--tm);font-family:var(--mono);margin-bottom:6px}
+.day-val{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1}
+.dia-section-lbl{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin:16px 0 8px}
+
+/* BOTTOM NAV */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--s1);border-top:1px solid var(--b1);display:flex;z-index:200;padding-bottom:env(safe-area-inset-bottom)}
+.nav-btn{flex:1;padding:10px 4px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--tm);font-size:10px;font-family:var(--sans);position:relative}
+.nav-btn.active{color:var(--gr)}
+.nav-icon{font-size:22px;line-height:1}
+.nav-badge{position:absolute;top:6px;right:calc(50% - 18px);background:var(--rd);color:#fff;font-size:9px;font-weight:700;font-family:var(--mono);padding:1px 5px;border-radius:10px;min-width:16px;text-align:center;display:none}
+.nav-badge.show{display:block}
+
+/* FOTO ETIQUETA NA LINHA */
+.pkg-photo{width:36px;height:36px;object-fit:cover;border-radius:6px;border:1.5px solid var(--gr3);cursor:pointer;flex-shrink:0;display:block}
+.pkg-photo-placeholder{width:36px;height:36px;border-radius:6px;border:1.5px dashed var(--b2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;color:var(--th)}
+
+/* CANCELAR SCAN */
+.pkg-row.scanned .unscan-btn{display:flex}
+.unscan-btn{display:none;width:28px;height:28px;background:var(--rd2);border:1px solid var(--rd3);border-radius:6px;color:var(--rd);font-size:14px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;line-height:1;padding:0}
+.unscan-btn:active{transform:scale(.9)}
+.desfazer-bar{margin:8px 14px 0;display:none;align-items:center;justify-content:space-between;background:var(--am2);border:1px solid var(--am3);border-radius:var(--r);padding:8px 12px}
+.desfazer-bar.show{display:flex}
+.desfazer-info{font-size:12px;font-family:var(--mono);color:var(--am)}
+.desfazer-btn{height:32px;padding:0 12px;background:var(--am);color:#1A0B00;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+
+/* ENCERRAR PARCIAL */
+.encerrar-btn{margin:10px 14px 0;height:48px;background:transparent;color:var(--am);border:1.5px solid var(--am3);border-radius:var(--rl);font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;width:calc(100% - 28px);display:none;transition:.15s}
+.encerrar-btn.show{display:block}
+.encerrar-btn:active{transform:scale(.97)}
+.motivo-area{margin:10px 14px 0;background:var(--am2);border:1.5px solid var(--am3);border-radius:var(--rl);padding:14px;display:none}
+.motivo-area.show{display:block}
+.motivo-textarea{width:100%;min-height:72px;background:var(--bg);border:1.5px solid var(--am3);border-radius:var(--r);color:var(--tx);font-family:var(--sans);font-size:13px;padding:10px 12px;outline:none;resize:vertical;-webkit-appearance:none;line-height:1.5;margin-bottom:10px}
+.motivo-textarea:focus{border-color:var(--am)}
+.motivo-alert{font-size:11px;color:var(--rd);margin-bottom:10px;display:none}
+.motivo-confirm-btn{width:100%;height:46px;background:var(--am);color:#1A0B00;border:none;border-radius:var(--r);font-size:14px;font-weight:800;cursor:pointer;font-family:var(--sans)}
+.motivo-confirm-btn:active{transform:scale(.98)}
+
+/* CALENDÁRIO PICKER */
+.cal-wrap{position:relative;display:inline-block}
+.cal-btn{height:32px;padding:0 10px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-size:12px;cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.cal-btn:active{opacity:.8}
+.cal-popup{position:absolute;top:38px;right:0;background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:12px;z-index:500;min-width:260px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.cal-popup.left{right:auto;left:0}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-title{font-size:13px;font-weight:700}
+.cal-nav{width:28px;height:28px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow{font-size:9px;text-align:center;color:var(--tm);padding:2px 0;font-family:var(--mono)}
+.cal-day{font-size:11px;font-family:var(--mono);text-align:center;padding:5px 2px;border-radius:6px;cursor:pointer;color:var(--tx)}
+.cal-day:hover{background:var(--s2)}
+.cal-day.today{color:var(--bl);font-weight:700}
+.cal-day.selected{background:var(--bl);color:#fff!important;font-weight:700}
+.cal-day.has-data{position:relative}
+.cal-day.has-data::after{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gr)}
+.cal-day.empty{cursor:default;color:var(--th)}
+.cal-day.future{opacity:.3;cursor:default;pointer-events:none}
+
+/* BUSCA HISTÓRICO */
+.hist-highlight{background:rgba(74,158,255,.25);border-radius:3px;color:var(--bl);font-weight:700}
+.hist-stat-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:8px 12px;text-align:center;flex:1;min-width:70px}
+.hist-stat-val{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
+.hist-stat-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-top:3px}
+
+/* DIA — SEÇÕES EXPANDÍVEIS */
+.dia-toggle{width:100%;background:none;border:none;text-align:left;cursor:pointer;padding:0;font-family:var(--sans);display:flex;align-items:center;justify-content:space-between}
+.dia-toggle:active{opacity:.7}
+.dia-section-box{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px}
+.dia-pkg-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)}
+.dia-pkg-row:last-child{border-bottom:none}
+.dia-pkg-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.dia-pkg-info{flex:1;min-width:0}
+.dia-pkg-num{font-family:var(--mono);font-size:12px;font-weight:600}
+.dia-pkg-nf{font-size:10px;font-family:var(--mono);color:var(--gr)}
+.dia-pkg-dest{font-size:11px;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dia-pkg-time{font-size:10px;font-family:var(--mono);color:var(--th);flex-shrink:0;text-align:right}
+
+/* HISTÓRICO / FILTROS */
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.filter-chip{height:30px;padding:0 12px;background:var(--s2);color:var(--tm);border:1px solid var(--b2);border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:.15s}
+.filter-chip.on{background:var(--bl2);color:var(--bl);border-color:var(--bl3)}
+.filter-chip.on-am{background:var(--am2);color:var(--am);border-color:var(--am3)}
+.hist-lote{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:14px;margin-bottom:10px}
+.hist-lote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hist-lote-fotos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.hist-lote-fotos img{width:72px;height:72px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--b2)}
+.hist-empty{text-align:center;color:var(--th);padding:40px 0;font-size:13px}
+.hist-pkg{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1);font-size:12px}
+.hist-pkg:last-child{border-bottom:none}
+.hist-pkg img{width:44px;height:44px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid var(--b2)}
+.hist-pkg-info{flex:1;min-width:0}
+.hist-pkg-num{font-family:var(--mono);font-weight:600;font-size:12px}
+.hist-pkg-dest{color:var(--tm);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* UTILS */
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,.2);border-top-color:currentColor;border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:90%;max-width:380px}
+.toast{padding:12px 20px;border-radius:var(--r);font-size:14px;font-weight:600;animation:tbIn .25s ease;box-shadow:0 4px 24px rgba(0,0,0,.5);width:100%;text-align:center}
+@keyframes tbIn{from{transform:translateY(8px);opacity:0}to{opacity:1;transform:none}}
+.t-ok{background:var(--gr);color:#071A0F}
+.t-warn{background:var(--am);color:#1A0B00}
+.t-err{background:var(--rd);color:#fff}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-title">Magazine Girassol</div>
+    <div class="login-sub">Expedição · Checkout de Saída</div>
+    <div class="field-lbl">Usuário</div>
+    <div class="field-wrap">
+      <input type="text" class="field-input" id="loginUser" placeholder="seu.usuario" autocomplete="username" autocapitalize="none">
+    </div>
+    <div class="field-lbl">Senha</div>
+    <div class="field-wrap">
+      <input type="password" class="field-input" id="loginPass" placeholder="" autocomplete="current-password" style="padding-right:46px" autocorrect="off" autocapitalize="none" spellcheck="false">
+      <button class="eye-btn" id="eyeBtn" onclick="togglePass()" type="button" tabindex="-1">👁</button>
+    </div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="appWrap">
+  <header>
+    <div class="hdr-left"><div class="hdr-title">Expedição</div></div>
+    <div class="hdr-right">
+      <span class="user-pill" id="userChip"></span>
+      <button class="logout-btn" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- ROMANEIO -->
+    <div id="pageRomaneio">
+      <div class="status-bar">
+        <div>
+          <div class="status-date" id="statusDate">Carregando...</div>
+          <div class="status-sub" id="statusSub">Pedidos VERIFICADOS</div>
+        </div>
+        <span class="bling-badge" id="blingBadge">● Bling</span>
+      </div>
+      <div id="activeBanner" style="display:none;background:var(--am2);color:var(--am);border:1px solid var(--am3);border-radius:var(--r);padding:8px 14px;font-size:12px;margin-bottom:8px;text-align:center"></div>
+
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="sync-btn" id="syncBtn" onclick="pullFromBling()" style="margin-bottom:0;flex:1">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Buscar no Bling
+        </button>
+        <button onclick="buscarPedidoManual()" style="height:52px;padding:0 14px;background:var(--s1);color:var(--tm);border:1.5px solid var(--b2);border-radius:var(--rl);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap">
+          🔍 Nº pedido
+        </button>
+      </div>
+
+      <div class="flex-banner" id="flexBanner">
+        <div class="flex-banner-title">⚡ FLEX — <span id="flexCount">0</span> pedido(s) urgentes</div>
+        <div class="flex-tags" id="flexList"></div>
+      </div>
+
+      <div class="mkt-grid" id="mktGrid">
+        <div style="grid-column:1/-1;text-align:center;color:var(--th);padding:40px 0;font-size:13px">
+          Clique em "Buscar no Bling" para carregar os pedidos
+        </div>
+      </div>
+
+      <!-- PAINEL DE COLETA -->
+      <div class="coleta-panel" id="coletaPanel">
+        <div class="coleta-header">
+          <div class="coleta-title" id="coletaTitle">Coleta</div>
+          <button class="coleta-close" onclick="closeColeta()">✕</button>
+        </div>
+
+        <button class="bipar-btn" id="biparBtn" onclick="toggleBipar()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="8" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="12" y="4" width="3" height="16" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="21" y="4" width="1" height="16" rx="1" fill="currentColor"/></svg>
+          BIPAR ETIQUETAS
+        </button>
+
+        <div class="cam-wrap" id="camWrap">
+          <video id="camVideo" autoplay playsinline muted></video>
+          <div class="cam-overlay">
+            <div class="scan-frame">
+              <div class="sc"></div><div class="sd"></div>
+              <div class="scan-line"></div>
+            </div>
+          </div>
+          <div class="cam-status" id="camStatus">Aponte para o código de barras</div>
+          <div class="photo-flash" id="photoFlash"></div>
+        </div>
+
+        <div class="manual-area">
+          <div class="manual-row">
+            <input type="text" class="manual-input" id="manualIn" placeholder="Ou digite / bipe o código..." autocomplete="off">
+            <button class="manual-ok" onclick="manualScan()">OK</button>
+          </div>
+        </div>
+
+        <div class="fb-area"><div class="fb" id="coletaFb"></div></div>
+
+        <!-- DESFAZER ÚLTIMO SCAN -->
+        <div class="desfazer-bar" id="desfazerBar">
+          <span class="desfazer-info" id="desfazerInfo">↩ Último: —</span>
+          <button class="desfazer-btn" onclick="desfazerUltimo()">↩ Desfazer</button>
+        </div>
+
+        <div class="wrong-alert" id="wrongAlert">
+          <div class="wrong-title">🚫 MARKETPLACE ERRADO!</div>
+          <div class="wrong-body" id="wrongBody"></div>
+        </div>
+
+        <div class="prog-area" id="progArea" style="display:none">
+          <div class="prog-header">
+            <span class="prog-label">Progresso</span>
+            <span class="prog-pct" id="progPct">0%</span>
+          </div>
+          <div class="prog-bar-wrap"><div class="prog-bar" id="progBar" style="width:0%"></div></div>
+          <div class="prog-stats">
+            <span id="statOk" style="color:var(--gr)"></span>
+            <span id="statPend" style="color:var(--am)"></span>
+          </div>
+        </div>
+
+        <!-- BOTÃO ENCERRAR PARCIAL -->
+        <button class="encerrar-btn" id="encerrarBtn" onclick="showEncerrar()">
+          ⚠ Encerrar Coleta (parcial)
+        </button>
+
+        <!-- ÁREA DE MOTIVO PARA ENCERRAMENTO PARCIAL -->
+        <div class="motivo-area" id="motivoArea">
+          <div style="font-size:13px;font-weight:700;color:var(--am);margin-bottom:10px">⚠ Encerrar com pacotes pendentes</div>
+          <div id="motivoPendList" style="margin-bottom:10px"></div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-bottom:6px">Motivo do encerramento *</div>
+          <textarea class="motivo-textarea" id="motivoText" placeholder="Ex: Veículo sem espaço, motorista recusou pacote, produto danificado..."></textarea>
+          <div class="motivo-alert" id="motivoAlert">⚠ Informe o motivo antes de continuar.</div>
+          <button class="motivo-confirm-btn" onclick="confirmarEncerrarParcial()">Continuar → Fotos e finalizar</button>
+        </div>
+
+        <div class="missing-area" id="missingArea">
+          <div class="missing-title">⚠ Pacotes não bipados — ficarão para trás!</div>
+          <div id="missingList"></div>
+        </div>
+
+        <!-- CONFIRMAÇÃO FINAL -->
+        <div class="confirm-area" id="confirmArea">
+          <div class="confirm-text" id="confirmText"></div>
+
+          <!-- FOTOS VEÍCULO -->
+          <div style="margin-bottom:14px">
+            <div class="sec-label" style="color:var(--am)">📸 Fotos do veículo (mín. 3)</div>
+            <div style="font-size:11px;color:var(--tm);margin-bottom:10px;line-height:1.5">Fotografe o veículo, placa e motorista antes de liberar.</div>
+            <div class="veiculo-fotos" id="veiculoFotos"></div>
+            <button class="foto-btn" id="btnFotoVeiculo" onclick="document.getElementById('fotoInput').click()">📷 Tirar foto</button>
+            <input type="file" id="fotoInput" accept="image/*" capture="environment" style="display:none" onchange="onFotoSelecionada(this)">
+            <div class="foto-alert" id="fotoAlert">⚠ Tire pelo menos 3 fotos antes de confirmar.</div>
+          </div>
+
+          <!-- OBSERVAÇÕES -->
+          <div style="margin-bottom:14px">
+            <div class="sec-label" style="color:var(--tm)">📝 Observações do lote</div>
+            <textarea class="obs-textarea" id="obsLote" placeholder="Ex: 1 pacote recusado por não caber no veículo..."></textarea>
+          </div>
+
+          <!-- PACOTES COM PROBLEMA -->
+          <div style="margin-bottom:14px">
+            <div class="sec-label" style="color:var(--tm)">🚫 Pacotes com problema</div>
+            <div id="problemaList"></div>
+            <button class="add-problema-btn" onclick="toggleProblemaSelect()">+ Marcar pacote com problema</button>
+            <div class="problema-select" id="problemaSelect"></div>
+          </div>
+
+          <button class="confirm-btn" onclick="finalizeColeta()">✓ Confirmar entrega ao motorista</button>
+        </div>
+
+        <div class="pkg-list" id="pkgList"></div>
+        <div style="height:14px"></div>
+      </div>
+    </div>
+
+    <!-- DIA -->
+    <div id="pageDia" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:16px;font-weight:700;color:var(--bl)" id="diaTitulo">Resumo do Dia</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button onclick="diaNavDate(-1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-size:16px;cursor:pointer">‹</button>
+          <div class="cal-wrap">
+            <button class="cal-btn" id="diaDateLabel" onclick="toggleCalDia()" style="min-width:70px">Hoje</button>
+            <div class="cal-popup" id="calDia" style="display:none;right:0"></div>
+          </div>
+          <button onclick="diaNavDate(1)" id="diaBtnNext" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-size:16px;cursor:pointer">›</button>
+        </div>
+      </div>
+      <div class="day-cards" id="dayCards"></div>
+      <div class="dia-section-lbl">Por marketplace</div>
+      <div id="dayByMkt"></div>
+      <div id="dayLotes"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+        <button onclick="exportCSV()" style="flex:1;height:44px;background:var(--s1);color:var(--tm);border:1px solid var(--b2);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans)">↓ CSV</button>
+        <button onclick="clearDay()" style="height:44px;padding:0 16px;background:var(--rd2);color:var(--rd);border:1px solid var(--rd3);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans)">Limpar dia</button>
+      </div>
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div id="pageHist" style="display:none">
+      <div style="font-size:16px;font-weight:700;color:var(--bl);margin-bottom:12px">🗂 Histórico de Lotes</div>
+
+      <!-- BUSCA -->
+      <div style="position:relative;margin-bottom:12px">
+        <input type="text" id="histSearch" placeholder="🔍  Buscar por pedido, NF, tracking, nome..." autocomplete="off"
+          style="width:100%;height:46px;background:var(--s1);border:1.5px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:var(--sans);font-size:14px;padding:0 40px 0 14px;outline:none;-webkit-appearance:none"
+          oninput="renderHistorico()">
+        <button onclick="document.getElementById('histSearch').value='';renderHistorico()"
+          style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tm);font-size:18px;cursor:pointer;line-height:1">✕</button>
+      </div>
+
+      <!-- TOTALIZADOR -->
+      <div id="histStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+
+      <!-- Filtro de data -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm)">Data</div>
+        <div class="cal-wrap">
+          <button class="cal-btn" onclick="toggleCalHist()">📅 Escolher data</button>
+          <div class="cal-popup" id="calHist" style="display:none;right:0"></div>
+        </div>
+      </div>
+      <div class="filter-row" id="filterDateRow"></div>
+
+      <!-- Filtro de marketplace -->
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-bottom:6px">Marketplace</div>
+      <div class="filter-row" id="filterMktRow"></div>
+
+      <div id="histContent"></div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" id="navRom" onclick="showPage('romaneio')">
+      <span class="nav-icon">📦</span><span>Romaneio</span>
+      <span class="nav-badge" id="nbRom"></span>
+    </button>
+    <button class="nav-btn" id="navDia" onclick="showPage('dia')">
+      <span class="nav-icon">📊</span><span>Dia</span>
+    </button>
+    <button class="nav-btn" id="navHist" onclick="showPage('historico')">
+      <span class="nav-icon">🗂</span><span>Histórico</span>
+    </button>
+  </nav>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ═══ CONSTANTES ═══
+var MKT = {
+  ml:         {n:'Mercado Livre', cls:'c-ml',     icon:'🟡', svcMatch:['mlivre','mercado envios','mercado_envios','olist']},
+  shopee:     {n:'Shopee',        cls:'c-shopee', icon:'🟠', svcMatch:['shopee']},
+  amazon:     {n:'Amazon',        cls:'c-amazon', icon:'📦', svcMatch:['amazon','dba']},
+  magalu:     {n:'MAGALU',        cls:'c-magalu', icon:'🔵', svcMatch:['magalu','via varejo','magazine']},
+  tiktok:     {n:'TikTok Shop',   cls:'c-tiktok', icon:'⚫', svcMatch:['tiktok']},
+  melhorenvio:{n:'Melhor Envio',  cls:'c-outro',  icon:'📮', svcMatch:['melhor envio','melhorenvio','loggi','jadlog','correios']},
+  velozz:     {n:'Flex Velozz',   cls:'c-shopee', icon:'🏍', svcMatch:['velozz']},
+  lalamove:   {n:'Lalamove',      cls:'c-shopee', icon:'🛵', svcMatch:['lalamove']},
+  flex:       {n:'⚡ FLEX',        cls:'c-rd',     icon:'⚡', virtual:true},
+  outro:      {n:'Outro',         cls:'c-outro',  icon:'📫', svcMatch:[]}
+};
+var LOJA_MAP = {'203146903':'ml','203583169':'shopee','203967708':'amazon','203262016':'magalu','205523707':'tiktok'};
+var MKT_ORDER = ['ml','shopee','amazon','magalu','tiktok','melhorenvio','velozz','lalamove','outro'];
+var ALWAYS_SHOW = ['melhorenvio','velozz','lalamove'];
+var FLEX_KEYWORDS = ['mercado envios flex','entrega local','vapt','shopee entrega direta','logistica shopee'];
+
+// ═══ STATE ═══
+var packages = [], scans = [], sessionToken = '', currentUser = '';
+var colSession = [], activeMkt = '';
+var fotosVeiculo = [], problemaPkgs = [];
+var camStream = null, barcodeDetector = null, scanning = false, scanPaused = false;
+var lastCode = '', lastCodeAt = 0;
+var encerrandoParcial = false; // flag: encerramento parcial ativo
+var lastPullAt = 0;        // timestamp do último pullFromBling
+var diaSelectedDate = '';  // data selecionada na aba Dia ('' = hoje)
+var histFilterDate = '';   // filtro ativo de data no histórico
+var histFilterMkt  = '';   // filtro ativo de mkt no histórico
+
+// ═══ STORAGE ═══
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function ld(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+
+// ═══ HELPERS ═══
+function todayStr(){return new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});}
+function nowTS(){return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+function todayPkgs(){return packages.filter(function(p){return p.date===todayStr();});}
+function lojaToMkt(id){return LOJA_MAP[String(id)]||null;}
+function svcToMkt(s){
+  if(!s) return 'melhorenvio';
+  var n=s.toLowerCase();
+  var keys=Object.keys(MKT);
+  for(var i=0;i<keys.length;i++){
+    var id=keys[i];
+    if(id==='outro'||id==='melhorenvio'||id==='flex') continue;
+    var m=MKT[id];
+    if(m.svcMatch&&m.svcMatch.some(function(k){return n.indexOf(k)!==-1;})) return id;
+  }
+  return 'melhorenvio';
+}
+
+// ═══ SOM ═══
+function beepSuccess(){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    o.type='sine';
+    o.frequency.setValueAtTime(880,ctx.currentTime);
+    o.frequency.setValueAtTime(1320,ctx.currentTime+0.1);
+    g.gain.setValueAtTime(0.3,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+    o.start(ctx.currentTime);o.stop(ctx.currentTime+0.4);
+  }catch(e){}
+}
+function beepError(){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(200,ctx.currentTime);
+    g.gain.setValueAtTime(0.3,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+    o.start(ctx.currentTime);o.stop(ctx.currentTime+0.4);
+  }catch(e){}
+}
+
+// ═══ AUTH ═══
+function togglePass(){
+  var i=document.getElementById('loginPass');
+  var b=document.getElementById('eyeBtn');
+  i.type=i.type==='password'?'text':'password';
+  b.textContent=i.type==='password'?'👁':'🙈';
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&document.getElementById('loginScreen').style.display!=='none') doLogin();
+});
+function doLogin(){
+  var usuario=document.getElementById('loginUser').value.trim();
+  var senha=document.getElementById('loginPass').value;
+  var btn=document.getElementById('loginBtn');
+  var err=document.getElementById('loginErr');
+  err.style.display='none';
+  if(!usuario||!senha){err.textContent='Preencha usuário e senha.';err.style.display='block';return;}
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+  fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:usuario,senha:senha})})
+  .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+  .then(function(res){
+    if(!res.ok) throw new Error(res.d.error||'Usuário ou senha incorretos.');
+    sessionToken=res.d.token; currentUser=res.d.usuario;
+    sv('expv5_session',sessionToken); sv('expv5_user',currentUser); sv('expv5_login_time',Date.now());
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('appWrap').classList.add('show');
+    initApp();
+  })
+  .catch(function(e){err.textContent=e.message;err.style.display='block';})
+  .finally(function(){btn.disabled=false;btn.innerHTML='Entrar';});
+}
+function doLogout(){
+  fetch('/logout',{method:'POST',headers:{'x-session-token':sessionToken}}).catch(function(){});
+  sessionToken=''; currentUser='';
+  sv('expv5_session',''); sv('expv5_user',''); sv('expv5_login_time',0);
+  document.getElementById('appWrap').classList.remove('show');
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginPass').value='';
+}
+function apiFetch(path,opts){
+  opts=opts||{};
+  var sep=path.indexOf('?')!==-1?'&':'?';
+  var url=path.indexOf('/bling/')!==-1?path+sep+'_='+Date.now():path;
+  return fetch(url,Object.assign({},opts,{headers:Object.assign({},opts.headers||{},{'x-session-token':sessionToken,'Content-Type':'application/json','Cache-Control':'no-cache'})}))
+  .then(function(r){
+    if(r.status===401){
+      // Lê o body para ver se é erro NOSSO ou do Bling
+      return r.json().then(function(body){
+        var nossoErro = body&&(body.error==='Não autorizado.'||body.error==='Sessão expirada.');
+        if(nossoErro){ doLogout(); }
+        throw new Error(body&&body.error||'Erro de autorização');
+      });
+    }
+    return r;
+  });
+}
+
+// ═══ BLING — busca rastreio FLEX ═══
+// Busca tracking individual para marketplaces que não trazem rastreio na listagem
+function detectTrackingPkgs(pkgs){
+  var i=0;
+  function next(){
+    if(i>=pkgs.length) return;
+    var pkg=pkgs[i++];
+    if(pkg.numeracao&&String(pkg.numeracao).toLowerCase().indexOf('object')===-1){next();return;}
+    setTimeout(function(){
+      apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
+      .then(function(r){if(!r.ok)return null;return r.json();})
+      .then(function(d){
+        if(!d) return;
+        var order=d.data||d;
+
+        // DEBUG: loga transporte completo para ML sem tracking
+        if(pkg.mkt==='ml'&&!track){
+          // Loga tudo para diagnóstico
+          console.log('🔍 ML SEM TRACKING #'+pkg.blingId);
+          console.log('🔍 TRANSPORTE:', JSON.stringify(order.transporte||{}));
+          console.log('🔍 TODAS KEYS:', Object.keys(order).join(', '));
+          // Procura qualquer chave com número de 8+ dígitos no objeto inteiro
+          var str=JSON.stringify(order);
+          var nums=str.match(/:\s*"([0-9]{8,})"/g)||[];
+          console.log('🔍 NÚMEROS LONGOS NO ORDER:', nums.slice(0,10).join(', '));
+        }
+
+        var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
+        // Mesmos campos que o detectFlexML usa — sem fallback genérico
+        var track = extractTrackStr(vol&&vol.numeracao)
+                 || extractTrackStr(vol&&vol.codigoRastreio)
+                 || extractTrackStr(vol&&vol.codigoRastreamento)
+                 || extractTrackStr(vol&&vol.tracking)
+                 || extractTrackStr(order.transporte&&order.transporte.codigoRastreamento)
+                 || extractTrackStr(order.transporte&&order.transporte.codigoRastreio)
+                 || '';
+
+        // NF — tenta todos os caminhos
+        // numLoja — número da venda no marketplace
+        var numLojaD=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
+        if(numLojaD&&p&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
+        // Para ML: numeroPedidoLoja = número loja virtual (2000015489054448)
+        // numeracao = número de envio (46625715803)
+        var nfDetalhe = (order.notaFiscal&&order.notaFiscal.numero)
+                     || (order.nfe&&order.nfe.numero)
+                     || (order.notasFiscais&&order.notasFiscais[0]&&order.notasFiscais[0].numero)
+                     || (order.nota&&order.nota.numero)
+                     || '';
+        // Salva a chave DANFE completa (44 dígitos) para matching na bipagem
+        var nfChave = (order.notaFiscal&&order.notaFiscal.chave)
+                   || (order.nfe&&order.nfe.chave)
+                   || (order.notasFiscais&&order.notasFiscais[0]&&order.notasFiscais[0].chave)
+                   || '';
+        if(nfChave) nfChave=String(nfChave).replace(/\s/g,'');
+        // Se não tem numero da NF mas tem chave, extrai o número da chave (pos 25-34 do padrão NF-e)
+        if(!nfDetalhe&&nfChave&&nfChave.length===44){
+          nfDetalhe=String(parseInt(nfChave.substring(25,34),10)); // remove zeros à esquerda
+        }
+
+        var p=null;
+        for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
+        if(p){
+          if(track){p.numeracao=String(track).replace(/\s/g,'').toUpperCase(); console.log('✅ Tracking '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.numeracao);}
+          else{console.warn('⚠ SEM tracking para '+p.mkt.toUpperCase()+' #'+p.numero);}
+          // Detecta urgente pelo serviço (Shopee Xpress, VAPT, etc)
+          if(!p.urgente){
+            var svcDetect=((order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||'').toLowerCase()+' '+
+                          ((order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico)||'').toLowerCase();
+            if(FLEX_KEYWORDS.some(function(f){return svcDetect.indexOf(f)!==-1;})){
+              p.urgente=true;
+              p.servico=(order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||
+                        (order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico)||'Expresso';
+              console.log('⚡ URGENTE: '+p.mkt.toUpperCase()+' #'+p.numero+' → '+p.servico);
+            }
+          }
+          if(nfDetalhe&&!p.nf){p.nf=String(nfDetalhe).trim(); console.log('✅ NF '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.nf);}
+          if(nfChave&&!p.nfChave){p.nfChave=nfChave;}
+          // Se ainda sem NF, busca no endpoint /nfe
+          if(!p.nf){
+            (function(pkgRef){
+              setTimeout(function(){
+                apiFetch('/bling/nfe?idPedidoVenda='+pkgRef.blingId+'&limite=1')
+                .then(function(r){return r.ok?r.json():null;})
+                .then(function(nd){
+                  if(!nd||!nd.data||!nd.data[0]) return;
+                  var nfr=nd.data[0];
+                  var nnum=(nfr.numero)||(nfr.nfe&&nfr.nfe.numero)||(nfr.numeroDocumento)||'';
+                  var nch=(nfr.chaveAcesso)||(nfr.chave)||'';
+                  if(nnum){pkgRef.nf=String(nnum).trim(); sv('expv5_pkgs',packages); renderPkgList(); renderMktGrid(); console.log('✅ NF /nfe '+pkgRef.mkt.toUpperCase()+' #'+pkgRef.numero+': '+pkgRef.nf);}
+                  if(nch&&!pkgRef.nfChave) pkgRef.nfChave=String(nch).replace(/\s/g,'');
+                }).catch(function(){});
+              },500);
+            })(p);
+          }
+          sv('expv5_pkgs',packages);
+          renderMktGrid();
+          if(activeMkt) renderPkgList(); // atualiza lista aberta com novos dados
+          // Avisa quando último tracking carregou
+          if(i>=pkgs.length){
+            toast('✅ Trackings carregados — buscando NFs...','ok');
+            var semNF=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
+            if(semNF.length>0) setTimeout(function(){detectNF(semNF,null);},1200);
+            else toast('✅ Tudo carregado!','ok');
+          }
+        }
+        next();
+      })
+      .catch(function(e){console.error('❌ detectTracking erro:',e.message);next();});
+    },1100); // 1100ms entre chamadas — evita rate limit Bling
+  }
+  next();
+}
+
+function detectFlexML(mlPkgs, onDone){
+  var i=0;
+  function next(){
+    if(i>=mlPkgs.length){if(onDone)onDone();return;}
+    var pkg=mlPkgs[i++];
+    setTimeout(function(){
+      apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
+      .then(function(r){if(!r.ok) return null; return r.json();})
+      .then(function(d){
+        if(!d) return;
+        var order=d.data||d;
+        var svcNome=((order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||'').toLowerCase();
+        var svcVol=((order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico)||'').toLowerCase();
+        var svcTrp=((order.transporte&&order.transporte.transportadora&&order.transporte.transportadora.nome)||'').toLowerCase();
+        var allSvc=svcNome+' '+svcVol+' '+svcTrp;
+        var isFlex=FLEX_KEYWORDS.some(function(f){return allSvc.indexOf(f)!==-1;});
+        // Busca o pacote independente de ser FLEX ou ML normal
+        var p=packages.find?packages.find(function(x){return x.blingId===pkg.blingId;}):null;
+        if(!p){for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}}
+        if(p){
+          // Extrai tracking — MESMA lógica para FLEX e ML normal
+          var vol=order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
+          var nr=extractTrackStr(vol&&vol.numeracao)
+              ||extractTrackStr(vol&&vol.codigoRastreio)
+              ||extractTrackStr(vol&&vol.codigoRastreamento)
+              ||extractTrackStr(vol&&vol.tracking)
+              ||extractTrackStr(vol&&vol.numero)
+              ||extractTrackStr(order.transporte&&order.transporte.codigoRastreamento)
+              ||extractTrackStr(order.transporte&&order.transporte.codigoRastreio)
+              ||'';
+          if(isFlex){
+            p.urgente=true;
+            p.servico=order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]?
+              (order.transporte.volumes[0].servico||svcNome||'ML Flex'):
+              (svcNome||'ML Flex');
+          }
+          if(nr){
+            p.numeracao=String(nr).replace(/\s/g,'').toUpperCase();
+            console.log('✅ Tracking ML'+(isFlex?' FLEX':'')+'  #'+p.numero+': '+p.numeracao);
+          }
+          // NF e chave DANFE
+          var nfFlex=(order.notaFiscal&&order.notaFiscal.numero)||(order.nfe&&order.nfe.numero)||'';
+          var nfChaveFlex=(order.notaFiscal&&order.notaFiscal.chave)||(order.nfe&&order.nfe.chave)||'';
+          if(nfFlex&&!p.nf) p.nf=String(nfFlex).trim();
+          if(nfChaveFlex&&!p.nfChave) p.nfChave=String(nfChaveFlex).replace(/\s/g,'');
+          // Se ainda sem NF, busca no endpoint /nfe
+          if(!p.nf){
+            (function(pkgRef){
+              setTimeout(function(){
+                apiFetch('/bling/nfe?idPedidoVenda='+pkgRef.blingId+'&limite=1')
+                .then(function(r){return r.ok?r.json():null;})
+                .then(function(nd){
+                  if(!nd||!nd.data||!nd.data[0]) return;
+                  var nfr=nd.data[0];
+                  var nnum=(nfr.numero)||(nfr.nfe&&nfr.nfe.numero)||(nfr.numeroDocumento)||'';
+                  var nchave=(nfr.chaveAcesso)||(nfr.chave)||'';
+                  if(nnum){pkgRef.nf=String(nnum).trim(); console.log('✅ NF via /nfe #'+pkgRef.numero+': '+pkgRef.nf); sv('expv5_pkgs',packages); renderPkgList(); renderMktGrid();}
+                  if(nchave&&!pkgRef.nfChave) pkgRef.nfChave=String(nchave).replace(/\s/g,'');
+                }).catch(function(){});
+              },500);
+            })(p);
+          }
+          // numLoja
+          var numLojaDetalhe=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
+          if(numLojaDetalhe&&!p.numLoja) p.numLoja=String(numLojaDetalhe).trim();
+          sv('expv5_pkgs',packages);
+          if(i%5===0) syncToServer();
+          renderMktGrid();
+          if(activeMkt) renderPkgList();
+        }
+        next();
+      })
+      .catch(function(e){console.error('❌ FLEX erro:',e.message);next();});
+    },1100); // 1100ms entre chamadas — evita rate limit Bling (limite ~1 req/s)
+  }
+  next();
+}
+
+// Mapa mkt → idLoja para busca filtrada
+var MKT_TO_LOJA = {
+  'ml':'203146903','shopee':'203583169','amazon':'203967708',
+  'magalu':'203262016','tiktok':'205523707'
+};
+
+// Busca Bling filtrado por loja — chamado ao selecionar marketplace
+// Busca um pedido específico pelo número diretamente no Bling
+function buscarPedidoManual(){
+  var num=prompt('Digite o número do pedido Bling (ex: 103803):');
+  if(!num||!num.trim()) return;
+  num=num.trim();
+  toast('🔍 Buscando pedido '+num+'...','warn');
+  // Busca por número do pedido
+  apiFetch('/bling/pedidos/vendas?numeroLoja='+num+'&limite=10')
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(d){
+    var orders=(d&&d.data)||[];
+    // Também tenta pelo número interno
+    if(orders.length===0){
+      return apiFetch('/bling/pedidos/vendas?numero='+num+'&limite=10')
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(d2){return (d2&&d2.data)||[];});
+    }
+    return orders;
+  })
+  .then(function(orders){
+    if(!orders||orders.length===0){
+      // Tenta buscar pelo ID diretamente (pedido antigo com esse numero)
+      var found=null;
+      for(var i=0;i<packages.length;i++){
+        if(String(packages[i].numero)===num||String(packages[i].etiqueta)===num){
+          found=packages[i]; break;
+        }
+      }
+      if(found){
+        toast('Pedido '+num+' já carregado (status: '+found.status+')','warn');
+      } else {
+        toast('Pedido '+num+' não encontrado. Confirme o status no Bling.','err');
+      }
+      return;
+    }
+    var today=todayStr();
+    var novos=0;
+    orders.forEach(function(o){
+      var situacaoId=Number((o.situacao&&o.situacao.id)||0);
+      if(situacaoId!==24){
+        toast('Pedido '+o.numero+' não está em VERIFICADO (status: '+situacaoId+')','warn');
+        return;
+      }
+      var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
+      var mkt=lojaToMkt(String((o.loja&&o.loja.id)||'0'))||'melhorenvio';
+      var existing=null;
+      for(var k=0;k<packages.length;k++){if(packages[k].blingId===o.id){existing=packages[k];break;}}
+      if(existing){
+        // Reseta para pendente se estava coletado
+        if(existing.status==='coletado'||existing.status==='problema'){
+          existing.status='pendente'; existing.colT=null;
+          existing.date=today; // atualiza data para hoje
+          toast('↩ Pedido '+o.numero+' resetado para pendente!','ok');
+        } else {
+          existing.date=today;
+          toast('Pedido '+o.numero+' já está pendente.','warn');
+        }
+      } else {
+        // Adiciona novo
+        packages.unshift({
+          id:o.id,numero:o.numero,etiqueta:etiqueta,nf:'',nfChave:'',numLoja:'',
+          destinatario:(o.contato&&o.contato.nome)||'—',
+          servico:'',lojaId:String((o.loja&&o.loja.id)||'0'),
+          mkt:mkt,urgente:false,numeracao:'',
+          blingStatus:24,dataPedido:o.data||'',
+          date:today,pulledAt:nowTS(),
+          status:'pendente',colT:null,obs:'',blingId:o.id
+        });
+        novos++;
+        toast('✅ Pedido '+o.numero+' adicionado!','ok');
+      }
+      sv('expv5_pkgs',packages);
+      syncToServer();
+      renderMktGrid(); updateBadge();
+      // Detecta FLEX se for ML
+      if(mkt==='ml'){
+        setTimeout(function(){
+          detectFlexML([existing||packages[0]], function(){renderMktGrid();});
+        },500);
+      }
+    });
+  })
+  .catch(function(e){toast('Erro: '+e.message,'err');});
+}
+
+function pullFromBlingMkt(mkt){
+  var lojaId=MKT_TO_LOJA[mkt]||null;
+  if(!lojaId) return; // FLEX e outros sem lojaId fixo não filtram
+  var today=todayStr();
+  var d30b=new Date(); d30b.setDate(d30b.getDate()-30);
+  var dateFrom30=d30b.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  // Mostra mini-indicador
+  toast('🔄 Verificando '+( MKT[mkt]||{n:mkt}).n+'...','warn');
+  apiFetch('/bling/pedidos/vendas?idSituacao=24&idLoja='+lojaId+'&dataEmissaoInicial='+dateFrom30+'&pagina=1&limite=100')
+  .then(function(r){
+    if(!r.ok) return;
+    return r.json().then(function(d){
+      var orders=d.data||[];
+      if(orders.length===0) return;
+      // Filtro de 30 dias no cliente (igual ao pullFromBling principal)
+      orders=orders.filter(function(o){
+        if(!o.data) return true;
+        var d=new Date(o.data.substring(0,10)+'T12:00:00');
+        var diffDias=(Date.now()-d.getTime())/(1000*60*60*24);
+        return diffDias<=30;
+      });
+      if(orders.length===0) return;
+      var novos=0;
+      orders.forEach(function(o){
+        var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
+        var nf=(o.notaFiscal&&o.notaFiscal.numero)||(o.nfe&&o.nfe.numero)||'';
+        var nfChave=(o.notaFiscal&&o.notaFiscal.chave)||(o.nfe&&o.nfe.chave)||'';
+        var numLoja=(o.numeroPedidoLoja)||(o.loja&&o.loja.numeroPedido)||'';
+        var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
+                           (o.transporte&&o.transporte.codigoRastreamento)||'';
+        if(numeracaoLista) numeracaoLista=String(numeracaoLista).replace(/\s/g,'').toUpperCase();
+        // Verifica se já existe
+        var existente=null;
+        for(var k=0;k<packages.length;k++){
+          if(packages[k].blingId===o.id){existente=packages[k];break;}
+        }
+        if(!existente){
+          // Pedido novo — adiciona
+          packages.unshift({
+            id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,nfChave:nfChave?String(nfChave).replace(/\s/g,''):'',
+            numLoja:String(numLoja||''),
+            destinatario:(o.contato&&o.contato.nome)||'—',
+            servico:(o.transporte&&o.transporte.servico&&o.transporte.servico.nome)||'',
+            lojaId:String((o.loja&&o.loja.id)||'0'),mkt:mkt,urgente:false,numeracao:numeracaoLista,
+            blingStatus:Number((o.situacao&&o.situacao.id)||0),
+            dataPedido:o.data||'',date:today,pulledAt:nowTS(),
+            status:'pendente',colT:null,obs:'',blingId:o.id
+          });
+          novos++;
+        } else {
+          // Atualiza campos que podem ter chegado
+          if(nf&&!existente.nf) existente.nf=nf;
+          if(nfChave&&!existente.nfChave) existente.nfChave=String(nfChave).replace(/\s/g,'');
+          if(numLoja&&!existente.numLoja) existente.numLoja=String(numLoja);
+          if(numeracaoLista&&!existente.numeracao) existente.numeracao=numeracaoLista;
+        }
+      });
+      sv('expv5_pkgs',packages);
+      if(novos>0){
+        syncToServer();
+        toast(novos+' pedido(s) novo(s) em '+(MKT[mkt]||{n:mkt}).n+'!','ok');
+        renderMktGrid();
+        renderPkgList();
+      } else {
+        toast('✅ '+(MKT[mkt]||{n:mkt}).n+' atualizado','ok');
+      }
+      // Busca tracking e numLoja se necessário
+      var semTrack=packages.filter(function(p){
+        if(p.mkt!==mkt) return false;
+        if(mkt==='ml') return !p.numLoja; // ML: busca numLoja (número loja virtual)
+        return !p.numeracao&&(mkt==='tiktok'||mkt==='shopee'||mkt==='amazon'||mkt==='magalu');
+      });
+      if(semTrack.length>0) setTimeout(function(){detectTrackingPkgs(semTrack);},800);
+    });
+  })
+  .catch(function(){});
+}
+
+function pullFromBling(){
+  var btn=document.getElementById('syncBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Buscando...';
+  var today=todayStr();
+  // Busca só hoje: evita puxar centenas de pedidos antigos ainda em VERIFICADO
+  // Usa ontem como margem de segurança para pedidos emitidos ontem mas verificados hoje
+  var d30=new Date(); d30.setDate(d30.getDate()-30);
+  var dateFrom30=d30.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  var all=[]; var page=1;
+  function fetchPage(){
+    apiFetch('/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial='+dateFrom30+'&pagina='+page+'&limite=100')
+    .then(function(r){
+      if(r.status===304||r.status!==200){finishFetch(all);return;}
+      return r.json().then(function(d){
+        var orders=d.data||[];
+        if(orders.length===0){finishFetch(all);return;}
+        all=all.concat(orders);
+        if(orders.length===100&&page<4){page++;setTimeout(fetchPage,1000);}
+        else finishFetch(all);
+      });
+    })
+    .catch(function(e){flash('Erro: '+e.message,'err');resetSyncBtn();});
+  }
+  function finishFetch(all){
+    if(all.length===0){
+      // Só avisa se realmente não há nada — se já tem pacotes de hoje no localStorage, fica quieto
+      var temHoje=packages.filter(function(p){return p.date===todayStr();}).length>0;
+      if(!temHoje) flash('Nenhum pedido VERIFICADO','warn');
+      renderMktGrid(); resetSyncBtn(); return;
+    }
+    // DEBUG NF: loga os campos da 1ª ordem para identificar onde está a NF
+    if(all.length>0){
+      var sample=all[0];
+      console.log('🔍 BLING SAMPLE KEYS:', Object.keys(sample));
+      console.log('🔍 notaFiscal:', sample.notaFiscal);
+      console.log('🔍 nfe:', sample.nfe);
+      console.log('🔍 nota:', sample.nota);
+      console.log('🔍 notasFiscais:', sample.notasFiscais);
+      console.log('🔍 loja:', sample.loja);
+      console.log('🔍 numeroPedidoLoja:', sample.numeroPedidoLoja);
+      console.log('🔍 FULL:', JSON.stringify(sample).substring(0,800));
+    }
+    var newPkgs=all.map(function(o){
+      var lojaId=String((o.loja&&o.loja.id)||'0');
+      var svc=(o.transporte&&o.transporte.servico&&o.transporte.servico.nome)||
+              (o.transporte&&o.transporte.transportadora&&o.transporte.transportadora.nome)||
+              (o.loja&&o.loja.nome)||'';
+      var mkt=lojaToMkt(lojaId)||svcToMkt(svc);
+      var svcLow=svc.toLowerCase();
+      var urgente=FLEX_KEYWORDS.some(function(u){return svcLow.indexOf(u)!==-1;});
+      var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
+      // Bling v3: NF pode vir em vários caminhos
+      var nf=(o.notaFiscal&&o.notaFiscal.numero)        // caminho principal
+           ||(o.nfe&&o.nfe.numero)                       // alternativo nfe
+           ||(o.notasFiscais&&o.notasFiscais[0]&&o.notasFiscais[0].numero) // array
+           ||(o.nota&&o.nota.numero)                     // variante nota
+           ||'';
+      if(nf) nf=String(nf).trim();
+      // Número do pedido no marketplace (Bling guarda em numeroPedidoLoja ou loja.numeroPedido)
+      var numLoja=(o.numeroPedidoLoja)||(o.numeroloja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
+      // Extrai tracking da listagem (pode já estar disponível para Shopee, TikTok etc.)
+      var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
+                         (o.transporte&&o.transporte.codigoRastreamento)||'';
+      if(numeracaoLista) numeracaoLista=String(numeracaoLista).replace(/\s/g,'').toUpperCase();
+      var nfChave=(o.notaFiscal&&o.notaFiscal.chave)||(o.nfe&&o.nfe.chave)||'';
+      if(nfChave) nfChave=String(nfChave).replace(/\s/g,'');
+      return {id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,nfChave:nfChave,numLoja:String(numLoja||''),
+        destinatario:(o.contato&&o.contato.nome)||'—',
+        servico:svc,lojaId:lojaId,mkt:mkt,urgente:urgente,numeracao:numeracaoLista,
+        blingStatus:Number((o.situacao&&o.situacao.id)||0),
+        dataPedido:o.data||'',date:today,pulledAt:nowTS(),
+        status:'pendente',colT:null,obs:'',blingId:o.id};
+    }).filter(function(p){
+      if(!p.etiqueta || p.blingStatus!==24) return false;
+      // Rejeita pedidos com mais de 30 dias (ex: 2024)
+      // Pedidos com data futura (entrega agendada) são aceitos normalmente
+      if(p.dataPedido){
+        var d=new Date(p.dataPedido.substring(0,10)+'T12:00:00');
+        var diffDias=(Date.now()-d.getTime())/(1000*60*60*24);
+        if(diffDias>30) return false;
+      }
+      return true;
+    });
+    // ── MERGE ROBUSTO: busca por blingId em TODOS os packages (qualquer data)
+    // Isso resolve devoluções de dias anteriores
+    var existingMap={};
+    packages.forEach(function(p){existingMap[p.blingId]=p;});
+
+    newPkgs.forEach(function(p){
+      var ex=existingMap[p.blingId];
+      if(!ex) return; // pacote novo — fica com defaults
+      // Preserva campos enriquecidos independente da data
+      if(ex.urgente) p.urgente=true; // CRITICAL: preserva flag FLEX/urgente
+      if(ex.servico) p.servico=ex.servico;
+      if(ex.numeracao) p.numeracao=ex.numeracao;
+      if(ex.nfChave) p.nfChave=ex.nfChave;
+      if(ex.nf) p.nf=ex.nf;
+      // ⚠ DEVOLUÇÃO: estava coletado/problema mas voltou ao Bling como VERIFICADO (24)
+      if((ex.status==='coletado'||ex.status==='problema') && p.blingStatus===24){
+        p.status='pendente'; p.colT=null;
+        console.log('↩ Devolvido #'+p.numero+' (era '+ex.status+', data anterior: '+ex.date+') → pendente hoje');
+        toast('↩ '+p.numero+' devolvido — volta para expedição!','warn');
+      } else if(ex.date===today){
+        // Mesmo dia: mantém status local
+        p.status=ex.status;
+        p.colT=ex.colT;
+        p.obs=ex.obs;
+      }
+      // Se era de outro dia e não foi devolvido: fica como pendente (novo pull)
+    });
+
+    // Log de rastreamento para qualquer pacote devolvido
+    newPkgs.forEach(function(p){
+      if(p.urgente&&p.status==='pendente'){
+        console.log('✅ URGENTE pendente após merge: #'+p.numero+' urgente='+p.urgente+' mkt='+p.mkt);
+      }
+    });
+
+    // Preserva expedidos de HOJE que não voltaram do Bling (já estão em DESPACHADO)
+    var idsNovos={};
+    newPkgs.forEach(function(p){idsNovos[p.blingId]=true;});
+    var expedidosHoje=packages.filter(function(p){
+      return p.date===today&&(p.status==='coletado'||p.status==='problema')&&!idsNovos[p.blingId];
+    });
+    // Remove todos os de hoje e substitui
+    packages=packages.filter(function(p){return p.date!==today;});
+    packages=newPkgs.concat(expedidosHoje).concat(packages);
+    sv('expv5_pkgs',packages);
+    syncToServer(); // sincroniza packages para outros dispositivos (desktop)
+    toast(newPkgs.length+' pedidos carregados','ok');
+    if(semTracking_count>0) toast('Buscando tracking de '+semTracking_count+' pedido(s)... aguarde','warn');
+    renderMktGrid(); updateBadge();
+    // Detecta FLEX em todos os ML e Shopee pendentes
+    var mlPkgs=newPkgs.filter(function(p){return p.mkt==='ml'||p.mkt==='shopee';});
+    var mlSemFlex=mlPkgs.filter(function(p){return !p.urgente;});
+    var mlJaFlex=mlPkgs.filter(function(p){return p.urgente;});
+    if(mlJaFlex.length>0) console.log('⚡ '+mlJaFlex.length+' já marcados como FLEX (do merge)');
+    // Busca tracking: primeiro FLEX ML, depois TikTok/Shopee/etc em SEQUÊNCIA
+    // (evita rate limit 429 do Bling ao rodar os dois em paralelo)
+    var semTracking=newPkgs.filter(function(p){
+      if(p.mkt==='ml'&&!p.urgente&&(!p.numLoja||!p.numeracao)) return true;
+      // Shopee vai pelo detectFlexML — não duplicar aqui
+      return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='magalu'||p.mkt==='amazon');
+    });
+    var semTracking_count=semTracking.length;
+    if(mlSemFlex.length>0||mlPkgs.length>0){
+      var mlParaDetectar=typeof mlSemFlex!=='undefined'?mlSemFlex:mlPkgs;
+      detectFlexML(mlParaDetectar, function(){
+        if(semTracking.length>0){
+          detectTrackingPkgs(semTracking);
+        } else {
+          // Após FLEX, busca NF de TODOS (ML + outros)
+          var semNF2=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
+          if(semNF2.length>0){
+            console.log('🧾 Chamando detectNF após FLEX para '+semNF2.length+' pedidos');
+            setTimeout(function(){detectNF(semNF2,null);},1200);
+          } else toast('✅ Tudo carregado!','ok');
+        }
+      });
+    } else if(semTracking.length>0){
+      detectTrackingPkgs(semTracking);
+    } else {
+      // Sem ML nem semTracking: busca NF direto
+      var semNF3=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
+      if(semNF3.length>0) setTimeout(function(){detectNF(semNF3,null);},1200);
+    }
+    // Garante que detectNF rode para todos sem NF ao final de qualquer fluxo
+    setTimeout(function(){
+      var semNFfinal=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
+      if(semNFfinal.length>0){
+        console.log('🧾 detectNF final: '+semNFfinal.length+' pedidos sem NF');
+        detectNF(semNFfinal,null);
+      }
+    },8000); // aguarda trackings carregarem (FLEX + semTracking + 1100ms cada)
+    resetSyncBtn();
+  }
+  function resetSyncBtn(){
+    lastPullAt=Date.now();
+    btn.disabled=false;
+    btn.innerHTML='<svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Buscar no Bling';
+  }
+  fetchPage();
+}
+
+// ═══ RENDER ═══
+function renderMktGrid(){
+  var today=todayPkgs();
+  var d=new Date();
+  var days=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+  document.getElementById('statusDate').textContent=days[d.getDay()]+', '+d.getDate()+' de '+d.toLocaleString('pt-BR',{month:'long'});
+  var col=today.filter(function(p){return p.status==='coletado';}).length;
+  var mktLabel='';
+  if(activeMkt){
+    var info=MKT[activeMkt]||{n:activeMkt};
+    var mktPkgs=activeMkt==='flex'?today.filter(function(p){return p.urgente;}):today.filter(function(p){return p.mkt===activeMkt&&!p.urgente;});
+    var mktCol=mktPkgs.filter(function(p){return p.status==='coletado';}).length;
+    mktLabel=mktPkgs.length+' pedidos · '+mktCol+' coletados';
+  } else {
+    mktLabel=today.length+' pedidos · '+col+' coletados';
+  }
+  document.getElementById('statusSub').textContent=mktLabel;
+  var urgentes=today.filter(function(p){return p.urgente&&p.status==='pendente';});
+  var fb=document.getElementById('flexBanner');
+  if(urgentes.length>0){
+    fb.classList.add('show');
+    document.getElementById('flexCount').textContent=urgentes.length;
+    document.getElementById('flexList').innerHTML=urgentes.map(function(p){
+      return '<span class="flex-tag">'+p.numero+' · '+p.servico+'</span>';
+    }).join('');
+  } else {fb.classList.remove('show');}
+  if(today.length===0){
+    document.getElementById('mktGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--th);padding:40px 0;font-size:13px">Nenhum pedido VERIFICADO</div>';
+    return;
+  }
+  var flexPkgs=today.filter(function(p){return p.urgente;}); // todos para barra de progresso
+  var byMkt={};
+  // Exclui pacotes FLEX dos cards de marketplace — ficam só no card FLEX URGENTE
+  today.forEach(function(p){
+    if(p.urgente) return;
+    if(!byMkt[p.mkt])byMkt[p.mkt]=[];
+    byMkt[p.mkt].push(p);
+  });
+  var cards=[];
+  if(flexPkgs.length>0){
+    var fc=flexPkgs.filter(function(p){return p.status==='coletado';}).length;
+    var fp=flexPkgs.filter(function(p){return p.status==='pendente';}).length;
+    var fpct=flexPkgs.length?Math.round(fc/flexPkgs.length*100):0;
+    var fActive=activeMkt==='flex';
+    var fDone=fp===0&&fc>0;
+    cards.push('<div class="mkt-card '+(fActive?'active':'')+(fDone?' done':'')+'" onclick="selectMkt(\'flex\')" style="'+(fDone?'':'border-color:rgba(224,85,85,.4)')+'">'+
+      '<div class="mkt-head"><span class="mkt-chip c-rd">⚡ FLEX URGENTE</span></div>'+
+      '<div class="mkt-count" style="color:'+(fDone?'var(--gr)':fp>0?'#F09090':'var(--gr)')+'">'+fp+'</div>'+
+      '<div class="mkt-sub">'+fp+' pend · '+fc+' col / '+flexPkgs.length+' total</div>'+
+      '<div class="mkt-prog"><div class="mkt-prog-bar" style="width:'+fpct+'%;background:#E05555"></div></div>'+
+      '</div>');
+  }
+  MKT_ORDER.forEach(function(m){
+    var list=byMkt[m]||[];
+    var mc=list.filter(function(p){return p.status==='coletado';}).length;
+    var mp=list.filter(function(p){return p.status==='pendente';}).length;
+    var pct=list.length?Math.round(mc/list.length*100):0;
+    var isActive=activeMkt===m;
+    var isDone=list.length>0&&mp===0;
+    var isEmpty=list.length===0;
+    if(isEmpty&&ALWAYS_SHOW.indexOf(m)===-1) return;
+    var info=MKT[m]||{cls:'c-outro',icon:'📦',n:m};
+    cards.push('<div class="mkt-card '+(isActive?'active':'')+(isDone?' done':'')+'" onclick="selectMkt(\''+m+'\')" style="'+(isEmpty?'opacity:.45':'')+'">'+
+      '<div class="mkt-head"><span class="mkt-chip '+info.cls+'">'+info.icon+' '+info.n+'</span></div>'+
+      '<div class="mkt-count" style="color:'+(isDone?'var(--gr)':isEmpty?'var(--th)':'var(--tx)')+'">'+list.length+'</div>'+
+      '<div class="mkt-sub">'+(isEmpty?'nenhum hoje':mc+' col · '+mp+' pend')+'</div>'+
+      '<div class="mkt-prog"><div class="mkt-prog-bar" style="width:'+pct+'%"></div></div>'+
+      '</div>');
+  });
+  document.getElementById('mktGrid').innerHTML=cards.join('');
+}
+
+function selectMkt(mkt){
+  if(activeMkt===mkt){closeColeta();return;}
+  stopCamera();
+  activeMkt=mkt; colSession=[]; scanPaused=false; encerrandoParcial=false; fotosVeiculo=[]; problemaPkgs=[];
+  ['wrongAlert','confirmArea','missingArea','motivoArea','desfazerBar'].forEach(function(id){document.getElementById(id).classList.remove('show');});
+  document.getElementById('encerrarBtn').classList.remove('show');
+  document.getElementById('coletaFb').className='fb';
+  document.getElementById('coletaPanel').classList.add('show');
+  document.getElementById('coletaTitle').textContent=(MKT[mkt]||{}).icon+' '+(MKT[mkt]||{n:mkt}).n;
+  document.getElementById('biparBtn').classList.remove('scanning');
+  document.getElementById('biparBtn').innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="8" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="12" y="4" width="3" height="16" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="21" y="4" width="1" height="16" rx="1" fill="currentColor"/></svg> BIPAR ETIQUETAS';
+  document.getElementById('progArea').style.display='none';
+  renderPkgList(); renderMktGrid();
+  document.getElementById('coletaPanel').scrollIntoView({behavior:'smooth',block:'start'});
+  // Atualiza só essa loja no Bling — verifica se tem pedido novo
+  var agoraMs=Date.now();
+  var lastMktPull=window['_lastMktPull_'+mkt]||0;
+  if(agoraMs-lastMktPull>60000){ // no máximo 1x por minuto por loja
+    window['_lastMktPull_'+mkt]=agoraMs;
+    setTimeout(function(){pullFromBlingMkt(mkt);},800);
+  }
+}
+
+function closeColeta(){
+  activeMkt=''; colSession=[]; scanPaused=false; encerrandoParcial=false;
+  stopCamera();
+  document.getElementById('coletaPanel').classList.remove('show');
+  renderMktGrid();
+}
+
+function getPkgsAtivos(){
+  if(activeMkt==='flex'){
+    // FLEX: retorna todos os urgentes (coletados aparecem com ✓, pendentes para bipar)
+    return todayPkgs().filter(function(p){return p.urgente;});
+  }
+  // Outros marketplaces: exclui urgentes (FLEX) — eles só aparecem no card FLEX
+  return todayPkgs().filter(function(p){return p.mkt===activeMkt&&!p.urgente;});
+}
+
+function renderPkgList(){
+  if(!activeMkt) return;
+  var pkgs=getPkgsAtivos();
+  var today=todayStr();
+  document.getElementById('pkgList').innerHTML=pkgs.map(function(p){
+    var sc=colSession.indexOf(p.etiqueta)!==-1;
+    var col=p.status==='coletado';
+    var ativo=sc||col;
+    // Busca foto do scan desta etiqueta
+    var scanItem=null;
+    for(var i=0;i<scans.length;i++){
+      if(scans[i].etiqueta===p.etiqueta&&scans[i].date===today&&scans[i].tipo!=='lote'){
+        scanItem=scans[i]; break;
+      }
+    }
+    var fotoHtml='';
+    if(ativo){
+      if(scanItem&&scanItem.photo){
+        fotoHtml='<img class="pkg-photo" src="'+scanItem.photo+'" data-et="'+p.etiqueta+'" onclick="verFotoScan(this.dataset.et)" title="Ver foto da etiqueta">';
+      } else {
+        fotoHtml='<div class="pkg-photo-placeholder" title="Sem foto">📷</div>';
+      }
+    }
+    return '<div class="pkg-row '+(ativo?'scanned':'')+'">'+
+      fotoHtml+
+      '<div style="flex:1;min-width:0">'+
+      // Linha 1: número do pedido Bling (principal)
+      '<div class="pkg-num">'+p.numero+'</div>'+
+      // Linha 2: NF · marketplace · tracking (tudo visível)
+      '<div class="pkg-sub">'+
+        (p.nf?'<span style="color:var(--gr)">NF '+p.nf+'</span>':
+              '<span style="color:var(--th);font-style:italic">NF ...</span>')+
+        (p.numLoja?'<span style="color:var(--bl)"> · 🛒 '+p.numLoja+'</span>':'')+
+        (p.numeracao?'<span style="color:var(--tm)"> · 📦 '+p.numeracao+'</span>':'')+
+      '</div>'+
+      '<div class="pkg-dest">'+p.destinatario+'</div>'+
+      '</div>'+
+      '<span class="pkg-badge '+(ativo?'b-scan':'b-pend')+'">'+(ativo?'✓':'—')+'</span>'+
+      (sc?'<button class="unscan-btn" data-et="'+p.etiqueta+'" onclick="cancelarScan(this.dataset.et)" title="Cancelar bipagem">✕</button>':'')+
+      '</div>';
+  }).join('');
+  renderProgress();
+}
+
+function renderProgress(){
+  if(!activeMkt){document.getElementById('progArea').style.display='none';return;}
+  var pend=getPkgsAtivos().filter(function(p){return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1;});
+  var total=pend.length+colSession.length;
+  if(total===0) return;
+  var pct=Math.round(colSession.length/total*100);
+  document.getElementById('progArea').style.display='block';
+  document.getElementById('progBar').style.width=pct+'%';
+  document.getElementById('progPct').textContent=pct+'%';
+  document.getElementById('progPct').style.color=pct===100?'var(--gr)':'var(--am)';
+  document.getElementById('statOk').textContent='✓ '+colSession.length+' bipados';
+  document.getElementById('statPend').textContent=pend.length+' pendentes';
+  // Mostra botão encerrar parcial sempre que tiver algo bipado mas ainda tiver pendentes
+  var encBtn=document.getElementById('encerrarBtn');
+  if(colSession.length>0&&pend.length>0){
+    encBtn.classList.add('show');
+    encBtn.textContent='⚠ Encerrar Coleta ('+colSession.length+' bipados, '+pend.length+' pendentes)';
+  } else {
+    encBtn.classList.remove('show');
+  }
+  if(pend.length===0&&colSession.length>0) showConfirm();
+}
+
+function showConfirm(){
+  document.getElementById('confirmArea').classList.add('show');
+  document.getElementById('confirmText').innerHTML='Todos os <b style="color:var(--gr)">'+colSession.length+'</b> pacotes de '+(MKT[activeMkt]||{}).icon+' '+(MKT[activeMkt]||{n:activeMkt}).n+' foram bipados.<br><span style="color:var(--tm);font-size:12px">Preencha abaixo para finalizar.</span>';
+  document.getElementById('missingArea').classList.remove('show');
+  document.getElementById('fotoAlert').style.display='none';
+  renderFotosVeiculo();
+  renderProblemaList();
+  renderProblemaSelect();
+  document.getElementById('obsLote').value='';
+  document.getElementById('btnFotoVeiculo').className='foto-btn';
+  document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto (0/3)';
+  fotosVeiculo=[]; problemaPkgs=[];
+}
+
+// ═══ CÂMERA ═══
+function toggleBipar(){
+  if(scanning){stopCamera();return;}
+  startCamera();
+}
+function startCamera(){
+  if(!('BarcodeDetector' in window)){toast('Use Chrome Android para câmera','warn');return;}
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}}})
+  .then(function(stream){
+    camStream=stream;
+    var v=document.getElementById('camVideo');
+    v.srcObject=stream;
+    document.getElementById('camWrap').classList.add('show');
+    var btn=document.getElementById('biparBtn');
+    btn.classList.add('scanning');
+    btn.textContent='⏹ PARAR LEITURA';
+    barcodeDetector=new BarcodeDetector({formats:['code_128','code_39','ean_13','ean_8','qr_code','data_matrix','pdf417','itf','aztec']});
+    scanning=true;
+    scanLoop();
+  })
+  .catch(function(e){toast('Câmera: '+e.message,'err');});
+}
+function scanLoop(){
+  if(!scanning||!barcodeDetector) return;
+  if(scanPaused){requestAnimationFrame(scanLoop);return;}
+  var v=document.getElementById('camVideo');
+  barcodeDetector.detect(v).then(function(codes){
+    if(codes.length>0){
+      var raw=codes[0].rawValue.trim();
+      if(raw!==lastCode||Date.now()-lastCodeAt>4000){
+        var photo=capturePhoto(v);
+        handleScan(raw,photo);
+      }
+    }
+  }).catch(function(){}).finally(function(){
+    requestAnimationFrame(scanLoop);
+  });
+}
+function capturePhoto(v){
+  try{
+    var c=document.createElement('canvas');
+    c.width=v.videoWidth;c.height=v.videoHeight;
+    c.getContext('2d').drawImage(v,0,0);
+    return c.toDataURL('image/jpeg',.6);
+  }catch(e){return null;}
+}
+function stopCamera(){
+  scanning=false; scanPaused=false;
+  if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;}
+  var v=document.getElementById('camVideo');
+  if(v) v.srcObject=null;
+  document.getElementById('camWrap').classList.remove('show');
+  var btn=document.getElementById('biparBtn');
+  if(btn){
+    btn.classList.remove('scanning');
+    btn.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="8" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="12" y="4" width="3" height="16" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="21" y="4" width="1" height="16" rx="1" fill="currentColor"/></svg> BIPAR ETIQUETAS';
+  }
+}
+function manualScan(){
+  var inp=document.getElementById('manualIn');
+  var code=inp.value.trim().toUpperCase();
+  if(code){handleScan(code,null);inp.value='';}
+}
+document.getElementById('manualIn').addEventListener('keydown',function(e){if(e.key==='Enter')manualScan();});
+
+// ═══ SCAN ═══
+function handleScan(rawCode,photo){
+  if(!rawCode||!activeMkt) return;
+  var code=rawCode.trim().replace(/\s/g,'');
+
+  // ── Formato 1: JSON ML antigo {"id":"12345","t":"lm"}
+  try{
+    var qr=JSON.parse(rawCode);
+    if(qr.id) code=String(qr.id).trim().replace(/\s/g,'');
+  }catch(e){}
+
+  // ── Formato 2: QR FLEX ML  `^id^Ç^46767751180^,^sender_id^...
+  // Extrai o número depois de ^id^ (ignora caracteres especiais entre a chave e o valor)
+  if(!code.match(/^[0-9]+$/)&&rawCode.indexOf('^id^')!==-1){
+    var flexMatch=rawCode.match(/\^id\^[^0-9]*([0-9]+)/);
+    if(flexMatch) code=flexMatch[1];
+  }
+
+  // ── Formato 3: QR FLEX ML alternativo com "id" sem acento
+  if(!code.match(/^[0-9A-Z]+$/)&&rawCode.toLowerCase().indexOf('"id"')!==-1){
+    var altMatch=rawCode.match(/"id"\s*:\s*"?([0-9]+)"?/i);
+    if(altMatch) code=altMatch[1];
+  }
+
+  code=code.toUpperCase();
+  console.log('🔍 Código lido:', code, '| packages:', packages.filter(function(p){return p.date===todayStr();}).map(function(p){return p.numero+'→'+p.numeracao;}).join(', '));
+  if(code===lastCode&&Date.now()-lastCodeAt<2000) return;
+  lastCode=code; lastCodeAt=Date.now();
+  var today=todayStr();
+  document.getElementById('wrongAlert').classList.remove('show');
+
+  function match(p){
+    var c=code.toUpperCase().replace(/\s/g,'');
+    if(String(p.etiqueta).toUpperCase()===c) return true;
+    if(String(p.numero)===c) return true;
+    if(String(p.blingId)===c) return true;
+    // Número do pedido como string com e sem zeros
+    if(String(p.numero)===c||String(parseInt(p.numero,10))===c) return true;
+    if(p.numeracao){
+      var pnum=String(p.numeracao).toUpperCase().replace(/\s/g,'');
+      if(pnum===c) return true;                                   // exato
+      if(c.length>=8&&pnum.endsWith(c)) return true;             // sufixo (ex: 46625715803 bate em 15803)
+      if(c.length>=8&&pnum.indexOf(c)!==-1) return true;         // contém
+      if(c.length>=8&&c.indexOf(pnum)!==-1) return true;         // código contém numeracao
+      // Ignora zeros à esquerda
+      if(parseInt(pnum,10)===parseInt(c,10)) return true;
+    }
+    if(p.numLoja){
+      var ploja=String(p.numLoja).replace(/\s/g,'').toUpperCase();
+      if(ploja===c) return true;
+      if(c.length>=8&&ploja.endsWith(c)) return true;
+      if(c.length>=8&&ploja.indexOf(c)!==-1) return true;
+      if(parseInt(ploja,10)===parseInt(c,10)) return true;
+    }
+    // Chave DANFE completa (44 dígitos) — câmera TikTok lê o código de barras da NF
+    if(p.nfChave&&p.nfChave===c) return true;
+    // Últimos 13 dígitos da chave DANFE (código que algumas câmeras lêem)
+    if(p.nfChave&&p.nfChave.length===44&&p.nfChave.slice(-13)===c.slice(-13)&&c.length>=13) return true;
+    // Número da NF (ex: "12345")
+    if(p.nf&&String(p.nf).trim()===c) return true;
+    return false;
+  }
+  var pkg=null, wrongPkg=null, already=null;
+  for(var i=0;i<packages.length;i++){
+    var p=packages[i];
+    if(!match(p)||p.date!==today) continue;
+    if(p.status==='coletado'){already=p;break;}
+    // Quando mkt normal, exclui urgentes (FLEX só é bipado pelo card FLEX)
+    var mktMatch=activeMkt==='flex'?p.urgente:(p.mkt===activeMkt&&!p.urgente);
+    if(mktMatch){if(p.status==='pendente'){pkg=p;break;}}
+    else if(activeMkt!=='flex'&&p.mkt!==activeMkt&&p.status==='pendente'){wrongPkg=p;}
+  }
+
+  // inSession: verifica pela etiqueta canônica
+  var inSession=false;
+  if(pkg&&colSession.indexOf(pkg.etiqueta)!==-1) inSession=true;
+  if(!pkg&&already&&colSession.indexOf(already.etiqueta)!==-1) inSession=true;
+
+  if(inSession||already){
+    showFb('⚠ Já bipado: '+((pkg||already)||{numero:code}).numero,'warn');
+    beepError(); return;
+  }
+  if(wrongPkg){
+    var wInfo=MKT[wrongPkg.mkt]||{icon:'?',n:wrongPkg.mkt};
+    document.getElementById('wrongBody').innerHTML='Este pacote é de <b>'+wInfo.icon+' '+wInfo.n+'</b><br><span style="font-size:14px">'+wrongPkg.numero+'</span>';
+    document.getElementById('wrongAlert').classList.add('show');
+    toast('ERRADO: '+wrongPkg.numero+' é '+wInfo.n+'!','err');
+    beepError(); return;
+  }
+  if(!pkg){
+    showFb('Código não encontrado: '+code,'warn');
+    beepError(); return;
+  }
+  // SUCESSO
+  scanPaused=true;
+  document.getElementById('camStatus').textContent='✓ Bipado! Aguarde...';
+  document.getElementById('camStatus').style.background='rgba(46,204,138,.7)';
+  setTimeout(function(){
+    scanPaused=false;
+    document.getElementById('camStatus').textContent='Aponte para o código de barras';
+    document.getElementById('camStatus').style.background='rgba(0,0,0,.6)';
+  },3000);
+  var chave=pkg.etiqueta;
+  colSession.push(chave);
+  scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
+  sv('expv5_scans',scans);
+  syncToServer();
+  // Upload da foto para o servidor (permite acesso de qualquer dispositivo)
+  if(photo) uploadScanPhoto(chave, today, photo);
+  if(photo){var fl=document.getElementById('photoFlash');fl.classList.add('flash');setTimeout(function(){fl.classList.remove('flash');},150);}
+  beepSuccess();
+  showFb('✓ '+pkg.numero+' · '+pkg.destinatario,'ok');
+  toast('✓ '+pkg.numero,'ok');
+  // Mostra barra de desfazer com o último scan
+  var bar=document.getElementById('desfazerBar');
+  bar.classList.add('show');
+  document.getElementById('desfazerInfo').textContent='↩ Último: '+pkg.numero+' · '+pkg.destinatario.split(' ')[0];
+  clearTimeout(bar._t);
+  bar._t=setTimeout(function(){bar.classList.remove('show');},8000);
+  renderPkgList();
+}
+
+function showFb(msg,type){
+  var el=document.getElementById('coletaFb');
+  clearTimeout(el._t);
+  el.className='fb '+type+' show';
+  el.textContent=msg;
+  el._t=setTimeout(function(){el.className='fb';},3500);
+}
+
+// ═══ VER FOTO DO SCAN ═══
+function verFotoScan(etiqueta){
+  var today=todayStr();
+  var scanItem=null;
+  for(var i=0;i<scans.length;i++){
+    if(scans[i].etiqueta===etiqueta&&scans[i].tipo!=='lote'){
+      scanItem=scans[i]; break;
+    }
+  }
+  // Tenta buscar foto: 1) localStorage, 2) servidor
+  var localPhoto=scanItem&&scanItem.photo?scanItem.photo:null;
+  var scanDate=scanItem?scanItem.date:today;
+  if(!localPhoto){
+    // Busca no servidor
+    var key='scan_'+etiqueta+'_'+scanDate;
+    getPhotoFromServer(key, function(serverPhoto){
+      if(serverPhoto){
+        _showScanPhotoModal(serverPhoto, scanItem);
+      } else {
+        var msg=scanItem?'Bipado em '+formatDate(scanItem.date)+' às '+scanItem.time:'';
+        openModal('<div class="modal-img-wrap" style="text-align:center;padding:24px 20px">'+
+          '<div style="font-size:52px;margin-bottom:14px">📷</div>'+
+          '<div style="color:var(--tx);font-size:15px;font-weight:700;margin-bottom:8px">Foto não disponível</div>'+
+          '<div style="color:var(--tm);font-size:12px;line-height:1.8">'+
+            (msg?'<div style="color:var(--tm);margin-bottom:8px">'+msg+'</div>':'')+
+            'Fotos bipadas antes de 02/04/2026<br>não foram sincronizadas com o servidor.<br><br>'+
+            '📱 Acesse pelo celular da expedição<br>para ver imagens antigas.'+
+          '</div>'+
+          '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
+          '</div>'+
+          '<button class="modal-back" onclick="closeTopModal()">← Fechar</button>');
+      }
+    });
+    return;
+  }
+  _showScanPhotoModal(localPhoto, scanItem);
+}
+
+function _showScanPhotoModal(photo, scanItem){
+  var p=null;
+  if(scanItem) for(var i=0;i<packages.length;i++){if(packages[i].etiqueta===scanItem.etiqueta){p=packages[i];break;}}
+  var infoBar='<div class="modal-info">';
+  // Ordem: NF | #Bling | #Marketplace | destinatário | data/hora
+  if(p&&p.nf)   infoBar+='<div style="font-size:13px;font-weight:700;color:var(--gr)">NF '+p.nf+'</div>';
+  infoBar+='<div style="font-size:12px;font-family:var(--mono);color:#fff;margin-top:2px">';
+  infoBar+='Pedido '+scanItem.numero;
+  if(p&&p.numLoja) infoBar+=' · <span style="color:var(--bl)">🛒 '+p.numLoja+'</span>';
+  infoBar+='</div>';
+  infoBar+='<div style="font-size:11px;color:var(--tm);margin-top:2px">'+scanItem.destinatario+'</div>';
+  infoBar+='<div style="font-size:10px;color:var(--th);margin-top:2px">📅 '+formatDate(scanItem.date)+' às '+scanItem.time+'</div>';
+  infoBar+='</div>';
+  openModal('<div class="modal-img-wrap">'+
+    '<img src="'+photo+'" alt="etiqueta">'+
+    infoBar+
+    '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
+    '</div>'+
+    '<button class="modal-back" onclick="closeTopModal()">← Voltar</button>');
+}
+
+// ═══ CANCELAR / DESFAZER SCAN ═══
+function cancelarScan(etiqueta){
+  var idx=colSession.indexOf(etiqueta);
+  if(idx===-1) return;
+  var p=null;
+  for(var i=0;i<packages.length;i++){if(packages[i].etiqueta===etiqueta){p=packages[i];break;}}
+  if(!confirm('Cancelar bipagem de '+(p?p.numero:etiqueta)+'?')) return;
+  colSession.splice(idx,1);
+  // Remove do array de scans também
+  for(var j=0;j<scans.length;j++){
+    if(scans[j].etiqueta===etiqueta&&scans[j].date===todayStr()&&scans[j].tipo!=='lote'){
+      scans.splice(j,1); break;
+    }
+  }
+  sv('expv5_scans',scans);
+  document.getElementById('confirmArea').classList.remove('show');
+  document.getElementById('desfazerBar').classList.remove('show');
+  beepError();
+  showFb('↩ Cancelado: '+(p?p.numero:etiqueta),'warn');
+  renderPkgList();
+}
+
+function desfazerUltimo(){
+  if(colSession.length===0) return;
+  var etiqueta=colSession[colSession.length-1];
+  cancelarScan(etiqueta);
+}
+
+// ═══ FOTOS VEÍCULO ═══
+function onFotoSelecionada(input){
+  var file=input.files[0];
+  if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    fotosVeiculo.push(e.target.result);
+    renderFotosVeiculo();
+    var btn=document.getElementById('btnFotoVeiculo');
+    if(fotosVeiculo.length>=3){
+      btn.className='foto-btn done';
+      btn.textContent='✓ '+fotosVeiculo.length+' fotos';
+      document.getElementById('fotoAlert').style.display='none';
+    } else {
+      btn.textContent='📷 Tirar foto ('+fotosVeiculo.length+'/3)';
+    }
+    toast('Foto '+fotosVeiculo.length+' salva ✓','ok');
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+function renderFotosVeiculo(){
+  document.getElementById('veiculoFotos').innerHTML=fotosVeiculo.map(function(f,i){
+    return '<div class="vthumb-wrap">'+
+      '<img src="'+f+'" onclick="verFoto('+i+')" alt="foto '+(i+1)+'">'+
+      '<button class="vthumb-del" onclick="delFoto('+i+')">✕</button>'+
+      '</div>';
+  }).join('');
+}
+function delFoto(i){
+  fotosVeiculo.splice(i,1);
+  renderFotosVeiculo();
+  var btn=document.getElementById('btnFotoVeiculo');
+  btn.className='foto-btn';
+  btn.textContent='📷 Tirar foto ('+fotosVeiculo.length+'/3)';
+}
+function verFoto(i){
+  var src=fotosVeiculo[i];
+  if(!src) return;
+  openModal('<div class="modal-img-wrap"><img src="'+src+'" alt="foto" style="max-width:100%;max-height:82vh;border-radius:8px;display:block"><button class="modal-close" onclick="closeTopModal()">✕</button></div><button class="modal-back" onclick="closeTopModal()">← Voltar</button>');
+}
+
+// ═══ PROBLEMAS ═══
+function toggleProblemaSelect(){
+  var el=document.getElementById('problemaSelect');
+  el.style.display=el.style.display==='none'||el.style.display===''?'block':'none';
+}
+function renderProblemaSelect(){
+  var pkgs=getPkgsAtivos().filter(function(p){return problemaPkgs.indexOf(p.etiqueta)===-1;});
+  document.getElementById('problemaSelect').innerHTML=pkgs.length===0?
+    '<div style="padding:12px;font-size:12px;color:var(--tm);text-align:center">Nenhum disponível</div>':
+    pkgs.map(function(p){return '<div class="problema-select-item" data-et="'+p.etiqueta+'" onclick="addProblema(this.dataset.et)">'+p.numero+' · '+p.destinatario+'</div>';}).join('');
+}
+function addProblema(et){
+  if(problemaPkgs.indexOf(et)===-1) problemaPkgs.push(et);
+  document.getElementById('problemaSelect').style.display='none';
+  renderProblemaList(); renderProblemaSelect();
+}
+function delProblema(et){
+  problemaPkgs=problemaPkgs.filter(function(e){return e!==et;});
+  renderProblemaList(); renderProblemaSelect();
+}
+function renderProblemaList(){
+  document.getElementById('problemaList').innerHTML=problemaPkgs.map(function(et){
+    var p=null;
+    for(var i=0;i<packages.length;i++){if(packages[i].etiqueta===et){p=packages[i];break;}}
+    return '<div class="problema-item">'+
+      '<div><b>🚫 '+(p?p.numero:et)+'</b>'+(p&&p.nf?' <span style="font-size:10px">NF '+p.nf+'</span>':'')+(p&&p.numLoja?' <span style="font-size:10px;color:var(--bl)">🛒'+p.numLoja+'</span>':'')+'<br><span style="font-size:10px;opacity:.7">'+(p?p.destinatario:'')+'</span></div>'+
+      '<button onclick="delProblema(\''+et+'\')">✕</button>'+
+      '</div>';
+  }).join('');
+}
+
+// ═══ ENCERRAR PARCIAL ═══
+function showEncerrar(){
+  var pend=getPkgsAtivos().filter(function(p){return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1;});
+  document.getElementById('motivoArea').classList.add('show');
+  document.getElementById('motivoText').value='';
+  document.getElementById('motivoAlert').style.display='none';
+  document.getElementById('motivoPendList').innerHTML=
+    '<div style="font-size:11px;color:var(--am);margin-bottom:8px;font-family:var(--mono)">'+pend.length+' pacote(s) que NÃO serão despachados:</div>'+
+    pend.map(function(p){return '<div style="font-size:11px;font-family:var(--mono);color:var(--tm);padding:4px 0;border-bottom:1px solid var(--b1)">• '+p.numero+(p.nf?' · NF '+p.nf:'')+(p.numLoja?' · 🛒'+p.numLoja:'')+'<br><span style="color:var(--th);font-size:10px">'+p.destinatario+'</span></div>';}).join('');
+  document.getElementById('motivoArea').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function confirmarEncerrarParcial(){
+  var motivo=document.getElementById('motivoText').value.trim();
+  if(!motivo){
+    document.getElementById('motivoAlert').style.display='block';
+    document.getElementById('motivoText').focus();
+    return;
+  }
+  // Guarda motivo e abre o painel de confirmação (fotos + obs)
+  encerrandoParcial=true; // permite finalizar mesmo com pendentes
+  document.getElementById('motivoArea').classList.remove('show');
+  document.getElementById('encerrarBtn').classList.remove('show');
+  // Coloca o motivo já preenchido no campo de obs do lote
+  document.getElementById('confirmArea').classList.add('show');
+  var pend=getPkgsAtivos().filter(function(p){return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1;});
+  document.getElementById('confirmText').innerHTML=
+    '<b style="color:var(--am)">⚠ Encerramento parcial</b><br>'+
+    '<span style="color:var(--gr)">'+colSession.length+' bipados</span> · '+
+    '<span style="color:var(--am)">'+pend.length+' pendentes (não despachados)</span><br>'+
+    '<span style="color:var(--tm);font-size:12px">Tire as fotos do veículo e finalize.</span>';
+  document.getElementById('fotoAlert').style.display='none';
+  document.getElementById('obsLote').value='MOTIVO ENCERRAMENTO PARCIAL: '+motivo;
+  renderFotosVeiculo();
+  renderProblemaList();
+  renderProblemaSelect();
+  document.getElementById('btnFotoVeiculo').className='foto-btn';
+  document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto (0/3)';
+  fotosVeiculo=[]; problemaPkgs=[];
+  document.getElementById('confirmArea').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ═══ FINALIZAR ═══
+function finalizeColeta(){
+  if(!activeMkt||colSession.length===0) return;
+  var pend=getPkgsAtivos().filter(function(p){
+    return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1&&problemaPkgs.indexOf(p.etiqueta)===-1;
+  });
+  // Só bloqueia se NÃO for encerramento parcial (com motivo já informado)
+  if(pend.length>0&&!encerrandoParcial){
+    document.getElementById('missingArea').classList.add('show');
+    document.getElementById('missingList').innerHTML=pend.map(function(p){return '<div class="missing-item">⚠ '+p.numero+(p.nf?' · NF '+p.nf:'')+(p.numLoja?' · 🛒'+p.numLoja:'')+'<br><span style="font-size:10px;color:#F09090">'+p.destinatario+'</span></div>';}).join('');
+    document.getElementById('confirmArea').classList.remove('show');
+    toast(pend.length+' pacote(s) faltando!','err'); beepError(); return;
+  }
+  if(fotosVeiculo.length<3){
+    document.getElementById('fotoAlert').style.display='block';
+    document.getElementById('fotoAlert').textContent='⚠ Faltam '+(3-fotosVeiculo.length)+' foto(s) do veículo.';
+    document.getElementById('btnFotoVeiculo').scrollIntoView({behavior:'smooth',block:'center'});
+    toast('Tire mais '+(3-fotosVeiculo.length)+' foto(s) do veículo!','err'); beepError(); return;
+  }
+  var now=nowTS();
+  var obs=document.getElementById('obsLote').value.trim();
+  colSession.forEach(function(chave){
+    if(problemaPkgs.indexOf(chave)!==-1) return;
+    for(var i=0;i<packages.length;i++){
+      if(packages[i].etiqueta===chave&&packages[i].date===todayStr()){
+        packages[i].status='coletado'; packages[i].colT=now; if(obs) packages[i].obs=obs; break;
+      }
+    }
+  });
+  problemaPkgs.forEach(function(chave){
+    for(var i=0;i<packages.length;i++){
+      if(packages[i].etiqueta===chave&&packages[i].date===todayStr()){
+        packages[i].status='problema'; packages[i].colT=now; packages[i].obs=obs||'Problema na coleta'; break;
+      }
+    }
+  });
+  sv('expv5_pkgs',packages);
+  var loteId='lote_'+activeMkt+'_'+Date.now();
+  var qtdEntregues=colSession.length-problemaPkgs.filter(function(e){return colSession.indexOf(e)!==-1;}).length;
+  scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:todayStr(),time:now,qtd:qtdEntregues,problemas:problemaPkgs.length,obs:obs,fotosVeiculo:fotosVeiculo.slice()});
+  sv('expv5_scans',scans);
+  syncToServer();
+  // Upload das fotos do veículo para o servidor
+  uploadLotePhotos(loteId, fotosVeiculo);
+  // Atualiza Bling com delay para evitar rate limit (1100ms entre cada)
+  var toUpdate=colSession.filter(function(c){return problemaPkgs.indexOf(c)===-1;});
+  var blingIds=[];
+  toUpdate.forEach(function(chave){
+    for(var i=0;i<packages.length;i++){
+      if(packages[i].etiqueta===chave&&packages[i].date===todayStr()){
+        blingIds.push(packages[i].blingId); break;
+      }
+    }
+  });
+  blingIds.forEach(function(id,idx){
+    setTimeout(function(){updateBlingStatus(id);},idx*1200);
+  });
+  var mktInfo=MKT[activeMkt]||{n:activeMkt};
+  var msgFinal=mktInfo.n+': '+qtdEntregues+' entregues'+(problemaPkgs.length>0?', '+problemaPkgs.length+' problema(s)':'')+' ✓';
+  toast(msgFinal,'ok');
+  beepSuccess();
+  // Sincroniza imediatamente para outros dispositivos verem o histórico
+  syncToServer();
+  closeColeta(); renderMktGrid(); updateBadge();
+}
+function updateBlingStatus(id){
+  // Bling v3: PATCH /pedidos/vendas/{id}/situacoes/{idSituacao} sem body
+  apiFetch('/bling/pedidos/vendas/'+id+'/situacoes/743515',{method:'PATCH'})
+  .then(function(r){
+    if(r.ok){
+      console.log('✅ DESPACHADO: #'+id);
+    } else {
+      return r.text().then(function(txt){
+        console.warn('⚠ Falha PATCH blingId='+id+' status='+r.status+' resp='+txt.substring(0,100));
+        // Retry após 3s
+        setTimeout(function(){
+          apiFetch('/bling/pedidos/vendas/'+id+'/situacoes/743515',{method:'PATCH',headers:{'Content-Type':'application/json'},body:body})
+          .then(function(r2){console.log(r2.ok?'✅ Retry OK #'+id:'❌ Retry falhou #'+id+': '+r2.status);})
+          .catch(function(){});
+        },3000);
+      });
+    }
+  })
+  .catch(function(e){console.error('❌ updateBlingStatus erro:',e.message);});
+}
+
+// ═══ DIA ═══
+function diaPkgRow(p){
+  var statusColor=p.status==='coletado'?'var(--gr)':p.status==='problema'?'var(--rd)':'var(--am)';
+  var colT=p.colT?'<span class="dia-pkg-time">'+p.colT+'</span>':'';
+  return '<div class="dia-pkg-row">'+
+    '<div class="dia-pkg-status" style="background:'+statusColor+'"></div>'+
+    '<div class="dia-pkg-info">'+
+      '<div class="dia-pkg-num">'+p.numero+
+        (p.nf?'<span class="dia-pkg-nf"> · NF '+p.nf+'</span>':'')+
+        (p.numLoja?'<span style="font-size:10px;font-family:var(--mono);color:var(--bl)"> · 🛒'+p.numLoja+'</span>':'')+
+      '</div>'+
+      '<div class="dia-pkg-dest">'+p.destinatario+'</div>'+
+    '</div>'+
+    colT+
+  '</div>';
+}
+
+function diaToggle(id){
+  var el=document.getElementById(id);
+  var btn=document.getElementById('btn_'+id);
+  if(!el) return;
+  var open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  btn.querySelector('.dia-arrow').textContent=open?'▶':'▼';
+}
+
+function getDiaDate(){
+  return diaSelectedDate || todayStr();
+}
+
+function diaNavDate(dir){
+  var cur=getDiaDate();
+  var d=new Date(cur+'T12:00:00');
+  d.setDate(d.getDate()+dir);
+  var newDate=d.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  var today=todayStr();
+  // Não avança além de hoje
+  if(newDate>today) return;
+  diaSelectedDate=newDate===today?'':newDate;
+  updateDiaLabel();
+  renderDia();
+}
+
+function updateDiaLabel(){
+  var today=todayStr();
+  var date=getDiaDate();
+  var label;
+  if(date===today) label='Hoje';
+  else{
+    var d=new Date(date+'T12:00:00');
+    var days=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    label=days[d.getDay()]+' '+d.getDate()+'/'+String(d.getMonth()+1).padStart(2,'0');
+  }
+  var lbl=document.getElementById('diaDateLabel');
+  if(lbl) lbl.textContent='📅 '+label;
+  // Oculta botão ">" quando está em hoje
+  var btnNext=document.getElementById('diaBtnNext');
+  if(btnNext) btnNext.style.opacity=date===today?'0.3':'1';
+}
+
+function renderDia(){
+  var diaDate=getDiaDate();
+  var today=packages.filter(function(p){return p.date===diaDate;});
+  var isToday=diaDate===todayStr();
+  var col=today.filter(function(p){return p.status==='coletado';}).length;
+  var prob=today.filter(function(p){return p.status==='problema';}).length;
+  var pend=today.length-col-prob;
+  // Atualiza título
+  document.getElementById('diaTitulo').textContent=isToday?'Resumo do Dia':'Histórico — '+diaDate;
+  updateDiaLabel();
+  document.getElementById('dayCards').innerHTML=
+    '<div class="day-card"><div class="day-lbl">Total</div><div class="day-val">'+today.length+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Expedidos</div><div class="day-val" style="color:var(--gr)">'+col+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Pendentes</div><div class="day-val" style="color:var(--am)">'+pend+'</div></div>'+
+    '<div class="day-card"><div class="day-lbl">Problemas</div><div class="day-val" style="color:var(--rd)">'+prob+'</div></div>';
+
+  // Separa FLEX dos outros (urgentes do ML ficam no card FLEX)
+  var flexPkgsDia=today.filter(function(p){return p.urgente;});
+  var mkts=[];
+  today.forEach(function(p){
+    if(p.urgente) return; // FLEX vai em seção própria
+    if(mkts.indexOf(p.mkt)===-1) mkts.push(p.mkt);
+  });
+
+  var diaHtml='';
+
+  // Card FLEX separado (se tiver)
+  if(flexPkgsDia.length>0){
+    var fCol=flexPkgsDia.filter(function(p){return p.status==='coletado';});
+    var fPend=flexPkgsDia.filter(function(p){return p.status==='pendente';});
+    var fProb=flexPkgsDia.filter(function(p){return p.status==='problema';});
+    var fPct=flexPkgsDia.length?Math.round(fCol.length/flexPkgsDia.length*100):0;
+    var fUid='dia_mkt_flex';
+    diaHtml+='<div class="dia-section-box" style="border-color:var(--rd3)">';
+    diaHtml+='<button class="dia-toggle" id="btn_'+fUid+'" data-uid="'+fUid+'" onclick="diaToggle(this.dataset.uid)">';
+    diaHtml+='<div style="display:flex;align-items:center;gap:8px">';
+    diaHtml+='<span class="mkt-chip c-rd">⚡ FLEX</span>';
+    diaHtml+='<span style="font-family:var(--mono);font-size:11px;color:var(--tm)">'+
+      '<span style="color:var(--gr)">'+fCol.length+' exp.</span> · '+
+      '<span style="color:var(--am)">'+fPend.length+' pend.</span>'+
+      (fProb.length>0?' · <span style="color:var(--rd)">'+fProb.length+' prob.</span>':'')+
+    '</span></div>';
+    diaHtml+='<span style="color:var(--tm);font-size:12px"><span class="dia-arrow">▶</span> '+fPct+'%</span>';
+    diaHtml+='</button>';
+    diaHtml+='<div class="prog-bar-wrap" style="margin:8px 0 0"><div class="prog-bar" style="width:'+fPct+'%;background:var(--rd)"></div></div>';
+    diaHtml+='<div id="'+fUid+'" style="display:none;margin-top:10px">';
+    if(fCol.length>0){diaHtml+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gr);margin-bottom:4px">✓ Expedidos ('+fCol.length+')</div>';diaHtml+=fCol.map(diaPkgRow).join('');}
+    if(fPend.length>0){diaHtml+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--am);margin:'+(fCol.length>0?'10':'0')+'px 0 4px">⏳ Pendentes ('+fPend.length+')</div>';diaHtml+=fPend.map(diaPkgRow).join('');}
+    if(fProb.length>0){diaHtml+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--rd);margin:10px 0 4px">🚫 Problemas ('+fProb.length+')</div>';diaHtml+=fProb.map(diaPkgRow).join('');}
+    diaHtml+='</div></div>';
+  }
+
+  document.getElementById('dayByMkt').innerHTML=diaHtml+mkts.map(function(m){
+    var mp=today.filter(function(p){return p.mkt===m&&!p.urgente;});
+    if(mp.length===0) return '';
+    var mc=mp.filter(function(p){return p.status==='coletado';});
+    var mpb=mp.filter(function(p){return p.status==='problema';});
+    var mpp=mp.filter(function(p){return p.status==='pendente';});
+    var pct=mp.length?Math.round(mc.length/mp.length*100):0;
+    var info=MKT[m]||{cls:'c-outro',icon:'📦',n:m};
+    var uid='dia_mkt_'+m;
+    var html='<div class="dia-section-box">';
+    // Cabeçalho clicável
+    html+='<button class="dia-toggle" id="btn_'+uid+'" data-uid="'+uid+'" onclick="diaToggle(this.dataset.uid)">';
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<span class="mkt-chip '+info.cls+'">'+info.icon+' '+info.n+'</span>';
+    html+='<span style="font-family:var(--mono);font-size:11px;color:var(--tm)">'+
+      '<span style="color:var(--gr)">'+mc.length+' exp.</span> · '+
+      '<span style="color:var(--am)">'+mpp.length+' pend.</span>'+
+      (mpb.length>0?' · <span style="color:var(--rd)">'+mpb.length+' prob.</span>':'')+
+    '</span></div>';
+    html+='<span style="color:var(--tm);font-size:12px"><span class="dia-arrow">▶</span> '+pct+'%</span>';
+    html+='</button>';
+    // Barra de progresso
+    html+='<div class="prog-bar-wrap" style="margin:8px 0 0"><div class="prog-bar" style="width:'+pct+'%"></div></div>';
+    // Lista de pedidos (colapsada por padrão)
+    html+='<div id="'+uid+'" style="display:none;margin-top:10px">';
+    // Expedidos
+    if(mc.length>0){
+      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gr);margin-bottom:4px">✓ Expedidos ('+mc.length+')</div>';
+      html+=mc.map(diaPkgRow).join('');
+    }
+    // Pendentes
+    if(mpp.length>0){
+      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--am);margin:'+(mc.length>0?'10':'0')+'px 0 4px">⏳ Pendentes ('+mpp.length+')</div>';
+      html+=mpp.map(diaPkgRow).join('');
+    }
+    // Problemas
+    if(mpb.length>0){
+      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--rd);margin:10px 0 4px">🚫 Problemas ('+mpb.length+')</div>';
+      html+=mpb.map(diaPkgRow).join('');
+    }
+    html+='</div></div>';
+    return html;
+  }).join('');
+  // Lotes
+  var lotes=scans.filter(function(s){return s.tipo==='lote'&&s.date===diaDate;});
+  if(lotes.length>0){
+    var html='<div class="dia-section-lbl">Lotes fechados hoje</div>';
+    lotes.forEach(function(l){
+      var info=MKT[l.mkt]||{icon:'📦',n:l.mkt};
+      html+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px;margin-bottom:10px">';
+      html+='<div style="display:flex;justify-content:space-between;margin-bottom:6px">';
+      html+='<span style="font-size:12px;font-weight:600">'+info.icon+' '+info.n+'</span>';
+      html+='<span style="font-size:11px;color:var(--tm)">'+l.time+'</span></div>';
+      html+='<div style="font-size:11px;font-family:var(--mono);color:var(--tm);margin-bottom:'+(l.obs?'6':'0')+'px">✓ '+l.qtd+' entregues'+(l.problemas>0?' · 🚫 '+l.problemas+' prob.':'')+'</div>';
+      if(l.obs) html+='<div style="font-size:11px;color:var(--am);background:var(--am2);border-radius:6px;padding:6px 8px;margin-bottom:6px">📝 '+l.obs+'</div>';
+      if(l.fotosVeiculo&&l.fotosVeiculo.length>0){
+        html+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">';
+        l.fotosVeiculo.forEach(function(f,idx){
+          html+='<img src="'+f+'" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b2)" onclick="verFotoLote(\''+l.id+'\','+idx+')" alt="foto">';
+        });
+        html+='</div>';
+      }
+      html+='</div>';
+    });
+    document.getElementById('dayLotes').innerHTML=html;
+  } else {
+    document.getElementById('dayLotes').innerHTML='';
+  }
+}
+function verFotoLote(loteId,idx){
+  idx=parseInt(idx)||0;
+  var lote=null;
+  for(var i=0;i<scans.length;i++){if(scans[i].id===loteId){lote=scans[i];break;}}
+
+  // Tenta foto local primeiro
+  var localFoto=lote&&lote.fotosVeiculo&&lote.fotosVeiculo[idx];
+  if(localFoto){
+    _showLotePhotoModal(localFoto);
+    return;
+  }
+
+  // Busca no servidor (Supabase)
+  apiFetch('/photos/lote/'+encodeURIComponent(loteId)+'/'+idx)
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(d){
+    if(d&&d.url&&d.url.startsWith('http')){
+      // Testa se a URL realmente existe no Supabase antes de abrir
+      var img=new Image();
+      img.onload=function(){_showLotePhotoModal(d.url);};
+      img.onerror=function(){_showLoteMsgNaoDisp();};
+      img.src=d.url;
+    } else if(d&&d.photo){
+      _showLotePhotoModal(d.photo);
+    } else {
+      _showLoteMsgNaoDisp();
+    }
+  })
+  .catch(function(){
+    openModal('<div class="modal-img-wrap" style="text-align:center;padding:24px"><div style="font-size:52px">🚛</div><div style="color:var(--tm);font-size:13px;margin-top:12px">Erro ao carregar foto</div><button class="modal-close" onclick="closeTopModal()">✕</button></div><button class="modal-back" onclick="closeTopModal()">← Fechar</button>');
+  });
+}
+
+function _showLoteMsgNaoDisp(){
+  openModal('<div class="modal-img-wrap" style="text-align:center;padding:28px 20px">'+
+    '<div style="font-size:52px;margin-bottom:14px">🚛</div>'+
+    '<div style="color:var(--tx);font-size:15px;font-weight:700;margin-bottom:10px">Foto não disponível</div>'+
+    '<div style="color:var(--tm);font-size:12px;line-height:1.9">'+
+      'Fotos tiradas antes de 02/04/2026<br>não foram enviadas ao servidor.<br><br>'+
+      '📱 Veja pelo celular da expedição<br>ou tire novas fotos no próximo lote.'+
+    '</div>'+
+    '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
+    '</div>'+
+    '<button class="modal-back" onclick="closeTopModal()">← Fechar</button>');
+}
+
+function _showLotePhotoModal(src){
+  openModal('<div class="modal-img-wrap">'+
+    '<img src="'+src+'" alt="foto veículo" style="max-width:100%;max-height:82vh;border-radius:8px;display:block">'+
+    '<button class="modal-close" onclick="closeTopModal()">✕</button>'+
+    '</div>'+
+    '<button class="modal-back" onclick="closeTopModal()">← Voltar</button>');
+}
+
+// ═══ HISTÓRICO ═══
+// ═══ CALENDÁRIO PICKER ═══
+var calState={month:0,year:0}; // mês/ano atual do cal visível
+
+function buildCal(containerId, selectedDate, onSelect, datesWithData){
+  var today=todayStr();
+  var sel=selectedDate||today;
+  var d=new Date(sel+'T12:00:00');
+  if(!calState.month){calState.month=d.getMonth();calState.year=d.getFullYear();}
+  var m=calState.month, y=calState.year;
+  var meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var dias=['D','S','T','Q','Q','S','S'];
+  var firstDay=new Date(y,m,1).getDay();
+  var daysInMonth=new Date(y,m+1,0).getDate();
+  var html='<div class="cal-header">';
+  html+='<button class="cal-nav" data-dir="-1" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calNav(Number(this.dataset.dir),this.dataset.cid,this.dataset.os)">‹</button>';
+  html+='<span class="cal-title">'+meses[m]+' '+y+'</span>';
+  var todayD=new Date(today+'T12:00:00');
+  var isCurrentMonthYear=(y===todayD.getFullYear()&&m===todayD.getMonth());
+  html+='<button class="cal-nav" '+(isCurrentMonthYear?'style="opacity:.3" disabled':'')+' data-dir="1" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calNav(Number(this.dataset.dir),this.dataset.cid,this.dataset.os)">›</button>';
+  html+='</div>';
+  html+='<div class="cal-grid">';
+  dias.forEach(function(d){html+='<div class="cal-dow">'+d+'</div>';});
+  for(var i=0;i<firstDay;i++) html+='<div class="cal-day empty"></div>';
+  for(var day=1;day<=daysInMonth;day++){
+    var dateStr=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    var isSel=dateStr===sel;
+    var isToday2=dateStr===today;
+    var isFuture=dateStr>today;
+    var hasData=datesWithData&&datesWithData.indexOf(dateStr)!==-1;
+    var cls='cal-day'+(isSel?' selected':isToday2?' today':'')+(isFuture?' future':'')+(hasData?' has-data':'');
+    html+='<div class="'+cls+'" data-date="'+dateStr+'" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calSelect(this.dataset.date,this.dataset.cid,this.dataset.os)">'+day+'</div>';
+  }
+  html+='</div>';
+  html+='<div style="text-align:center;margin-top:8px"><button data-date="'+today+'" data-cid="'+containerId+'" data-os="'+onSelect+'" onclick="calSelect(this.dataset.date,this.dataset.cid,this.dataset.os)" style="font-size:11px;color:var(--bl);background:none;border:none;cursor:pointer;font-family:var(--sans)">Hoje</button></div>';
+  document.getElementById(containerId).innerHTML=html;
+}
+
+function calNav(dir, containerId, onSelect){
+  calState.month+=dir;
+  if(calState.month>11){calState.month=0;calState.year++;}
+  if(calState.month<0){calState.month=11;calState.year--;}
+  var selDate=containerId==='calDia'?getDiaDate():(histFilterDate||todayStr());
+  var datas=getDatasComDados();
+  buildCal(containerId,selDate,onSelect,datas);
+}
+
+function calSelect(date, containerId, onSelect){
+  calState.month=0;calState.year=0; // reseta estado do cal
+  document.getElementById(containerId).style.display='none';
+  window[onSelect](date);
+}
+
+function getDatasComDados(){
+  var datas=[];
+  scans.forEach(function(s){if(s.date&&datas.indexOf(s.date)===-1)datas.push(s.date);});
+  packages.forEach(function(p){if(p.date&&(p.status==='coletado'||p.status==='problema')&&datas.indexOf(p.date)===-1)datas.push(p.date);});
+  return datas;
+}
+
+function toggleCalDia(){
+  var cal=document.getElementById('calDia');
+  var isOpen=cal.style.display!=='none';
+  // Fecha outros calendários
+  document.getElementById('calHist').style.display='none';
+  if(isOpen){cal.style.display='none';return;}
+  calState.month=0;calState.year=0;
+  buildCal('calDia',getDiaDate(),'onCalDiaSelect',getDatasComDados());
+  cal.style.display='block';
+}
+
+function onCalDiaSelect(date){
+  var today=todayStr();
+  diaSelectedDate=date===today?'':date;
+  updateDiaLabel();
+  renderDia();
+}
+
+function toggleCalHist(){
+  var cal=document.getElementById('calHist');
+  var isOpen=cal.style.display!=='none';
+  document.getElementById('calDia').style.display='none';
+  if(isOpen){cal.style.display='none';return;}
+  calState.month=0;calState.year=0;
+  buildCal('calHist',histFilterDate||todayStr(),'onCalHistSelect',getDatasComDados());
+  cal.style.display='block';
+}
+
+function onCalHistSelect(date){
+  histFilterDate=date;
+  // Atualiza chip de data ativo
+  var chips=document.getElementById('filterDateRow').querySelectorAll('.filter-chip');
+  chips.forEach(function(c){c.className='filter-chip'+(c.dataset.d===date?' on':'');});
+  renderHistContent();
+}
+
+// Fecha calendários ao clicar fora
+document.addEventListener('click',function(e){
+  ['calDia','calHist'].forEach(function(id){
+    var cal=document.getElementById(id);
+    if(!cal) return;
+    var btn=cal.previousElementSibling;
+    if(!cal.contains(e.target)&&(!btn||!btn.contains(e.target))){
+      cal.style.display='none';
+    }
+  });
+});
+
+// Extrai string de tracking de qualquer valor (string, número, ou objeto aninhado)
+function extractTrackStr(v, depth){
+  depth=depth||0;
+  if(depth>4||v===null||v===undefined) return '';
+  if(typeof v==='string'){
+    var s=v.trim();
+    // Aceita códigos alfanuméricos de 6+ caracteres (tracking ML, Shopee, etc.)
+    return (s.length>=6&&!/object/i.test(s))?s:'';
+  }
+  if(typeof v==='number') return String(v).length>=6?String(v):'';
+  if(Array.isArray(v)){
+    for(var ai=0;ai<v.length;ai++){var ar=extractTrackStr(v[ai],depth+1);if(ar)return ar;}
+    return '';
+  }
+  if(typeof v==='object'){
+    // Tenta campos prioritários primeiro
+    var prio=['numeracao','numero','codigoRastreio','codigoRastreamento','tracking','rastreio','etiqueta'];
+    for(var pi=0;pi<prio.length;pi++){
+      if(v[prio[pi]]!==undefined){var pr=extractTrackStr(v[prio[pi]],depth+1);if(pr)return pr;}
+    }
+    // Depois todos os outros campos
+    var ks=Object.keys(v);
+    for(var ki=0;ki<ks.length;ki++){
+      if(prio.indexOf(ks[ki])===-1){var kr=extractTrackStr(v[ks[ki]],depth+1);if(kr)return kr;}
+    }
+  }
+  return '';
+}
+
+function formatDate(dateStr){
+  if(!dateStr) return '';
+  var today=todayStr();
+  var d1=new Date(); d1.setDate(d1.getDate()-1);
+  var ontem=d1.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  if(dateStr===today) return 'Hoje';
+  if(dateStr===ontem) return 'Ontem';
+  // Formata como DD/MM
+  var parts=dateStr.split('-');
+  if(parts.length===3) return parts[2]+'/'+parts[1]+'/'+parts[0];
+  return dateStr;
+}
+
+function highlight(text, q){
+  if(!q||!text) return String(text||'');
+  var re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+  return String(text).replace(re,'<span class="hist-highlight">$1</span>');
+}
+
+function renderHistorico(){
+  var today=todayStr();
+  // Coleta todas as datas com scans OU pacotes
+  var datas=[];
+  scans.forEach(function(s){if(s.date&&datas.indexOf(s.date)===-1) datas.push(s.date);});
+  packages.forEach(function(p){if(p.date&&(p.status==='coletado'||p.status==='problema')&&datas.indexOf(p.date)===-1) datas.push(p.date);});
+  datas.sort(function(a,b){return b>a?1:b<a?-1:0;});
+  if(datas.indexOf(today)===-1) datas.unshift(today);
+  datas=datas.slice(0,30); // últimos 30 dias com registros
+
+  // Chips de data — "Hoje", "Ontem", depois datas
+  var ontem=new Date(); ontem.setDate(ontem.getDate()-1);
+  var ontemStr=ontem.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  document.getElementById('filterDateRow').innerHTML=datas.map(function(d){
+    var label=d===today?'Hoje':d===ontemStr?'Ontem':d.slice(5); // MM-DD
+    var on=histFilterDate===d||(!histFilterDate&&d===today);
+    if(on&&!histFilterDate) histFilterDate=today;
+    return '<button class="filter-chip'+(on?' on':'')+'" data-d="'+d+'" onclick="setHistDate(this.dataset.d)">'+label+'</button>';
+  }).join('');
+
+  // Chips de marketplace — gerado dos scans reais da data selecionada
+  var mktsReais=['todos'];
+  scans.forEach(function(s){
+    if(s.tipo==='lote') return;
+    var m=s.mkt||'outro';
+    if(mktsReais.indexOf(m)===-1) mktsReais.push(m);
+  });
+  // Também adiciona FLEX se houver scans urgentes
+  var temFlex=scans.some(function(s){return s.tipo!=='lote'&&s.mkt==='flex';});
+  if(!temFlex&&mktsReais.indexOf('flex')===-1){
+    // Verifica nos packages coletados se há urgentes
+    packages.forEach(function(p){
+      if(p.urgente&&(p.status==='coletado'||p.status==='problema')&&mktsReais.indexOf('flex')===-1){
+        mktsReais.push('flex');
+      }
+    });
+  }
+  document.getElementById('filterMktRow').innerHTML=mktsReais.map(function(m){
+    var on=(!histFilterMkt&&m==='todos')||(histFilterMkt===m);
+    var info=MKT[m]||{icon:'📦',n:m};
+    var label=m==='todos'?'Todos':info.icon+' '+info.n;
+    return '<button class="filter-chip'+(on?' on-am':'')+'" data-m="'+m+'" onclick="setHistMkt(this.dataset.m)">'+label+'</button>';
+  }).join('');
+
+  renderHistContent();
+}
+
+function setHistDate(d){
+  histFilterDate=d;
+  // Atualiza chips
+  var chips=document.getElementById('filterDateRow').querySelectorAll('.filter-chip');
+  chips.forEach(function(c){c.className='filter-chip'+(c.dataset.d===d?' on':'');});
+  renderHistContent();
+}
+
+function setHistMkt(m){
+  histFilterMkt=m==='todos'?'':m;
+  var chips=document.getElementById('filterMktRow').querySelectorAll('.filter-chip');
+  chips.forEach(function(c){c.className='filter-chip'+(c.dataset.m===m?' on-am':'');});
+  renderHistContent();
+}
+
+function renderHistContent(){
+  var date=histFilterDate||todayStr();
+  var q=(document.getElementById('histSearch')||{}).value;
+  q=q?q.trim().toUpperCase():'';
+
+  // Lotes do dia filtrado
+  var lotes=scans.filter(function(s){
+    return s.tipo==='lote'&&s.date===date&&(!histFilterMkt||s.mkt===histFilterMkt);
+  });
+  lotes.sort(function(a,b){
+    var ta=a.time||''; var tb=b.time||'';
+    return tb>ta?1:tb<ta?-1:0;
+  });
+  // Scans individuais do dia filtrado
+  var pkgScans=scans.filter(function(s){
+    if(s.tipo==='lote'||s.date!==date) return false;
+    if(!histFilterMkt) return true;
+    return s.mkt===histFilterMkt;
+  });
+  // Mais recente primeiro
+  pkgScans.sort(function(a,b){
+    var ta=a.time||''; var tb=b.time||'';
+    return tb>ta?1:tb<ta?-1:0;
+  });
+
+  // Filtro de busca textual
+  if(q){
+    pkgScans=pkgScans.filter(function(s){
+      var pkg=null;
+      for(var k=0;k<packages.length;k++){if(packages[k].etiqueta===s.etiqueta){pkg=packages[k];break;}}
+      var campos=[s.numero,s.etiqueta,s.destinatario,pkg&&pkg.nf,pkg&&pkg.numLoja,pkg&&pkg.numeracao].join(' ').toUpperCase();
+      return campos.indexOf(q)!==-1;
+    });
+  }
+
+  // ── TOTALIZADOR ──────────────────────────────────────────────────────────
+  var totalExp=pkgScans.length;
+  var totalLotes=lotes.length;
+  // Conta por marketplace
+  var mktCount={};
+  pkgScans.forEach(function(s){
+    var m=s.mkt||(s.urgente?'flex':'outro');
+    mktCount[m]=(mktCount[m]||0)+1;
+  });
+  var statsHtml='';
+  if(totalLotes>0||totalExp>0){
+    statsHtml+='<div class="hist-stat-card"><div class="hist-stat-val" style="color:var(--gr)">'+totalExp+'</div><div class="hist-stat-lbl">Bipados</div></div>';
+    statsHtml+='<div class="hist-stat-card"><div class="hist-stat-val" style="color:var(--bl)">'+totalLotes+'</div><div class="hist-stat-lbl">Lotes</div></div>';
+    Object.keys(mktCount).forEach(function(m){
+      var info=MKT[m]||{icon:'📦',n:m};
+      statsHtml+='<div class="hist-stat-card"><div class="hist-stat-val">'+mktCount[m]+'</div><div class="hist-stat-lbl">'+info.icon+' '+info.n+'</div></div>';
+    });
+  }
+  document.getElementById('histStats').innerHTML=statsHtml;
+
+  var html='';
+
+  if(lotes.length===0&&pkgScans.length===0){
+    html='<div class="hist-empty">'+(q?'Nenhum resultado para "'+q+'"':'Nenhum registro para este filtro')+'</div>';
+    document.getElementById('histContent').innerHTML=html;
+    return;
+  }
+
+  // Lotes com fotos do veículo
+  if(lotes.length>0&&!q){
+    html+='<div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin-bottom:8px">Lotes fechados ('+lotes.length+')</div>';
+    lotes.forEach(function(l){
+      var info=MKT[l.mkt]||{icon:'📦',n:l.mkt};
+      html+='<div class="hist-lote">';
+      html+='<div class="hist-lote-head"><span style="font-size:13px;font-weight:700">'+info.icon+' '+info.n+'</span><span style="font-size:11px;color:var(--tm)">'+l.time+'</span></div>';
+      html+='<div style="font-size:11px;font-family:var(--mono);color:var(--tm)">✓ '+l.qtd+' entregues'+(l.problemas>0?' · 🚫 '+l.problemas+' prob.':'')+'</div>';
+      if(l.obs) html+='<div style="font-size:11px;color:var(--am);background:var(--am2);border-radius:6px;padding:5px 8px;margin-top:6px">📝 '+l.obs+'</div>';
+      // Tenta mostrar fotos locais; se não tiver, mostra botões para buscar do servidor
+      html+='<div style="font-size:10px;color:var(--tm);margin:6px 0 4px">📸 Fotos do veículo:</div>';
+      html+='<div class="hist-lote-fotos">';
+      var nFotos=(l.fotosVeiculo&&l.fotosVeiculo.length)||0;
+      var totalFotos=nFotos>0?nFotos:(l.qtd>0?3:0); // estima 3 se tinha lote
+      if(nFotos>0){
+        l.fotosVeiculo.forEach(function(f,idx){
+          html+='<img src="'+f+'" data-id="'+l.id+'" data-idx="'+idx+'" onclick="verFotoLote(this.dataset.id,this.dataset.idx)" alt="foto veículo">';
+        });
+      } else if(l.qtd>0) {
+        // Lote tem fotos no servidor — mostra botões para cada foto
+        for(var fi=0;fi<3;fi++){
+          html+='<div style="width:72px;height:72px;border-radius:8px;background:var(--s2);border:1px dashed var(--b2);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:var(--tm);gap:4px" data-id="'+l.id+'" data-idx="'+fi+'" onclick="verFotoLote(this.dataset.id,this.dataset.idx)">🚛<span>Foto '+(fi+1)+'</span></div>';
+        }
+      }
+      html+='</div>';
+      html+='</div>';
+    });
+  }
+
+  // Pacotes bipados
+  if(pkgScans.length>0){
+    html+='<div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--tm);margin:12px 0 8px">Pacotes bipados ('+pkgScans.length+')</div>';
+    html+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:10px 14px">';
+    pkgScans.forEach(function(s){
+      var mktInfo=MKT[s.mkt]||{icon:'📦'};
+      var pkg=null;
+      for(var k=0;k<packages.length;k++){if(packages[k].etiqueta===s.etiqueta){pkg=packages[k];break;}}
+      var nf=pkg&&pkg.nf?pkg.nf:'';
+      var numLoja=pkg&&pkg.numLoja?pkg.numLoja:'';
+      var track=pkg&&pkg.numeracao?pkg.numeracao:'';
+      var diaLabel=formatDate(s.date);
+      html+='<div class="hist-pkg">';
+      if(s.photo){
+        html+='<img src="'+s.photo+'" data-et="'+s.etiqueta+'" onclick="verFotoScan(this.dataset.et)" alt="etiqueta">';
+      } else {
+        html+='<div style="width:44px;height:44px;border-radius:6px;background:var(--s2);border:1px dashed var(--b2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;cursor:pointer" data-et="'+s.etiqueta+'" onclick="verFotoScan(this.dataset.et)" title="Ver no celular da expedição">📷</div>';
+      }
+      html+='<div class="hist-pkg-info">';
+      if(nf) html+='<div style="font-size:12px;font-weight:700;color:var(--gr);font-family:var(--mono)">'+highlight('NF '+nf,q)+'</div>';
+      html+='<div class="hist-pkg-num">'+mktInfo.icon+' '+highlight(s.numero,q)+(numLoja?' <span style="color:var(--bl)">🛒'+highlight(numLoja,q)+'</span>':'')+'</div>';
+      html+='<div class="hist-pkg-dest">'+highlight(s.destinatario,q)+'</div>';
+      if(track) html+='<div style="font-size:10px;font-family:var(--mono);color:var(--tm)">📦 '+highlight(track,q)+'</div>';
+      html+='<div style="font-size:10px;font-family:var(--mono);color:var(--th);margin-top:2px">📅 '+diaLabel+' às '+s.time+'</div>';
+      html+='</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  }
+
+  document.getElementById('histContent').innerHTML=html;
+}
+
+// ═══ MODAL — fechar com botão Voltar Android ═══
+function closeTopModal(){
+  var modals=document.querySelectorAll('.modal-overlay');
+  if(modals.length>0){
+    modals[modals.length-1].remove();
+    // Remove o estado de histórico que foi empurrado ao abrir
+    if(history.state&&history.state.modal){
+      history.back();
+    }
+    return true;
+  }
+  return false;
+}
+
+// Botão Voltar do Android/navegador fecha o modal em vez de sair do site
+window.addEventListener('popstate',function(e){
+  if(document.querySelector('.modal-overlay')){
+    document.querySelector('.modal-overlay').remove();
+  }
+});
+
+function openModal(html){
+  history.pushState({modal:true},'');
+  var modal=document.createElement('div');
+  modal.className='modal-overlay';
+  modal.innerHTML=html;
+  // Fecha ao clicar no overlay (não nos elementos internos)
+  modal.addEventListener('click',function(e){
+    if(e.target===modal) closeTopModal();
+  });
+  // Impede propagação de cliques internos (resolve problema no desktop)
+  modal.addEventListener('click',function(e){
+    if(e.target!==modal) e.stopPropagation();
+  });
+  document.body.appendChild(modal);
+  return modal;
+}
+
+// ═══ NAV ═══
+function showPage(page){
+  document.getElementById('pageRomaneio').style.display=page==='romaneio'?'block':'none';
+  document.getElementById('pageDia').style.display=page==='dia'?'block':'none';
+  document.getElementById('pageHist').style.display=page==='historico'?'block':'none';
+  document.getElementById('navRom').className='nav-btn'+(page==='romaneio'?' active':'');
+  document.getElementById('navDia').className='nav-btn'+(page==='dia'?' active':'');
+  document.getElementById('navHist').className='nav-btn'+(page==='historico'?' active':'');
+  if(page==='dia'){
+    if(!diaSelectedDate) updateDiaLabel();
+    renderDia();
+  }
+  if(page==='historico'){
+    // Busca dados atualizados do servidor antes de renderizar
+    loadFromServer(function(){renderHistorico();});
+  }
+  if(page==='romaneio'){
+    // Auto-refresh: se passaram mais de 2 minutos desde a última busca, atualiza
+    var mins2=2*60*1000;
+    if(lastPullAt>0&&Date.now()-lastPullAt>mins2){
+      var btn=document.getElementById('syncBtn');
+      if(btn&&!btn.disabled) pullFromBling();
+    }
+  }
+}
+function updateBadge(){
+  var n=todayPkgs().filter(function(p){return p.status==='pendente';}).length;
+  var b=document.getElementById('nbRom');
+  b.textContent=n; b.className='nav-badge'+(n>0?' show':'');
+}
+function flash(msg,type){toast(msg,type);}
+function toast(msg,type){
+  type=type||'ok';
+  var a=document.getElementById('toasts');
+  var t=document.createElement('div');
+  t.className='toast t-'+type; t.textContent=msg;
+  a.appendChild(t); setTimeout(function(){t.remove();},2800);
+}
+function exportCSV(){
+  var diaDate=getDiaDate();
+  var rows=[['Número','Marketplace','Destinatário','Serviço','Rastreio','Separado','Coletado','Status','Obs']];
+  packages.filter(function(p){return p.date===diaDate;}).forEach(function(p){
+    rows.push([p.numero,(MKT[p.mkt]||{n:p.mkt}).n,p.destinatario,p.servico,p.numeracao||'',p.pulledAt,p.colT||'',p.status,p.obs||'']);
+  });
+  var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c||'').replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download='expedicao_'+getDiaDate()+'.csv'; a.click();
+}
+function clearDay(){
+  if(!confirm('Limpar registros de hoje?')) return;
+  packages=packages.filter(function(p){return p.date!==todayStr();});
+  scans=scans.filter(function(s){return s.date!==todayStr();});
+  sv('expv5_pkgs',packages); sv('expv5_scans',scans);
+  renderMktGrid(); updateBadge(); renderDia();
+  toast('Limpo','warn');
+}
+
+// ═══ BUSCA NF ═══
+// A NF não vem no pedido — precisa consultar endpoint separado /nfe
+function detectNF(pkgsSemNF, onDone){
+  console.log('🧾 detectNF iniciado para '+pkgsSemNF.length+' pedidos sem NF');
+  var i=0;
+  function next(){
+    if(i>=pkgsSemNF.length){
+      sv('expv5_pkgs',packages);
+      syncToServer(); // atualiza servidor com NFs recém-carregadas
+      if(onDone) onDone();
+      toast('✅ NFs carregadas! Pode bipar.','ok');
+      return;
+    }
+    var pkg=pkgsSemNF[i++];
+    if(pkg.nf){next();return;} // já tem NF
+    setTimeout(function(){
+      apiFetch('/bling/nfe?idPedidoVenda='+pkg.blingId+'&limite=1')
+      .then(function(r){if(!r.ok)return null;return r.json();})
+      .then(function(d){
+        if(!d) return;
+        var nfes=d.data||[];
+        if(nfes.length>0){
+          var nfe=nfes[0];
+          var num=(nfe.numero)||(nfe.nfe&&nfe.nfe.numero)||(nfe.numeroDocumento)||'';
+          var chave=(nfe.chaveAcesso)||(nfe.chave)||(nfe.nfe&&nfe.nfe.chave)||'';
+          var p=null;
+          for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
+          console.log('🧾 NF response #'+pkg.numero+' blingId='+pkg.blingId+':', JSON.stringify(nfes[0]));
+          if(p){
+            if(num){p.nf=String(num).trim(); console.log('✅ NF #'+p.numero+': '+p.nf);}
+          else{console.warn('⚠ NF não encontrada para #'+pkg.numero+' — d.data:', JSON.stringify(d.data));}
+            if(chave&&!p.nfChave){p.nfChave=String(chave).replace(/\s/g,'');}
+            renderMktGrid();
+            if(activeMkt) renderPkgList();
+          }
+        }
+        next();
+      })
+      .catch(function(){next();});
+    },1100);
+  }
+  next();
+}
+
+// ═══ SYNC SERVIDOR ═══
+function stripPhotos(arr){
+  // Remove fotos antes de enviar pro servidor (economia de banda)
+  return arr.map(function(item){
+    var copy={};
+    Object.keys(item).forEach(function(k){
+      if(k==='photo'||k==='fotosVeiculo') return; // não envia fotos
+      copy[k]=item[k];
+    });
+    return copy;
+  });
+}
+
+// ─── Upload de fotos para o servidor ────────────────────────────────────────
+function uploadScanPhoto(etiqueta, date, photo){
+  if(!photo||!etiqueta) return;
+  var key='scan_'+etiqueta+'_'+date;
+  console.log('📤 Enviando foto etiqueta: '+key+' ('+Math.round(photo.length/1024)+'KB)');
+  apiFetch('/photos/scan',{method:'POST',body:JSON.stringify({key:key,photo:photo})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    console.log('✅ Foto etiqueta enviada:', key, d);
+    // Salva URL do Supabase no scan para acesso posterior
+    if(d&&d.url){
+      for(var i=0;i<scans.length;i++){
+        if(scans[i].etiqueta===etiqueta&&scans[i].date===date){
+          scans[i].photoUrl=d.url;
+          sv('expv5_scans',scans);
+          break;
+        }
+      }
+    }
+  })
+  .catch(function(e){console.error('❌ Erro upload foto etiqueta:', e.message);});
+}
+
+function uploadLotePhotos(loteId, fotos){
+  if(!loteId||!fotos||!fotos.length){
+    console.warn('uploadLotePhotos: sem fotos para enviar', loteId, fotos&&fotos.length);
+    return;
+  }
+  console.log('📤 Enviando '+fotos.length+' foto(s) do veículo para servidor... loteId='+loteId);
+  apiFetch('/photos/lote',{method:'POST',body:JSON.stringify({loteId:loteId,fotos:fotos})})
+  .then(function(r){return r.json();})
+  .then(function(d){console.log('✅ Fotos veículo enviadas:', JSON.stringify(d));})
+  .catch(function(e){console.error('❌ Erro upload fotos veículo:', e.message);});
+}
+
+function getPhotoFromServer(key, cb){
+  apiFetch('/photos/scan/'+key)
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(d){
+    if(!d) return cb(null);
+    // Supabase retorna URL pública; memória retorna base64
+    cb(d.url||d.photo||null);
+  })
+  .catch(function(){cb(null);});
+}
+
+function syncToServer(){
+  var today=todayStr();
+  var pkgHoje=packages.filter(function(p){return p.date===today;});
+  var scanHoje=stripPhotos(scans.filter(function(s){return s.date===today;}));
+  // Inclui estado ativo (quem está fazendo expedição de qual loja)
+  var activeState=activeMkt?{user:currentUser,mkt:activeMkt,ts:Date.now()}:null;
+  apiFetch('/sync/packages',{method:'POST',body:JSON.stringify({packages:pkgHoje})}).catch(function(){});
+  apiFetch('/sync/scans',{method:'POST',body:JSON.stringify({scans:scanHoje})}).catch(function(){});
+  if(activeState) apiFetch('/sync/active',{method:'POST',body:JSON.stringify(activeState)}).catch(function(){});
+  else apiFetch('/sync/active',{method:'POST',body:JSON.stringify({user:currentUser,mkt:null,ts:Date.now()})}).catch(function(){});
+}
+
+function loadFromServer(cb){
+  apiFetch('/sync/data')
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var serverPkgs=d.packages||[];
+    var serverScans=d.scans||[];
+    var today=todayStr();
+
+    // Merge packages: server tem prioridade para campos que o cliente pode não ter
+    if(serverPkgs.length>0){
+      var localMap={};
+      packages.forEach(function(p){localMap[p.blingId]=p;});
+      serverPkgs.forEach(function(sp){
+        if(localMap[sp.blingId]){
+          // Mantém status e fotos locais, mas pega campos do servidor se mais completos
+          if(sp.nf&&!localMap[sp.blingId].nf) localMap[sp.blingId].nf=sp.nf;
+          if(sp.nfChave&&!localMap[sp.blingId].nfChave) localMap[sp.blingId].nfChave=sp.nfChave;
+          if(sp.numeracao&&!localMap[sp.blingId].numeracao) localMap[sp.blingId].numeracao=sp.numeracao;
+          if(sp.numLoja&&!localMap[sp.blingId].numLoja) localMap[sp.blingId].numLoja=sp.numLoja;
+          if(sp.status==='coletado'&&localMap[sp.blingId].status==='pendente') localMap[sp.blingId].status=sp.status;
+        } else if(sp.date===today){
+          // Pacote do servidor que não está local — adiciona
+          packages.push(sp);
+        }
+      });
+      sv('expv5_pkgs',packages);
+    }
+
+    // Merge scans: adiciona scans do servidor que não existem localmente
+    if(serverScans.length>0){
+      var localIds={};
+      scans.forEach(function(s){
+        var key=(s.tipo==='lote'?s.id:s.etiqueta+'_'+s.date+'_'+s.time);
+        localIds[key]=true;
+      });
+      var novos=serverScans.filter(function(s){
+        var key=(s.tipo==='lote'?s.id:s.etiqueta+'_'+s.date+'_'+s.time);
+        return !localIds[key];
+      });
+      if(novos.length>0){
+        scans=scans.concat(novos);
+        sv('expv5_scans',scans);
+        console.log('📥 '+novos.length+' scans novos do servidor (incluindo lotes)');
+      }
+    }
+    // Merge packages: atualiza status dos pacotes que foram coletados em outro dispositivo
+    if(serverPkgs.length>0){
+      var today=todayStr();
+      var localPkgMap={};
+      packages.forEach(function(p){localPkgMap[p.blingId]=p;});
+      serverPkgs.forEach(function(sp){
+        if(localPkgMap[sp.blingId]&&sp.date===today){
+          // Atualiza status se o servidor tem status mais avançado
+          var statusOrder={pendente:0,problema:1,coletado:2};
+          var localStatus=statusOrder[localPkgMap[sp.blingId].status]||0;
+          var serverStatus=statusOrder[sp.status]||0;
+          if(serverStatus>localStatus){
+            localPkgMap[sp.blingId].status=sp.status;
+            localPkgMap[sp.blingId].colT=sp.colT;
+          }
+        }
+      });
+      sv('expv5_pkgs',packages);
+    }
+
+    // Atualiza indicador de quem está fazendo expedição
+    if(d.activeUsers) renderActiveUsers(d.activeUsers);
+    if(cb) cb();
+  })
+  .catch(function(){if(cb) cb();});
+}
+
+function renderActiveUsers(activeUsers){
+  var outros=activeUsers.filter(function(u){
+    return u.user!==currentUser&&u.mkt&&(Date.now()-u.ts)<1800000; // ativo nos últimos 2min
+  });
+  var banner=document.getElementById('activeBanner');
+  if(!banner) return;
+  if(outros.length>0){
+    var html=outros.map(function(u){
+      var info=MKT[u.mkt]||{icon:'📦',n:u.mkt};
+      return '👤 '+u.user+' está expedindo '+info.icon+' '+info.n;
+    }).join(' · ');
+    banner.textContent=html;
+    banner.style.display='block';
+  } else {
+    banner.style.display='none';
+  }
+}
+
+// ═══ INIT ═══
+function initApp(){
+  packages=ld('expv5_pkgs',[]); scans=ld('expv5_scans',[]);
+  // Limpa valores incorretos no localStorage
+  var cleaned=false;
+  packages.forEach(function(p){
+    if(p.numeracao&&String(p.numeracao).toLowerCase().indexOf('object')!==-1){
+      p.numeracao=''; cleaned=true;
+    }
+    if(p.numLoja&&String(p.numLoja).toLowerCase().indexOf('object')!==-1){
+      p.numLoja=''; cleaned=true;
+    }
+    // Remove urgente de pedidos Shopee Xpress (não é FLEX)
+    if(p.urgente&&p.mkt==='shopee'){
+      var svcLow=(p.servico||'').toLowerCase();
+      var validFlex=FLEX_KEYWORDS.some(function(f){return svcLow.indexOf(f)!==-1;});
+      if(!validFlex){
+        p.urgente=false;
+        console.log('🧹 Removendo urgente indevido Shopee: #'+p.numero+' ('+p.servico+')');
+        cleaned=true;
+      }
+    }
+  });
+  if(cleaned){sv('expv5_pkgs',packages); console.log('🧹 localStorage limpo');}
+  document.getElementById('userChip').textContent='👤 '+currentUser;
+  renderMktGrid(); updateBadge();
+  // 1. Envia dados locais para o servidor (para outros dispositivos verem)
+  if(packages.length>0||scans.length>0){
+    syncToServer();
+    console.log('📤 initApp: enviando '+packages.length+' pacotes e '+scans.length+' scans ao servidor');
+  }
+  // 2. Busca dados do servidor e faz merge
+  loadFromServer(function(){
+    renderMktGrid(); updateBadge();
+    setTimeout(pullFromBling,1200);
+  });
+
+  // Auto-sync a cada 30s — envia E recebe dados entre dispositivos
+  setInterval(function(){
+    syncToServer(); // push: envia dados locais
+    loadFromServer(function(){ // pull: recebe dados de outros
+      renderMktGrid(); updateBadge();
+      if(activeMkt) renderPkgList();
+    });
+  }, 30000);
+}
+
+(function(){
+  sessionToken=ld('expv5_session','');
+  currentUser=ld('expv5_user','');
+  var loginTime=ld('expv5_login_time',0);
+  var within24h=loginTime&&(Date.now()-loginTime<24*60*60*1000);
+  if(sessionToken&&within24h){
+    // Verifica com o servidor se a sessão ainda é válida antes de auto-logar
+    // (após redeploy do Render, sessões em memória são perdidas)
+    fetch('/me',{headers:{'x-session-token':sessionToken}})
+    .then(function(r){
+      if(r.ok){
+        document.getElementById('loginScreen').style.display='none';
+        document.getElementById('appWrap').classList.add('show');
+        initApp();
+      } else {
+        // Sessão inválida no servidor — mostra login
+        sv('expv5_session',''); sv('expv5_user',''); sv('expv5_login_time',0);
+        sessionToken=''; currentUser='';
+        // Não força focus — usuário pode já estar digitando
+      }
+    })
+    .catch(function(){
+      // Erro de rede — tenta mesmo assim
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('appWrap').classList.add('show');
+      initApp();
+    });
+    return;
+  }
+  sv('expv5_session',''); sv('expv5_user',''); sv('expv5_login_time',0);
+  // Não força focus — evita roubar foco de outro campo
+})();
+</script>
+</body>
+</html>
