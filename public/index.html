@@ -2623,6 +2623,7 @@ function detectNF(pkgsSemNF, onDone){
           var chave=(nfe.chaveAcesso)||(nfe.chave)||(nfe.nfe&&nfe.nfe.chave)||'';
           var p=null;
           for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
+          console.log('🧾 NF response #'+pkg.numero+' blingId='+pkg.blingId+':', JSON.stringify(nfes[0]));
           if(p){
             if(num){p.nf=String(num).trim(); console.log('✅ NF #'+p.numero+': '+p.nf);}
           else{console.warn('⚠ NF não encontrada para #'+pkg.numero+' — d.data:', JSON.stringify(d.data));}
@@ -2659,7 +2660,19 @@ function uploadScanPhoto(etiqueta, date, photo){
   console.log('📤 Enviando foto etiqueta: '+key+' ('+Math.round(photo.length/1024)+'KB)');
   apiFetch('/photos/scan',{method:'POST',body:JSON.stringify({key:key,photo:photo})})
   .then(function(r){return r.json();})
-  .then(function(d){console.log('✅ Foto etiqueta enviada:', key);})
+  .then(function(d){
+    console.log('✅ Foto etiqueta enviada:', key, d);
+    // Salva URL do Supabase no scan para acesso posterior
+    if(d&&d.url){
+      for(var i=0;i<scans.length;i++){
+        if(scans[i].etiqueta===etiqueta&&scans[i].date===date){
+          scans[i].photoUrl=d.url;
+          sv('expv5_scans',scans);
+          break;
+        }
+      }
+    }
+  })
   .catch(function(e){console.error('❌ Erro upload foto etiqueta:', e.message);});
 }
 
