@@ -2638,12 +2638,30 @@ function closeTopModal(){
   return false;
 }
 
-// Botão Voltar do Android/navegador fecha o modal em vez de sair do site
+// Botão Voltar do Android — intercepta e mantém no site
 window.addEventListener('popstate',function(e){
+  // Se tem modal aberto, fecha o modal
   if(document.querySelector('.modal-overlay')){
     document.querySelector('.modal-overlay').remove();
+    history.pushState({app:true},''); // re-empurra estado para continuar interceptando
+    return;
   }
+  // Se tem card de loja aberto, fecha o card
+  if(activeMkt){
+    closeColeta();
+    history.pushState({app:true},'');
+    return;
+  }
+  // Caso contrário, re-empurra estado para não sair do site
+  history.pushState({app:true},'');
 });
+
+// Empurra estado inicial ao carregar para interceptar o primeiro "voltar"
+(function(){
+  if(window.history&&window.history.pushState){
+    history.pushState({app:true},'');
+  }
+})();
 
 function openModal(html){
   history.pushState({modal:true},'');
