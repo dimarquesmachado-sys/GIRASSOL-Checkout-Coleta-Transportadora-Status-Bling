@@ -511,7 +511,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
       <div id="dayLotes"></div>
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
         <button onclick="exportCSV()" style="flex:1;height:44px;background:var(--s1);color:var(--tm);border:1px solid var(--b2);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans)">↓ CSV</button>
-        <button onclick="clearDay()" style="height:44px;padding:0 16px;background:var(--rd2);color:var(--rd);border:1px solid var(--rd3);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans)">Limpar dia</button>
+        
       </div>
     </div>
 
@@ -1363,12 +1363,12 @@ function renderPkgList(){
   if(!activeMkt) return;
   var pkgs=getPkgsAtivos();
   // Ordem crescente por número do pedido
-  pkgs.sort(function(a,b){
-    var aCol=(a.status==='coletado'||colSession.indexOf(a.etiqueta)!==-1)?1:0;
-    var bCol=(b.status==='coletado'||colSession.indexOf(b.etiqueta)!==-1)?1:0;
-    if(aCol!==bCol) return aCol-bCol;
-    return (parseInt(a.numero)||0)-(parseInt(b.numero)||0);
-  });
+  // Pendentes primeiro (crescente), coletados/bipados depois (crescente)
+  var _pend=pkgs.filter(function(p){return p.status!=='coletado'&&colSession.indexOf(p.etiqueta)===-1;});
+  var _col=pkgs.filter(function(p){return p.status==='coletado'||colSession.indexOf(p.etiqueta)!==-1;});
+  _pend.sort(function(a,b){return (parseInt(a.numero)||0)-(parseInt(b.numero)||0);});
+  _col.sort(function(a,b){return (parseInt(a.numero)||0)-(parseInt(b.numero)||0);});
+  pkgs=_pend.concat(_col);
   var today=todayStr();
   document.getElementById('pkgList').innerHTML=pkgs.map(function(p){
     var sc=colSession.indexOf(p.etiqueta)!==-1;
@@ -1622,7 +1622,13 @@ function handleScan(rawCode,photo){
     document.getElementById('camStatus').style.background='rgba(0,0,0,.6)';
   },3000);
   var chave=pkg.etiqueta;
-  colSession.push(chave);
+  // Remove scan anterior desta etiqueta hoje (evita duplicata ao re-bipar após desfazer)
+  for(var _si=scans.length-1;_si>=0;_si--){
+    if(scans[_si].etiqueta===chave&&scans[_si].date===today&&scans[_si].tipo!=='lote'){
+      scans.splice(_si,1);
+    }
+  }
+  if(colSession.indexOf(chave)===-1) colSession.push(chave);
   scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
   sv('expv5_scans',scans);
   syncToServer();
@@ -2961,12 +2967,22 @@ function initApp(){
 
   // Auto-sync a cada 30s — envia E recebe dados entre dispositivos
   setInterval(function(){
-    syncToServer(); // push: envia dados locais
-    loadFromServer(function(){ // pull: recebe dados de outros
+    syncToServer();
+    loadFromServer(function(){
       renderMktGrid(); updateBadge();
       if(activeMkt) renderPkgList();
     });
   }, 30000);
+
+  // Auto-busca Bling a cada 10 minutos silenciosamente
+  // Não executa se já tiver uma busca em andamento ou se estiver bipando
+  setInterval(function(){
+    var btn=document.getElementById('syncBtn');
+    if(btn&&!btn.disabled&&!activeMkt){
+      console.log('🔄 Auto-busca Bling (10min)...');
+      pullFromBling();
+    }
+  }, 10*60*1000);
 }
 
 (function(){
