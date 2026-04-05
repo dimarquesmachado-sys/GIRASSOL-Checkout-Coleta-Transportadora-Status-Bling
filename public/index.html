@@ -1104,7 +1104,8 @@ function pullFromBling(){
       var nfChave=(o.notaFiscal&&o.notaFiscal.chave)||(o.nfe&&o.nfe.chave)||'';
       if(nfChave) nfChave=String(nfChave).replace(/\s/g,'');
       var contatoId=(o.contato&&o.contato.id)||'';
-      return {id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,nfChave:nfChave,numLoja:String(numLoja||''),contatoId:String(contatoId),
+      var pedidoData=(o.data||'').substring(0,10); // YYYY-MM-DD
+      return {id:o.id,numero:o.numero,etiqueta:etiqueta,nf:nf,nfChave:nfChave,numLoja:String(numLoja||''),contatoId:String(contatoId),pedidoData:pedidoData,
         destinatario:(o.contato&&o.contato.nome)||'—',
         servico:svc,lojaId:lojaId,mkt:mkt,urgente:urgente,numeracao:numeracaoLista,
         blingStatus:Number((o.situacao&&o.situacao.id)||0),
@@ -2725,7 +2726,10 @@ function detectNF(pkgsSemNF, onDone){
     var pkg=pkgsSemNF[i++];
     if(pkg.nf){next();return;} // já tem NF
     setTimeout(function(){
-      apiFetch('/bling/nfe?idPedidoVenda='+pkg.blingId+'&limite=1')
+      // Filtra por contato E data do pedido — mais confiável que idPedidoVenda
+      var _nfParams='contato='+pkg.contatoId+'&dataInicial='+pkg.pedidoData+'&dataFinal='+pkg.pedidoData+'&limite=5';
+      if(!pkg.contatoId) _nfParams='idPedidoVenda='+pkg.blingId+'&limite=1';
+      apiFetch('/bling/nfe?'+_nfParams)
       .then(function(r){if(!r.ok)return null;return r.json();})
       .then(function(d){
         if(!d) return;
