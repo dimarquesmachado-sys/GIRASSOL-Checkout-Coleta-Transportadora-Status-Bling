@@ -787,23 +787,7 @@ function detectTrackingPkgs(pkgs){
           }
           if(nfDetalhe&&!p.nf){p.nf=String(nfDetalhe).trim(); console.log('✅ NF '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.nf);}
           if(nfChave&&!p.nfChave){p.nfChave=nfChave;}
-          // Se ainda sem NF, busca no endpoint /nfe
-          if(!p.nf){
-            (function(pkgRef){
-              setTimeout(function(){
-                apiFetch('/bling/nfe?idPedidoVenda='+pkgRef.blingId+'&limite=1')
-                .then(function(r){return r.ok?r.json():null;})
-                .then(function(nd){
-                  if(!nd||!nd.data||!nd.data[0]) return;
-                  var nfr=nd.data[0];
-                  var nnum=(nfr.numero)||(nfr.nfe&&nfr.nfe.numero)||(nfr.numeroDocumento)||'';
-                  var nch=(nfr.chaveAcesso)||(nfr.chave)||'';
-                  if(nnum){pkgRef.nf=String(nnum).trim(); sv('expv5_pkgs',packages); renderPkgList(); renderMktGrid(); console.log('✅ NF /nfe '+pkgRef.mkt.toUpperCase()+' #'+pkgRef.numero+': '+pkgRef.nf);}
-                  if(nch&&!pkgRef.nfChave) pkgRef.nfChave=String(nch).replace(/\s/g,'');
-                }).catch(function(){});
-              },500);
-            })(p);
-          }
+          // NF vem do endpoint individual do pedido (detectNF)
           sv('expv5_pkgs',packages);
           renderMktGrid();
           if(activeMkt) renderPkgList(); // atualiza lista aberta com novos dados
@@ -868,23 +852,7 @@ function detectFlexML(mlPkgs, onDone){
           var nfChaveFlex=(order.notaFiscal&&order.notaFiscal.chave)||(order.nfe&&order.nfe.chave)||'';
           if(nfFlex&&!p.nf) p.nf=String(nfFlex).trim();
           if(nfChaveFlex&&!p.nfChave) p.nfChave=String(nfChaveFlex).replace(/\s/g,'');
-          // Se ainda sem NF, busca no endpoint /nfe
-          if(!p.nf){
-            (function(pkgRef){
-              setTimeout(function(){
-                apiFetch('/bling/nfe?idPedidoVenda='+pkgRef.blingId+'&limite=1')
-                .then(function(r){return r.ok?r.json():null;})
-                .then(function(nd){
-                  if(!nd||!nd.data||!nd.data[0]) return;
-                  var nfr=nd.data[0];
-                  var nnum=(nfr.numero)||(nfr.nfe&&nfr.nfe.numero)||(nfr.numeroDocumento)||'';
-                  var nchave=(nfr.chaveAcesso)||(nfr.chave)||'';
-                  if(nnum){pkgRef.nf=String(nnum).trim(); console.log('✅ NF via /nfe #'+pkgRef.numero+': '+pkgRef.nf); sv('expv5_pkgs',packages); renderPkgList(); renderMktGrid();}
-                  if(nchave&&!pkgRef.nfChave) pkgRef.nfChave=String(nchave).replace(/\s/g,'');
-                }).catch(function(){});
-              },500);
-            })(p);
-          }
+          // NF vem de order.notaFiscal — já capturada acima
           // numLoja
           var numLojaDetalhe=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
           if(numLojaDetalhe&&!p.numLoja) p.numLoja=String(numLojaDetalhe).trim();
