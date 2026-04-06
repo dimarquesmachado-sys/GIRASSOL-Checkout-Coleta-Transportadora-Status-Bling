@@ -228,24 +228,33 @@ app.post('/logout', (req, res) => {
 app.get('/me', requireAuth, (req, res) => res.json({ usuario: req.user }));
 
 // Rota especial: busca NF vinculada ao pedido testando parâmetros corretos do Bling v3
-// Busca NF correta para um pedido — cruza por loja + data + contato
+// Busca NF correta para um pedido — pelo ID sequencial mais próximo
 app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
   const { blingId } = req.params;
-  const { lojaId, data, contatoId } = req.query;
-  if (!lojaId || !data || !contatoId) return res.status(400).json({ error: 'lojaId, data e contatoId obrigatórios' });
+  const { lojaId, data } = req.query;
+  if (!lojaId || !data) return res.status(400).json({ error: 'lojaId e data obrigatórios' });
   try {
     // Busca NFs da loja na data do pedido
     const url = `${BLING_BASE}/nfe?idLoja=${lojaId}&dataInicial=${data}&dataFinal=${data}&limite=100`;
     const r = await blingFetch(url);
     const d = await r.json().catch(() => ({}));
     const nfes = d.data || [];
-    // Cruza pelo contato.id
-    const nfe = nfes.find(n => n.contato && String(n.contato.id) === String(contatoId));
+    const pedidoId = parseInt(blingId);
+    // Pega NFs com ID maior que o pedido (NF criada após o pedido)
+    const candidatas = nfes
+      .filter(n => n.id > pedidoId)
+      .sort((a, b) => a.id - b.id); // menor ID primeiro = mais próxima
+    const nfe = candidatas[0];
     if (nfe) {
       res.json({ numero: nfe.numero, chave: nfe.chaveAcesso || nfe.chave || '', id: nfe.id });
     } else {
-      // Se não achou por contato, retorna vazio
-      res.json({ numero: '', chave: '', debug: `${nfes.length} NFs na data, nenhuma bate com contato ${contatoId}` });
+      // Fallback: pega NF com ID mais próximo (antes ou depois)
+      const closest = nfes.sort((a,b) => Math.abs(a.id-pedidoId) - Math.abs(b.id-pedidoId))[0];
+      if (closest) {
+        res.json({ numero: closest.numero, chave: closest.chaveAcesso || closest.chave || '', id: closest.id, fallback: true });
+      } else {
+        res.json({ numero: '', chave: '', debug: `${nfes.length} NFs na data` });
+      }
     }
   } catch(e) {
     res.status(500).json({ error: e.message });
