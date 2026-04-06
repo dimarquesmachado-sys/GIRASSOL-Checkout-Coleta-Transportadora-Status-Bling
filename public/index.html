@@ -922,6 +922,105 @@ function detectFlexML(mlPkgs, onDone){
   next();
 }
 
+// ═══ BUSCA NF VIA API MERCADO LIVRE ═══
+// Mais rápido que via Bling, pega NF + status + tracking direto da fonte
+var _mlApiConnected = null; // cache do status
+
+function checkMLApiStatus(cb) {
+  if (_mlApiConnected !== null) { cb(_mlApiConnected); return; }
+  apiFetch('/ml/status')
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){
+    _mlApiConnected = d && d.connected;
+    console.log('🟡 ML API:', _mlApiConnected ? 'conectada' : 'não conectada');
+    cb(_mlApiConnected);
+  })
+  .catch(function(){ _mlApiConnected = false; cb(false); });
+}
+
+function detectMLNF(mlPkgs, onDone) {
+  // Filtra apenas ML sem NF e com numLoja
+  var pkgsSemNF = mlPkgs.filter(function(p) { 
+    return p.mkt === 'ml' && !p.nf && p.numLoja; 
+  });
+  
+  if (pkgsSemNF.length === 0) { 
+    if (onDone) onDone(); 
+    return; 
+  }
+  
+  checkMLApiStatus(function(connected) {
+    if (!connected) {
+      console.log('🟡 ML API não conectada, usando fallback Bling');
+      if (onDone) onDone();
+      return;
+    }
+    
+    console.log('🟡 Buscando NF via API ML para ' + pkgsSemNF.length + ' pedidos...');
+    var i = 0;
+    
+    function next() {
+      if (i >= pkgsSemNF.length) {
+        sv('expv5_pkgs', packages);
+        syncToServer();
+        toast('✅ NFs ML carregadas!', 'ok');
+        if (onDone) onDone();
+        return;
+      }
+      
+      var pkg = pkgsSemNF[i++];
+      
+      apiFetch('/ml/pedido/' + encodeURIComponent(pkg.numLoja))
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d || !d.found) { next(); return; }
+        
+        // Encontra o pacote e atualiza
+        var p = null;
+        for (var k = 0; k < packages.length; k++) {
+          if (packages[k].blingId === pkg.blingId) { p = packages[k]; break; }
+        }
+        
+        if (p) {
+          // NF
+          if (d.invoice && d.invoice.numero && !p.nf) {
+            p.nf = String(d.invoice.numero).trim();
+            console.log('✅ NF ML (via API) #' + p.numero + ': ' + p.nf);
+          }
+          if (d.invoice && d.invoice.chave && !p.nfChave) {
+            p.nfChave = String(d.invoice.chave).replace(/\s/g, '');
+          }
+          
+          // Tracking (se não tinha)
+          if (d.tracking && !p.numeracao) {
+            p.numeracao = String(d.tracking).replace(/\s/g, '').toUpperCase();
+            console.log('✅ Tracking ML (via API) #' + p.numero + ': ' + p.numeracao);
+          }
+          
+          // Status - marca se cancelado
+          if (d.cancelled) {
+            p.cancelado = true;
+            p.status = 'cancelado';
+            console.warn('⚠️ CANCELADO: ML #' + p.numero);
+          }
+          
+          sv('expv5_pkgs', packages);
+          renderMktGrid();
+          if (activeMkt) renderPkgList();
+        }
+        
+        next();
+      })
+      .catch(function(e) {
+        console.error('❌ ML NF erro:', e.message);
+        next();
+      });
+    }
+    
+    next();
+  });
+}
+
 // Mapa mkt → idLoja para busca filtrada
 var MKT_TO_LOJA = {
   'ml':'203146903','shopee':'203583169','amazon':'203967708',
@@ -1258,10 +1357,20 @@ toast('✅ Tudo carregado!','ok');
 
     }
 
+    // Busca NF via API ML (mais rápido) e depois fallback via Bling
     setTimeout(function(){
-      var semNFfinal=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
-      if(semNFfinal.length>0) detectNF(semNFfinal,null);
-    },10000);
+      var mlSemNF = packages.filter(function(p){ return p.date===todayStr() && p.mkt==='ml' && !p.nf && p.numLoja; });
+      if(mlSemNF.length > 0){
+        detectMLNF(mlSemNF, function(){
+          // Depois busca os restantes via Bling
+          var semNFfinal = packages.filter(function(p){ return p.date===todayStr() && !p.nf; });
+          if(semNFfinal.length > 0) detectNF(semNFfinal, null);
+        });
+      } else {
+        var semNFfinal = packages.filter(function(p){ return p.date===todayStr() && !p.nf; });
+        if(semNFfinal.length > 0) detectNF(semNFfinal, null);
+      }
+    }, 5000); // 5 segundos para dar tempo do numLoja carregar
     resetSyncBtn();
   }
   function resetSyncBtn(){
