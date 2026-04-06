@@ -719,14 +719,6 @@ function detectTrackingPkgs(pkgs){
     var pkg=pkgs[i++];
     if(pkg.numeracao&&String(pkg.numeracao).toLowerCase().indexOf('object')===-1){next();return;}
     
-    // MAGALU: busca tracking via API Magalu (Bling não retorna)
-    if(pkg.mkt==='magalu' && pkg.numLoja){
-      detectMagaluTracking(pkg, function(){
-        next();
-      });
-      return;
-    }
-    
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
       .then(function(r){if(!r.ok)return null;return r.json();})
@@ -759,7 +751,6 @@ function detectTrackingPkgs(pkgs){
         // NF — tenta todos os caminhos
         // numLoja — número da venda no marketplace
         var numLojaD=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
-        if(numLojaD&&p&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
         // Para ML: numeroPedidoLoja = número loja virtual (2000015489054448)
         // numeracao = número de envio (46625715803)
         var nfDetalhe = (order.notaFiscal&&order.notaFiscal.numero)
@@ -781,8 +772,20 @@ function detectTrackingPkgs(pkgs){
         var p=null;
         for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
         if(p){
-          if(track){p.numeracao=String(track).replace(/\s/g,'').toUpperCase(); console.log('✅ Tracking '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.numeracao);}
-          else{console.warn('⚠ SEM tracking para '+p.mkt.toUpperCase()+' #'+p.numero);}
+          // numLoja
+          if(numLojaD&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
+          
+          // MAGALU: tracking vem da API Magalu (Bling não retorna)
+          if(p.mkt==='magalu' && !track && p.numLoja){
+            // Busca tracking via API Magalu em paralelo
+            detectMagaluTracking(p, null);
+          } else if(track){
+            p.numeracao=String(track).replace(/\s/g,'').toUpperCase();
+            console.log('✅ Tracking '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.numeracao);
+          } else {
+            console.warn('⚠ SEM tracking para '+p.mkt.toUpperCase()+' #'+p.numero);
+          }
+          
           // Detecta urgente pelo serviço (Shopee Xpress, VAPT, etc)
           if(!p.urgente){
             var svcDetect=((order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||'').toLowerCase()+' '+
