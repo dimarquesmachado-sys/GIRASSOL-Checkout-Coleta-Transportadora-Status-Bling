@@ -21,9 +21,8 @@ const MAGALU_CLIENT_SECRET = process.env.MAGALU_CLIENT_SECRET || '';
 const MAGALU_BASE          = 'https://api.magalu.com';
 const MAGALU_AUTH_URL      = 'https://id.magalu.com';
 
-let magaluAccessToken  = process.env.MAGALU_ACCESS_TOKEN || '';
-let magaluRefreshToken = process.env.MAGALU_REFRESH_TOKEN || '';
-let magaluTokenExpires = magaluAccessToken ? Date.now() + 2 * 60 * 60 * 1000 : 0;
+let magaluAccessToken  = '';
+let magaluTokenExpires = 0;
 
 function parseUsers() {
   const raw = process.env.USERS || 'admin:girassol123';
@@ -111,124 +110,60 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-// ═══ MAGALU OAuth Callback ═══
-app.get('/magalu/callback', async (req, res) => {
-  const code = req.query.code;
-  if (!code) return res.send('<h2>Erro: código não encontrado na URL.</h2>');
+// ═══ MAGALU API Key (client_credentials) ═══
+// Obtém token automaticamente usando API Key ID + Secret
+
+async function getMagaluToken() {
   if (!MAGALU_CLIENT_ID || !MAGALU_CLIENT_SECRET) {
-    return res.send('<h2>Erro: MAGALU_CLIENT_ID e MAGALU_CLIENT_SECRET não configurados no Render.</h2>');
-  }
-  try {
-    const r = await fetch(`${MAGALU_AUTH_URL}/oauth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        client_id: MAGALU_CLIENT_ID,
-        client_secret: MAGALU_CLIENT_SECRET,
-        redirect_uri: `https://${req.get('host')}/magalu/callback`,
-        code: code,
-      }),
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(JSON.stringify(data));
-
-    magaluAccessToken  = data.access_token;
-    magaluRefreshToken = data.refresh_token;
-    magaluTokenExpires = Date.now() + (data.expires_in * 1000) - (5 * 60 * 1000);
-    console.log('✅ Magalu tokens obtidos! Expira em:', new Date(magaluTokenExpires).toLocaleTimeString('pt-BR'));
-
-    // Persiste tokens no Render
-    await persistMagaluTokensToRender(magaluAccessToken, magaluRefreshToken).catch(() => {});
-
-    res.send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-      <style>body{font-family:sans-serif;background:#0C0E13;color:#EBE9E2;padding:40px;max-width:700px;margin:0 auto}
-      h2{color:#5A9AE0} .box{background:#181B24;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:16px;margin:12px 0;word-break:break-all;font-family:monospace;font-size:12px}
-      .ok{background:rgba(46,204,138,.13);border:1px solid rgba(46,204,138,.3);border-radius:8px;padding:14px;color:#2ECC8A;margin-top:20px;font-size:13px}
-      </style></head><body>
-      <h2>🔵 Magalu conectado com sucesso!</h2>
-      <p style="color:#8B8D9B">Os tokens foram salvos automaticamente.</p>
-      <div class="ok">
-        ✅ <strong>Pronto!</strong> O sistema agora pode buscar tracking de pedidos Magalu.<br><br>
-        Pode fechar esta aba e voltar ao app de expedição.
-      </div>
-      </body></html>`);
-  } catch (e) {
-    console.error('Erro Magalu callback:', e.message);
-    res.send(`<h2 style="color:red">Erro Magalu: ${e.message}</h2>`);
-  }
-});
-
-// Gera link para autorizar Magalu
-app.get('/magalu/auth', (req, res) => {
-  if (!MAGALU_CLIENT_ID) {
-    return res.send('<h2>Erro: MAGALU_CLIENT_ID não configurado no Render.</h2>');
-  }
-  const redirectUri = `https://${req.get('host')}/magalu/callback`;
-  const scopes = 'open:order-order-seller:read open:order-delivery-seller:read';
-  const authUrl = `${MAGALU_AUTH_URL}/login?client_id=${MAGALU_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&choose_tenants=true`;
-  res.redirect(authUrl);
-});
-
-// Persiste tokens Magalu no Render
-async function persistMagaluTokensToRender(newAccess, newRefresh) {
-  if (!RENDER_SERVICE_ID || !RENDER_API_KEY) {
-    console.log('💾 Magalu tokens em memória (sem RENDER_API_KEY)');
-    return;
-  }
-  try {
-    for (const [key, value] of [['MAGALU_ACCESS_TOKEN', newAccess], ['MAGALU_REFRESH_TOKEN', newRefresh]]) {
-      const r = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars/${key}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${RENDER_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value }),
-      });
-      if (r.ok) console.log('✅ '+key+' persistido no Render!');
-    }
-  } catch(e) { console.warn('⚠ Magalu persist erro:', e.message); }
-}
-
-// Refresh token Magalu
-async function refreshMagaluToken() {
-  if (!magaluRefreshToken || !MAGALU_CLIENT_ID || !MAGALU_CLIENT_SECRET) {
-    console.warn('⚠ Sem refresh token Magalu ou credenciais');
+    console.warn('⚠ MAGALU_CLIENT_ID ou MAGALU_CLIENT_SECRET não configurado');
     return false;
   }
+  
+  // Se token ainda é válido, não precisa renovar
+  if (magaluAccessToken && Date.now() < magaluTokenExpires - 60 * 1000) {
+    return true;
+  }
+  
   try {
-    console.log('🔄 Renovando token Magalu...');
+    console.log('🔵 Obtendo token Magalu via client_credentials...');
+    const credentials = Buffer.from(`${MAGALU_CLIENT_ID}:${MAGALU_CLIENT_SECRET}`).toString('base64');
+    
     const r = await fetch(`${MAGALU_AUTH_URL}/oauth/token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`,
+      },
       body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: MAGALU_CLIENT_ID,
-        client_secret: MAGALU_CLIENT_SECRET,
-        refresh_token: magaluRefreshToken,
+        grant_type: 'client_credentials',
+        scope: 'open:order-order-seller:read open:order-delivery-seller:read',
       }),
     });
+    
     const data = await r.json();
-    if (!r.ok) throw new Error(JSON.stringify(data));
-
-    magaluAccessToken  = data.access_token;
-    if (data.refresh_token) magaluRefreshToken = data.refresh_token;
-    magaluTokenExpires = Date.now() + (data.expires_in * 1000) - (5 * 60 * 1000);
-    console.log('✅ Magalu token renovado!');
-    await persistMagaluTokensToRender(magaluAccessToken, magaluRefreshToken).catch(() => {});
+    
+    if (!r.ok) {
+      console.error('❌ Magalu token erro:', JSON.stringify(data));
+      return false;
+    }
+    
+    magaluAccessToken = data.access_token;
+    magaluTokenExpires = Date.now() + (data.expires_in || 3600) * 1000 - (5 * 60 * 1000);
+    console.log('✅ Magalu token obtido! Expira em:', new Date(magaluTokenExpires).toLocaleTimeString('pt-BR'));
     return true;
   } catch (e) {
-    console.error('❌ Erro renovar Magalu:', e.message);
+    console.error('❌ Erro obter token Magalu:', e.message);
     return false;
   }
 }
 
-// Fetch com auth Magalu
+// Fetch com auth Magalu (obtém token automaticamente se necessário)
 async function magaluFetch(url, options = {}) {
-  if (!magaluAccessToken) {
-    throw new Error('Magalu não autorizado. Acesse /magalu/auth para conectar.');
+  const hasToken = await getMagaluToken();
+  if (!hasToken) {
+    throw new Error('Magalu: falha ao obter token. Verifique MAGALU_CLIENT_ID e MAGALU_CLIENT_SECRET.');
   }
-  if (Date.now() > magaluTokenExpires - 60 * 1000) {
-    await refreshMagaluToken();
-  }
+  
   const r = await fetch(url, {
     ...options,
     headers: {
@@ -238,12 +173,40 @@ async function magaluFetch(url, options = {}) {
       ...(options.headers || {}),
     },
   });
+  
+  // Se 401, tenta renovar token
   if (r.status === 401) {
-    const ok = await refreshMagaluToken();
-    if (ok) return magaluFetch(url, options);
+    console.log('🔄 Token Magalu expirado, renovando...');
+    magaluAccessToken = '';
+    magaluTokenExpires = 0;
+    const renewed = await getMagaluToken();
+    if (renewed) return magaluFetch(url, options);
   }
+  
   return r;
 }
+
+// Status da conexão Magalu (não precisa mais de /magalu/auth)
+app.get('/magalu/status', async (req, res) => {
+  const hasCredentials = !!(MAGALU_CLIENT_ID && MAGALU_CLIENT_SECRET);
+  let connected = false;
+  let error = null;
+  
+  if (hasCredentials) {
+    try {
+      connected = await getMagaluToken();
+    } catch (e) {
+      error = e.message;
+    }
+  }
+  
+  res.json({
+    connected,
+    hasCredentials,
+    tokenExpires: magaluTokenExpires ? new Date(magaluTokenExpires).toISOString() : null,
+    error,
+  });
+});
 
 // Variáveis de ambiente do Render (necessário para persistir tokens)
 const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || '';
@@ -412,9 +375,9 @@ app.get('/magalu/tracking/:orderCode', requireAuth, async (req, res) => {
   const { orderCode } = req.params;
   console.log('🔵 Buscando tracking Magalu para pedido:', orderCode);
   
-  if (!magaluAccessToken) {
+  if (!MAGALU_CLIENT_ID || !MAGALU_CLIENT_SECRET) {
     return res.status(401).json({ 
-      error: 'Magalu não conectado. Acesse /magalu/auth para autorizar.',
+      error: 'Magalu não configurado. Configure MAGALU_CLIENT_ID e MAGALU_CLIENT_SECRET no Render.',
       needsAuth: true 
     });
   }
@@ -490,8 +453,8 @@ function extractMagaluTracking(delivery) {
 
 // Busca todas as entregas Magalu recentes (para debug)
 app.get('/magalu/deliveries', requireAuth, async (req, res) => {
-  if (!magaluAccessToken) {
-    return res.status(401).json({ error: 'Magalu não conectado', needsAuth: true });
+  if (!MAGALU_CLIENT_ID || !MAGALU_CLIENT_SECRET) {
+    return res.status(401).json({ error: 'Magalu não configurado', needsAuth: true });
   }
   try {
     const url = `${MAGALU_BASE}/seller/v1/deliveries?_limit=20`;
@@ -505,15 +468,6 @@ app.get('/magalu/deliveries', requireAuth, async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
-});
-
-// Status da conexão Magalu
-app.get('/magalu/status', requireAuth, (req, res) => {
-  res.json({
-    connected: !!magaluAccessToken,
-    clientConfigured: !!MAGALU_CLIENT_ID,
-    tokenExpires: magaluTokenExpires ? new Date(magaluTokenExpires).toISOString() : null,
-  });
 });
 
 app.get('/bling-nf/:blingId', async (req, res) => { // diagnóstico temporário
