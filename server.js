@@ -786,6 +786,54 @@ app.get('/magalu/deliveries', requireAuth, async (req, res) => {
   }
 });
 
+// Busca dados completos de um pedido Magalu pelo código (para detectar cancelados)
+app.get('/magalu/pedido/:orderCode', requireAuth, async (req, res) => {
+  const { orderCode } = req.params;
+  
+  if (!MAGALU_CLIENT_ID || !MAGALU_CLIENT_SECRET) {
+    return res.status(401).json({ error: 'Magalu não configurado', needsAuth: true });
+  }
+  
+  try {
+    // Busca pedido pelo código
+    const orderUrl = `${MAGALU_BASE}/seller/v1/orders?code=${orderCode}&_limit=5`;
+    const orderR = await magaluFetch(orderUrl);
+    
+    if (!orderR.ok) {
+      const err = await orderR.text();
+      return res.status(orderR.status).json({ error: err });
+    }
+    
+    const orderData = await orderR.json();
+    const orders = orderData.results || orderData.data || [];
+    
+    if (orders.length === 0) {
+      return res.json({ found: false, orderCode });
+    }
+    
+    const order = orders[0];
+    const status = (order.status || '').toLowerCase();
+    
+    // Status de cancelado no Magalu: cancelled, canceled, cancelled_by_seller, cancelled_by_buyer
+    const cancelledStatuses = ['cancelled', 'canceled', 'cancelled_by_seller', 'cancelled_by_buyer', 'cancellation_requested'];
+    const isCancelled = cancelledStatuses.some(s => status.includes(s));
+    
+    console.log(`🔵 Magalu pedido ${orderCode}: status=${status}, cancelled=${isCancelled}`);
+    
+    res.json({
+      found: true,
+      orderId: order.id,
+      orderCode: order.code,
+      status: status,
+      cancelled: isCancelled,
+      shipped: ['shipped', 'delivered', 'in_transit', 'out_for_delivery'].some(s => status.includes(s)),
+    });
+  } catch (e) {
+    console.error('❌ Magalu pedido erro:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/bling-nf/:blingId', async (req, res) => { // diagnóstico temporário
   const id = req.params.blingId;
   const results = {};
