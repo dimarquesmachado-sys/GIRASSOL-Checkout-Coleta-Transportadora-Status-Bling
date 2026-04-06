@@ -2737,15 +2737,13 @@ function detectNF(pkgsSemNF, onDone){
         var num=d.numero||'';
         var chave=d.chave||'';
         if(num){
-          var nfeContatoId=String((nfe.contato&&nfe.contato.id)||'');
           var p=null;
           for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
           if(p){
-            if(num){
-              p.nf=String(num).trim();
-              console.log('✅ NF #'+p.numero+': '+p.nf);
-            }
+            p.nf=String(num).trim();
+            console.log('✅ NF #'+p.numero+': '+p.nf);
             if(chave&&!p.nfChave) p.nfChave=String(chave).replace(/\s/g,'');
+            sv('expv5_pkgs',packages);
             renderMktGrid();
             if(activeMkt) renderPkgList();
           }
