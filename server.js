@@ -220,22 +220,41 @@ app.get('/magalu/status', async (req, res) => {
 
 // ═══ MERCADO LIVRE OAuth e API ═══
 
-// Redireciona para login do ML
+// PKCE helpers
+let mlCodeVerifier = '';
+
+function generateCodeVerifier() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function generateCodeChallenge(verifier) {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
+}
+
+// Redireciona para login do ML (com PKCE)
 app.get('/ml/auth', (req, res) => {
   if (!ML_APP_ID) {
     return res.send('<h2>Erro: ML_APP_ID não configurado no Render.</h2>');
   }
+  
+  // Gera PKCE
+  mlCodeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(mlCodeVerifier);
+  
   const redirectUri = `https://${req.get('host')}/ml/callback`;
-  const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
   res.redirect(authUrl);
 });
 
-// Callback do OAuth ML
+// Callback do OAuth ML (com PKCE)
 app.get('/ml/callback', async (req, res) => {
   const code = req.query.code;
   if (!code) return res.send('<h2>Erro: código não encontrado na URL.</h2>');
   if (!ML_APP_ID || !ML_CLIENT_SECRET) {
     return res.send('<h2>Erro: ML_APP_ID ou ML_CLIENT_SECRET não configurados.</h2>');
+  }
+  if (!mlCodeVerifier) {
+    return res.send('<h2>Erro: code_verifier não encontrado. Tente novamente em /ml/auth</h2>');
   }
   
   try {
@@ -249,8 +268,13 @@ app.get('/ml/callback', async (req, res) => {
         client_secret: ML_CLIENT_SECRET,
         code: code,
         redirect_uri: redirectUri,
+        code_verifier: mlCodeVerifier,
       }),
     });
+    
+    // Limpa o verifier após uso
+    mlCodeVerifier = '';
+    
     const data = await r.json();
     if (!r.ok) throw new Error(JSON.stringify(data));
 
