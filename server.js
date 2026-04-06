@@ -24,6 +24,16 @@ const MAGALU_AUTH_URL      = 'https://id.magalu.com';
 let magaluAccessToken  = '';
 let magaluTokenExpires = 0;
 
+// ═══ MERCADO LIVRE API ═══
+const ML_APP_ID        = process.env.ML_APP_ID || '';
+const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET || '';
+const ML_BASE          = 'https://api.mercadolibre.com';
+
+let mlAccessToken  = process.env.ML_ACCESS_TOKEN || '';
+let mlRefreshToken = process.env.ML_REFRESH_TOKEN || '';
+let mlTokenExpires = mlAccessToken ? Date.now() + 5 * 60 * 60 * 1000 : 0;
+let mlUserId       = process.env.ML_USER_ID || '';
+
 function parseUsers() {
   const raw = process.env.USERS || 'admin:girassol123';
   return raw.split(',').map(u => {
@@ -208,6 +218,288 @@ app.get('/magalu/status', async (req, res) => {
   });
 });
 
+// ═══ MERCADO LIVRE OAuth e API ═══
+
+// Redireciona para login do ML
+app.get('/ml/auth', (req, res) => {
+  if (!ML_APP_ID) {
+    return res.send('<h2>Erro: ML_APP_ID não configurado no Render.</h2>');
+  }
+  const redirectUri = `https://${req.get('host')}/ml/callback`;
+  const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  res.redirect(authUrl);
+});
+
+// Callback do OAuth ML
+app.get('/ml/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) return res.send('<h2>Erro: código não encontrado na URL.</h2>');
+  if (!ML_APP_ID || !ML_CLIENT_SECRET) {
+    return res.send('<h2>Erro: ML_APP_ID ou ML_CLIENT_SECRET não configurados.</h2>');
+  }
+  
+  try {
+    const redirectUri = `https://${req.get('host')}/ml/callback`;
+    const r = await fetch(`${ML_BASE}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: ML_APP_ID,
+        client_secret: ML_CLIENT_SECRET,
+        code: code,
+        redirect_uri: redirectUri,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(data));
+
+    mlAccessToken  = data.access_token;
+    mlRefreshToken = data.refresh_token;
+    mlUserId       = String(data.user_id);
+    mlTokenExpires = Date.now() + (data.expires_in * 1000) - (5 * 60 * 1000);
+    
+    console.log('✅ ML tokens obtidos! User ID:', mlUserId);
+
+    // Persiste tokens no Render
+    await persistMLTokensToRender().catch(() => {});
+
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <style>body{font-family:sans-serif;background:#0C0E13;color:#EBE9E2;padding:40px;max-width:700px;margin:0 auto}
+      h2{color:#FFE600} .ok{background:rgba(255,230,0,.13);border:1px solid rgba(255,230,0,.3);border-radius:8px;padding:14px;color:#FFE600;margin-top:20px}
+      </style></head><body>
+      <h2>🟡 Mercado Livre conectado!</h2>
+      <p>User ID: ${mlUserId}</p>
+      <div class="ok">✅ Pronto! O sistema agora pode buscar NF e status dos pedidos ML.<br><br>Pode fechar esta aba.</div>
+      </body></html>`);
+  } catch (e) {
+    console.error('Erro ML callback:', e.message);
+    res.send(`<h2 style="color:red">Erro ML: ${e.message}</h2>`);
+  }
+});
+
+// Persiste tokens ML no Render
+async function persistMLTokensToRender() {
+  if (!RENDER_SERVICE_ID || !RENDER_API_KEY) {
+    console.log('💾 ML tokens em memória (sem RENDER_API_KEY)');
+    return;
+  }
+  try {
+    const vars = [
+      ['ML_ACCESS_TOKEN', mlAccessToken],
+      ['ML_REFRESH_TOKEN', mlRefreshToken],
+      ['ML_USER_ID', mlUserId],
+    ];
+    for (const [key, value] of vars) {
+      if (!value) continue;
+      const r = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars/${key}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${RENDER_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      });
+      if (r.ok) console.log('✅ '+key+' persistido no Render!');
+    }
+  } catch(e) { console.warn('⚠ ML persist erro:', e.message); }
+}
+
+// Refresh token ML
+async function refreshMLToken() {
+  if (!mlRefreshToken || !ML_APP_ID || !ML_CLIENT_SECRET) {
+    console.warn('⚠ Sem refresh token ML ou credenciais');
+    return false;
+  }
+  try {
+    console.log('🔄 Renovando token ML...');
+    const r = await fetch(`${ML_BASE}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: ML_APP_ID,
+        client_secret: ML_CLIENT_SECRET,
+        refresh_token: mlRefreshToken,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(data));
+
+    mlAccessToken  = data.access_token;
+    if (data.refresh_token) mlRefreshToken = data.refresh_token;
+    mlTokenExpires = Date.now() + (data.expires_in * 1000) - (5 * 60 * 1000);
+    console.log('✅ ML token renovado!');
+    await persistMLTokensToRender().catch(() => {});
+    return true;
+  } catch (e) {
+    console.error('❌ Erro renovar ML:', e.message);
+    return false;
+  }
+}
+
+// Fetch autenticado ML
+async function mlFetch(url, options = {}) {
+  if (!mlAccessToken) {
+    throw new Error('ML não autorizado. Acesse /ml/auth para conectar.');
+  }
+  if (Date.now() > mlTokenExpires - 60 * 1000) {
+    await refreshMLToken();
+  }
+  const r = await fetch(url, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${mlAccessToken}`,
+      'Accept': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  if (r.status === 401) {
+    const ok = await refreshMLToken();
+    if (ok) return mlFetch(url, options);
+  }
+  return r;
+}
+
+// Status do ML
+app.get('/ml/status', (req, res) => {
+  res.json({
+    connected: !!mlAccessToken,
+    hasCredentials: !!(ML_APP_ID && ML_CLIENT_SECRET),
+    userId: mlUserId || null,
+    tokenExpires: mlTokenExpires ? new Date(mlTokenExpires).toISOString() : null,
+  });
+});
+
+// Busca pedido ML por ID (pack_id ou order_id)
+app.get('/ml/order/:orderId', requireAuth, async (req, res) => {
+  const { orderId } = req.params;
+  
+  if (!mlAccessToken) {
+    return res.status(401).json({ error: 'ML não conectado. Acesse /ml/auth', needsAuth: true });
+  }
+  
+  try {
+    // Tenta buscar como order primeiro
+    let r = await mlFetch(`${ML_BASE}/orders/${orderId}`);
+    
+    if (!r.ok && r.status === 404) {
+      // Pode ser um pack_id, busca diferente
+      r = await mlFetch(`${ML_BASE}/packs/${orderId}`);
+    }
+    
+    if (!r.ok) {
+      const err = await r.text();
+      return res.status(r.status).json({ error: err });
+    }
+    
+    const order = await r.json();
+    res.json(order);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Busca NF de um shipment ML
+app.get('/ml/shipment/:shipmentId/invoice', requireAuth, async (req, res) => {
+  const { shipmentId } = req.params;
+  
+  if (!mlAccessToken) {
+    return res.status(401).json({ error: 'ML não conectado', needsAuth: true });
+  }
+  
+  try {
+    const r = await mlFetch(`${ML_BASE}/shipments/${shipmentId}/fiscal_documents`);
+    
+    if (!r.ok) {
+      // Tenta endpoint alternativo
+      const r2 = await mlFetch(`${ML_BASE}/shipments/${shipmentId}`);
+      if (r2.ok) {
+        const shipment = await r2.json();
+        // Extrai dados fiscais do shipment se disponível
+        return res.json({
+          shipment_id: shipmentId,
+          fiscal_data: shipment.fiscal_data || null,
+          status: shipment.status,
+        });
+      }
+      return res.status(r.status).json({ error: 'NF não encontrada' });
+    }
+    
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Busca dados completos de um pedido ML pelo número da loja (numeroPedidoLoja do Bling)
+app.get('/ml/pedido/:numLoja', requireAuth, async (req, res) => {
+  const { numLoja } = req.params;
+  
+  if (!mlAccessToken || !mlUserId) {
+    return res.status(401).json({ error: 'ML não conectado', needsAuth: true });
+  }
+  
+  try {
+    // Busca pedidos recentes do seller
+    const r = await mlFetch(`${ML_BASE}/orders/search?seller=${mlUserId}&q=${numLoja}`);
+    
+    if (!r.ok) {
+      const err = await r.text();
+      return res.status(r.status).json({ error: err });
+    }
+    
+    const data = await r.json();
+    const orders = data.results || [];
+    
+    if (orders.length === 0) {
+      return res.json({ found: false, numLoja });
+    }
+    
+    // Pega o primeiro pedido encontrado
+    const order = orders[0];
+    
+    // Busca detalhes do shipment para pegar NF
+    let invoice = null;
+    let tracking = null;
+    let status = order.status;
+    
+    if (order.shipping && order.shipping.id) {
+      const shipR = await mlFetch(`${ML_BASE}/shipments/${order.shipping.id}`);
+      if (shipR.ok) {
+        const shipment = await shipR.json();
+        tracking = shipment.tracking_number || null;
+        status = shipment.status || order.status;
+        
+        // Busca NF do shipment
+        const nfR = await mlFetch(`${ML_BASE}/shipments/${order.shipping.id}/fiscal_documents`);
+        if (nfR.ok) {
+          const nfData = await nfR.json();
+          if (nfData && nfData.length > 0) {
+            invoice = {
+              numero: nfData[0].fiscal_document_number,
+              chave: nfData[0].fiscal_document_key,
+              serie: nfData[0].fiscal_document_series,
+            };
+          }
+        }
+      }
+    }
+    
+    res.json({
+      found: true,
+      order_id: order.id,
+      pack_id: order.pack_id,
+      status: status,
+      tracking: tracking,
+      invoice: invoice,
+      cancelled: status === 'cancelled',
+      shipped: ['shipped', 'delivered'].includes(status),
+    });
+  } catch (e) {
+    console.error('ML pedido erro:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Variáveis de ambiente do Render (necessário para persistir tokens)
 const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || '';
 const RENDER_API_KEY    = process.env.RENDER_API_KEY    || '';
@@ -339,7 +631,7 @@ app.get('/me', requireAuth, (req, res) => res.json({ usuario: req.user }));
 app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
   const { blingId } = req.params;
   const pedidoId = parseInt(blingId);
-  const TOLERANCE = 2000; // NF criada até 2000 IDs depois do pedido
+  const TOLERANCE = 5000; // NF criada até 5000 IDs depois do pedido
   const MAX_PAGES = 10;
   try {
     for (let pagina = 1; pagina <= MAX_PAGES; pagina++) {
