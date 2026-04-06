@@ -1537,7 +1537,7 @@ function renderPkgList(){
       '<div class="pkg-dest">'+p.destinatario+'</div>'+
       '</div>'+
       '<span class="pkg-badge '+(ativo?'b-scan':'b-pend')+'">'+(ativo?'✓':'—')+'</span>'+
-      (sc?'<button class="unscan-btn" data-et="'+p.etiqueta+'" onclick="cancelarScan(this.dataset.et)" title="Cancelar bipagem">✕</button>':'')+
+      (ativo?'<button class="unscan-btn" data-et="'+p.etiqueta+'" data-bid="'+p.blingId+'" onclick="cancelarScan(this.dataset.et, this.dataset.bid)" title="Cancelar bipagem">✕</button>':'')+
       '</div>';
   }).join('');
   renderProgress();
@@ -1979,24 +1979,42 @@ function _showScanPhotoModal(photo, scanItem){
 }
 
 // ═══ CANCELAR / DESFAZER SCAN ═══
-function cancelarScan(etiqueta){
-  var idx=colSession.indexOf(etiqueta);
-  if(idx===-1) return;
+function cancelarScan(etiqueta, blingId){
   var p=null;
-  for(var i=0;i<packages.length;i++){if(packages[i].etiqueta===etiqueta){p=packages[i];break;}}
-  if(!confirm('Cancelar bipagem de '+(p?p.numero:etiqueta)+'?')) return;
-  colSession.splice(idx,1);
-  // Remove do array de scans também
-  for(var j=0;j<scans.length;j++){
-    if(scans[j].etiqueta===etiqueta&&scans[j].date===todayStr()&&scans[j].tipo!=='lote'){
-      scans.splice(j,1); break;
+  for(var i=0;i<packages.length;i++){
+    if(packages[i].etiqueta===etiqueta || (blingId && String(packages[i].blingId)===String(blingId))){
+      p=packages[i]; break;
     }
   }
+  if(!p) return;
+  
+  if(!confirm('Cancelar bipagem de '+p.numero+'?')) return;
+  
+  // Remove da sessão atual se estiver
+  var idx=colSession.indexOf(etiqueta);
+  if(idx!==-1) colSession.splice(idx,1);
+  
+  // Remove do array de scans
+  for(var j=scans.length-1;j>=0;j--){
+    if(scans[j].etiqueta===etiqueta&&scans[j].date===todayStr()&&scans[j].tipo!=='lote'){
+      scans.splice(j,1);
+    }
+  }
+  
+  // Reverte status do pedido para pendente
+  p.status='pendente';
+  p.collected=false;
+  p.loteId=null;
+  
+  sv('expv5_pkgs',packages);
   sv('expv5_scans',scans);
+  syncToServer(); // Sincroniza a reversão
+  
   document.getElementById('confirmArea').classList.remove('show');
   document.getElementById('desfazerBar').classList.remove('show');
   beepError();
-  showFb('↩ Cancelado: '+(p?p.numero:etiqueta),'warn');
+  showFb('↩ Cancelado: '+p.numero,'warn');
+  toast('↩ '+p.numero+' voltou para pendente','warn');
   renderPkgList();
 }
 
