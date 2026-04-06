@@ -238,6 +238,14 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
 .pkg-row.scanned .unscan-btn{display:flex}
 .unscan-btn{display:none;width:28px;height:28px;background:var(--rd2);border:1px solid var(--rd3);border-radius:6px;color:var(--rd);font-size:14px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;line-height:1;padding:0}
 .unscan-btn:active{transform:scale(.9)}
+
+/* PEDIDOS CANCELADOS */
+.pkg-row.cancelado{background:var(--rd2) !important;border:1.5px solid var(--rd3) !important;opacity:.85}
+.pkg-row.cancelado .pkg-num{text-decoration:line-through;color:var(--rd)}
+.pkg-row.cancelado .pkg-badge{background:var(--rd2);color:var(--rd);border-color:var(--rd3)}
+.cancelado-tag{display:inline-block;background:var(--rd);color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;letter-spacing:.3px}
+.mkt-cancelados{font-size:10px;color:var(--rd);margin-top:2px}
+
 .desfazer-bar{margin:8px 14px 0;display:none;align-items:center;justify-content:space-between;background:var(--am2);border:1px solid var(--am3);border-radius:var(--r);padding:8px 12px}
 .desfazer-bar.show{display:flex}
 .desfazer-info{font-size:12px;font-family:var(--mono);color:var(--am)}
@@ -1000,7 +1008,6 @@ function detectMLNF(mlPkgs, onDone) {
           // Status - marca se cancelado
           if (d.cancelled) {
             p.cancelado = true;
-            p.status = 'cancelado';
             console.warn('⚠️ CANCELADO: ML #' + p.numero);
           }
           
@@ -1436,17 +1443,20 @@ function renderMktGrid(){
   MKT_ORDER.forEach(function(m){
     var list=byMkt[m]||[];
     var mc=list.filter(function(p){return p.status==='coletado';}).length;
-    var mp=list.filter(function(p){return p.status==='pendente';}).length;
+    var mp=list.filter(function(p){return p.status==='pendente'&&!p.cancelado;}).length;
+    var mcanc=list.filter(function(p){return p.cancelado===true;}).length;
     var pct=list.length?Math.round(mc/list.length*100):0;
     var isActive=activeMkt===m;
-    var isDone=list.length>0&&mp===0;
+    var isDone=list.length>0&&mp===0&&mcanc===0;
     var isEmpty=list.length===0;
     if(isEmpty&&ALWAYS_SHOW.indexOf(m)===-1) return;
     var info=MKT[m]||{cls:'c-outro',icon:'📦',n:m};
+    var cancHtml=mcanc>0?'<div class="mkt-cancelados">⚠️ '+mcanc+' cancelado'+(mcanc>1?'s':'')+'</div>':'';
     cards.push('<div class="mkt-card '+(isActive?'active':'')+(isDone?' done':'')+'" onclick="selectMkt(\''+m+'\')" style="'+(isEmpty?'opacity:.45':'')+'">'+
       '<div class="mkt-head"><span class="mkt-chip '+info.cls+'">'+info.icon+' '+info.n+'</span></div>'+
       '<div class="mkt-count" style="color:'+(isDone?'var(--gr)':isEmpty?'var(--th)':mp>0?'var(--tx)':'var(--gr)')+'">'+mp+'</div>'+
       '<div class="mkt-sub">'+(isEmpty?'nenhum hoje':isDone?'✓ todos coletados':mp+' pend · '+mc+' col')+'</div>'+
+      cancHtml+
       '<div class="mkt-prog"><div class="mkt-prog-bar" style="width:'+pct+'%"></div></div>'+
       '</div>');
   });
@@ -1522,11 +1532,16 @@ function renderPkgList(){
         fotoHtml='<div class="pkg-photo-placeholder" title="Sem foto">📷</div>';
       }
     }
-    return '<div class="pkg-row '+(ativo?'scanned':'')+'">'+
+    var isCancelado = p.cancelado === true;
+    var rowClass = 'pkg-row';
+    if (ativo) rowClass += ' scanned';
+    if (isCancelado) rowClass += ' cancelado';
+    
+    return '<div class="'+rowClass+'">'+
       fotoHtml+
       '<div style="flex:1;min-width:0">'+
-      // Linha 1: número do pedido Bling (principal)
-      '<div class="pkg-num">'+p.numero+'</div>'+
+      // Linha 1: número do pedido Bling (principal) + tag cancelado
+      '<div class="pkg-num">'+p.numero+(isCancelado?'<span class="cancelado-tag">CANCELADO</span>':'')+'</div>'+
       // Linha 2: NF · marketplace · tracking (tudo visível)
       '<div class="pkg-sub">'+
         (p.nf?'<span style="color:var(--gr)">NF '+p.nf+'</span>':
@@ -1536,8 +1551,8 @@ function renderPkgList(){
       '</div>'+
       '<div class="pkg-dest">'+p.destinatario+'</div>'+
       '</div>'+
-      '<span class="pkg-badge '+(ativo?'b-scan':'b-pend')+'">'+(ativo?'✓':'—')+'</span>'+
-      (ativo?'<button class="unscan-btn" data-et="'+p.etiqueta+'" data-bid="'+p.blingId+'" onclick="cancelarScan(this.dataset.et, this.dataset.bid)" title="Cancelar bipagem">✕</button>':'')+
+      '<span class="pkg-badge '+(isCancelado?'':'')+(ativo?'b-scan':'b-pend')+'">'+(isCancelado?'✗':(ativo?'✓':'—'))+'</span>'+
+      (ativo&&!isCancelado?'<button class="unscan-btn" data-et="'+p.etiqueta+'" data-bid="'+p.blingId+'" onclick="cancelarScan(this.dataset.et, this.dataset.bid)" title="Cancelar bipagem">✕</button>':'')+
       '</div>';
   }).join('');
   renderProgress();
