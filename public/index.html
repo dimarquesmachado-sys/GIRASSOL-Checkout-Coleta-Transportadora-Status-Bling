@@ -749,7 +749,7 @@ function detectTrackingPkgs(pkgs){
 
         // NF — tenta todos os caminhos
         // numLoja — número da venda no marketplace
-        var numLojaD=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
+        var numLojaD=(order.numeroPedidoLoja)||(order.numeroLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
         if(numLojaD&&p&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
         // Para ML: numeroPedidoLoja = número loja virtual (2000015489054448)
         // numeracao = número de envio (46625715803)
@@ -853,7 +853,7 @@ function detectFlexML(mlPkgs, onDone){
           if(nfChaveFlex&&!p.nfChave) p.nfChave=String(nfChaveFlex).replace(/\s/g,'');
           // NF vem de order.notaFiscal — já capturada acima
           // numLoja
-          var numLojaDetalhe=(order.numeroPedidoLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
+          var numLojaDetalhe=(order.numeroPedidoLoja)||(order.numeroLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
           if(numLojaDetalhe&&!p.numLoja) p.numLoja=String(numLojaDetalhe).trim();
           sv('expv5_pkgs',packages);
           if(i%5===0) syncToServer();
@@ -987,7 +987,7 @@ function pullFromBlingMkt(mkt){
         var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
         var nf=(o.notaFiscal&&o.notaFiscal.numero)||(o.nfe&&o.nfe.numero)||'';
         var nfChave=(o.notaFiscal&&o.notaFiscal.chave)||(o.nfe&&o.nfe.chave)||'';
-        var numLoja=(o.numeroPedidoLoja)||(o.loja&&o.loja.numeroPedido)||'';
+        var numLoja=(o.numeroPedidoLoja)||(o.numeroLoja)||(o.loja&&o.loja.numeroPedido)||'';
         var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
                            (o.transporte&&o.transporte.codigoRastreamento)||'';
         if(numeracaoLista) numeracaoLista=String(numeracaoLista).replace(/\s/g,'').toUpperCase();
@@ -1096,7 +1096,7 @@ function pullFromBling(){
            ||'';
       if(nf) nf=String(nf).trim();
       // Número do pedido no marketplace (Bling guarda em numeroPedidoLoja ou loja.numeroPedido)
-      var numLoja=(o.numeroPedidoLoja)||(o.numeroloja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
+      var numLoja=(o.numeroPedidoLoja)||(o.numeroLoja)||(o.numeroloja)||(o.loja&&o.loja.numeroPedido)||(o.pedidoLoja&&o.pedidoLoja.numero)||'';
       // Extrai tracking da listagem (pode já estar disponível para Shopee, TikTok etc.)
       var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
                          (o.transporte&&o.transporte.codigoRastreamento)||'';
