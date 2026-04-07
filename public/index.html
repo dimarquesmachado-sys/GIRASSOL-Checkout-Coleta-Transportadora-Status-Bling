@@ -1502,13 +1502,15 @@ function handleScan(rawCode,photo){
       var qrMag=JSON.parse(rawCode);
       if(qrMag.EXTERNAL_GROUPER_CODE){
         var nums=String(qrMag.EXTERNAL_GROUPER_CODE).match(/^(\d+)/);
-        if(nums) code=nums[1];
+        if(nums){ code=nums[1]; toast('QR→'+code,'ok'); }
       }else if(qrMag.TAG_CODE){
         code=String(qrMag.TAG_CODE).replace(/-/g,'');
+        toast('TAG→'+code,'ok');
       }
     }catch(e){
+      toast('JSON err: '+e.message,'warn');
       var m=rawCode.match(/EXTERNAL_GROUPER_CODE[^0-9]*(\d+)/);
-      if(m) code=m[1];
+      if(m){ code=m[1]; toast('Regex→'+code,'ok'); }
     }
     console.log('🔵 QR MAGALU extraído:', code);
   }
