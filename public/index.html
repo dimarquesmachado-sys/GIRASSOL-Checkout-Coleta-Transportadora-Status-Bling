@@ -1892,28 +1892,23 @@ function handleScan(rawCode,photo){
   // Primeiro tenta JSON.parse (mais confiável)
   if(rawCode.indexOf('EXTERNAL_GROUPER_CODE')!==-1){
     isMagaluQR=true;
+    toast('🔵 QR Magalu detectado!','ok');
     try{
       var qrMagalu=JSON.parse(rawCode);
       if(qrMagalu.EXTERNAL_GROUPER_CODE){
         // Pega só a parte numérica
-        magaluCode=String(qrMagalu.EXTERNAL_GROUPER_CODE).match(/^\d+/);
-        if(magaluCode) magaluCode=magaluCode[0];
-        console.log('🔵 MAGALU (JSON.parse):', magaluCode);
+        var numMatch=String(qrMagalu.EXTERNAL_GROUPER_CODE).match(/^\d+/);
+        if(numMatch) magaluCode=numMatch[0];
+        toast('🔵 Código: '+magaluCode,'ok');
       }
       if(!magaluCode && qrMagalu.TAG_CODE){
         magaluCode=String(qrMagalu.TAG_CODE).replace(/-/g,'');
-        console.log('🔵 MAGALU TAG_CODE (JSON.parse):', magaluCode);
       }
     }catch(e){
-      console.log('🔵 JSON.parse falhou, tentando regex...');
+      toast('⚠ JSON.parse falhou: '+e.message,'warn');
       // Fallback: regex
       var m=rawCode.match(/"EXTERNAL_GROUPER_CODE"\s*:\s*"(\d+)/);
-      if(m) magaluCode=m[1];
-      if(!magaluCode){
-        var t=rawCode.match(/"TAG_CODE"\s*:\s*"([^"]+)/);
-        if(t) magaluCode=t[1].replace(/-/g,'');
-      }
-      console.log('🔵 MAGALU (regex):', magaluCode);
+      if(m){ magaluCode=m[1]; toast('🔵 Regex: '+magaluCode,'ok'); }
     }
   }
   
