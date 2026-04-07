@@ -2853,7 +2853,11 @@ function showPage(page){
   }
   if(page==='historico'){
     // Busca dados atualizados do servidor antes de renderizar
-    loadFromServer(function(){renderHistorico();});
+    console.log('📂 Carregando histórico do servidor...');
+    loadFromServer(function(){
+      console.log('✅ Histórico carregado');
+      renderHistorico();
+    });
   }
   if(page==='romaneio'){
     // Auto-refresh: se passaram mais de 2 minutos desde a última busca, atualiza
@@ -3150,6 +3154,18 @@ function initApp(){
       renderMktGrid(); updateBadge();
       if(activeMkt) renderPkgList();
     });
+  }, 30000);
+
+  // Auto-sync do servidor a cada 30 segundos (para ver dados de outros dispositivos)
+  setInterval(function(){
+    if(!activeMkt){ // Só se não estiver bipando
+      loadFromServer(function(){
+        // Atualiza histórico se estiver na aba
+        if(document.getElementById('pageHist').style.display!=='none'){
+          renderHistorico();
+        }
+      });
+    }
   }, 30000);
 
   // Auto-busca Bling a cada 10 minutos silenciosamente
