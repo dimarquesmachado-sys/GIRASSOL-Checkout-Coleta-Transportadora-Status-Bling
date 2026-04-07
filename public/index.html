@@ -1666,7 +1666,10 @@ function showFb(msg,type){
   clearTimeout(el._t);
   el.className='fb '+type+' show';
   el.textContent=msg;
-  el._t=setTimeout(function(){el.className='fb';},3500);
+  // Sucesso fica até próximo bip, erros somem após 3.5s
+  if(type!=='ok'){
+    el._t=setTimeout(function(){el.className='fb';},3500);
+  }
 }
 
 // ═══ PICKER MAGALU ═══
