@@ -1890,37 +1890,28 @@ function handleScan(rawCode,photo){
   var magaluCode='';
   
   // Se contém EXTERNAL_GROUPER_CODE ou TAG_CODE, é QR Magalu
-  if(rawCode.indexOf('EXTERNAL_GROUPER_CODE')!==-1 || rawCode.indexOf('TAG_CODE')!==-1 ||
-     code.indexOf('EXTERNAL_GROUPER_CODE')!==-1 || code.indexOf('TAG_CODE')!==-1){
+  if(rawCode.indexOf('EXTERNAL_GROUPER_CODE')!==-1 || code.indexOf('EXTERNAL_GROUPER_CODE')!==-1){
     isMagaluQR=true;
-    console.log('🔵 QR MAGALU DETECTADO!');
-    
-    // Tenta extrair EXTERNAL_GROUPER_CODE (várias formas)
-    var extPatterns=[
-      /EXTERNAL_GROUPER_CODE["\s:]+(\d{10,18})/i,
-      /EXTERNAL_GROUPER_CODE[^0-9]*(\d{10,18})/i,
-      /"EXTERNAL_GROUPER_CODE"\s*:\s*"(\d+)/i
-    ];
-    for(var i=0;i<extPatterns.length;i++){
-      var m=rawCode.match(extPatterns[i]) || code.match(extPatterns[i]);
-      if(m){ magaluCode=m[1]; console.log('🔵 EXTERNAL_GROUPER_CODE extraído:', magaluCode); break; }
+    // Extrai dígitos logo após "EXTERNAL_GROUPER_CODE":"
+    var m = rawCode.match(/"EXTERNAL_GROUPER_CODE":"(\d+)/);
+    if(!m) m = code.match(/EXTERNAL_GROUPER_CODE.*?(\d{12,18})/);
+    if(m){
+      magaluCode=m[1];
+      console.log('🔵 MAGALU QR extraído:', magaluCode);
     }
-    
-    // Se não achou, tenta TAG_CODE
-    if(!magaluCode){
-      var tagPatterns=[
-        /TAG_CODE["\s:]+(\d{9,12})/i,
-        /TAG_CODE[^0-9]*(\d{9,12})/i,
-        /"TAG_CODE"\s*:\s*"(\d+)/i
-      ];
-      for(var j=0;j<tagPatterns.length;j++){
-        var t=rawCode.match(tagPatterns[j]) || code.match(tagPatterns[j]);
-        if(t){ magaluCode=t[1].replace(/-/g,''); console.log('🔵 TAG_CODE extraído:', magaluCode); break; }
-      }
-    }
-    
-    if(magaluCode) code=magaluCode;
   }
+  
+  if(!magaluCode && (rawCode.indexOf('TAG_CODE')!==-1 || code.indexOf('TAG_CODE')!==-1)){
+    isMagaluQR=true;
+    var t = rawCode.match(/"TAG_CODE":"(\d+)/);
+    if(!t) t = code.match(/TAG_CODE.*?(\d{6,12})/);
+    if(t){
+      magaluCode=t[1].replace(/-/g,'');
+      console.log('🔵 MAGALU TAG_CODE extraído:', magaluCode);
+    }
+  }
+  
+  if(magaluCode) code=magaluCode;
 
   // ── Formato JSON genérico (ML, etc)
   if(!isMagaluQR){
