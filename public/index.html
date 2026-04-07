@@ -734,6 +734,17 @@ function detectTrackingPkgs(pkgs){
         if(!d) return;
         var order=d.data||d;
 
+        // DEBUG: LOG ESPECIAL para primeiro pedido - ver se endpoint individual traz NF
+        if(pkg.mkt==='magalu' && i<=2){
+          console.log('🔬 MAGALU INDIVIDUAL #'+pkg.numero+' KEYS:', Object.keys(order).join(', '));
+          console.log('🔬 notaFiscal:', order.notaFiscal);
+          console.log('🔬 nfe:', order.nfe);
+          console.log('🔬 notasFiscais:', order.notasFiscais);
+          console.log('🔬 nota:', order.nota);
+          console.log('🔬 transporte:', JSON.stringify(order.transporte||{}).substring(0,500));
+          console.log('🔬 FULL ORDER:', JSON.stringify(order).substring(0,1500));
+        }
+
         // DEBUG: loga transporte completo para ML sem tracking
         if(pkg.mkt==='ml'&&!track){
           // Loga tudo para diagnóstico
