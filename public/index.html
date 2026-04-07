@@ -734,17 +734,6 @@ function detectTrackingPkgs(pkgs){
         if(!d) return;
         var order=d.data||d;
 
-        // DEBUG: LOG ESPECIAL para primeiro pedido - ver se endpoint individual traz NF
-        if(pkg.mkt==='magalu' && i<=2){
-          console.log('🔬 MAGALU INDIVIDUAL #'+pkg.numero+' KEYS:', Object.keys(order).join(', '));
-          console.log('🔬 notaFiscal:', order.notaFiscal);
-          console.log('🔬 nfe:', order.nfe);
-          console.log('🔬 notasFiscais:', order.notasFiscais);
-          console.log('🔬 nota:', order.nota);
-          console.log('🔬 transporte:', JSON.stringify(order.transporte||{}).substring(0,500));
-          console.log('🔬 FULL ORDER:', JSON.stringify(order).substring(0,1500));
-        }
-
         // DEBUG: loga transporte completo para ML sem tracking
         if(pkg.mkt==='ml'&&!track){
           // Loga tudo para diagnóstico
@@ -786,6 +775,30 @@ function detectTrackingPkgs(pkgs){
         // Se não tem numero da NF mas tem chave, extrai o número da chave (pos 25-34 do padrão NF-e)
         if(!nfDetalhe&&nfChave&&nfChave.length===44){
           nfDetalhe=String(parseInt(nfChave.substring(25,34),10)); // remove zeros à esquerda
+        }
+        
+        // ⚡ BUSCA DIRETA: Se tem notaFiscal.id mas não tem numero, busca direto pelo ID
+        var nfIdDirect = order.notaFiscal && order.notaFiscal.id;
+        if(nfIdDirect && !nfDetalhe){
+          (function(pkgRef, nfId){
+            apiFetch('/nfe-direct/'+nfId)
+            .then(function(r){return r.json();})
+            .then(function(nfData){
+              if(nfData && nfData.numero){
+                var pp=null;
+                for(var kk=0;kk<packages.length;kk++){if(packages[kk].blingId===pkgRef.blingId){pp=packages[kk];break;}}
+                if(pp && !pp.nf){
+                  pp.nf=String(nfData.numero).trim();
+                  if(nfData.chave) pp.nfChave=String(nfData.chave).replace(/\s/g,'');
+                  console.log('⚡ NF DIRETA '+pp.mkt.toUpperCase()+' #'+pp.numero+': '+pp.nf);
+                  sv('expv5_pkgs',packages);
+                  renderMktGrid();
+                  if(activeMkt) renderPkgList();
+                }
+              }
+            })
+            .catch(function(e){console.warn('⚠ NF direta erro:', e);});
+          })(pkg, nfIdDirect);
         }
 
         var p=null;
