@@ -479,7 +479,10 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tm);margin-bottom:6px">Motivo do encerramento *</div>
           <textarea class="motivo-textarea" id="motivoText" placeholder="Ex: Veículo sem espaço, motorista recusou pacote, produto danificado..."></textarea>
           <div class="motivo-alert" id="motivoAlert">⚠ Informe o motivo antes de continuar.</div>
-          <button class="motivo-confirm-btn" onclick="confirmarEncerrarParcial()">Continuar → Fotos e finalizar</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="motivo-confirm-btn" onclick="confirmarEncerrarParcial()" style="flex:1">Continuar → Fotos e finalizar</button>
+            <button onclick="voltarDoEncerrar()" style="height:44px;padding:0 20px;background:var(--s1);color:var(--tm);border:1px solid var(--b2);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans)">← Voltar</button>
+          </div>
         </div>
 
         <div class="missing-area" id="missingArea">
@@ -1790,6 +1793,9 @@ function renderProgress(){
 }
 
 function showConfirm(){
+  // Para a câmera de bipar
+  stopCamera();
+  
   document.getElementById('confirmArea').classList.add('show');
   document.getElementById('confirmText').innerHTML='Todos os <b style="color:var(--gr)">'+colSession.length+'</b> pacotes de '+(MKT[activeMkt]||{}).icon+' '+(MKT[activeMkt]||{n:activeMkt}).n+' foram bipados.<br><span style="color:var(--tm);font-size:12px">Preencha abaixo para finalizar.</span>';
   document.getElementById('missingArea').classList.remove('show');
@@ -1998,6 +2004,7 @@ function handleScan(rawCode,photo){
     // ═══ FALLBACK MAGALU ═══
     // Magalu não tem tracking na API Bling, então oferece associação manual
     // Só entra no fallback após 2 segundos e apenas para pedidos SEM tracking
+    // SEMPRE pergunta qual pedido - nunca associa automaticamente
     if(activeMkt==='magalu'){
       var magaluPendentes=packages.filter(function(p){
         return p.mkt==='magalu'
@@ -2008,30 +2015,8 @@ function handleScan(rawCode,photo){
       });
       console.log('🔵 MAGALU fallback: '+magaluPendentes.length+' pendentes sem tracking, código='+code);
       
-      if(magaluPendentes.length===1){
-        // Apenas 1 pedido Magalu pendente sem tracking: aguarda 2s e associa
-        scanPaused=true;
-        document.getElementById('camStatus').textContent='Verificando...';
-        setTimeout(function(){
-          scanPaused=false;
-          document.getElementById('camStatus').textContent='Aponte para o código de barras';
-          // Re-verifica se ainda é o único pendente
-          var stillPending=packages.filter(function(p){
-            return p.mkt==='magalu'&&p.status==='pendente'&&!p.urgente&&!p.numeracao&&colSession.indexOf(p.etiqueta)===-1;
-          });
-          if(stillPending.length===1){
-            var pkgAssoc=stillPending[0];
-            pkgAssoc.numeracao=code;
-            sv('expv5_pkgs',packages);
-            console.log('🔵 MAGALU auto-associado: '+pkgAssoc.numero+' → '+code);
-            toast('🔵 Associado: '+pkgAssoc.numero,'ok');
-            // Continua o processamento do scan
-            handleScan(code, photo);
-          }
-        }, 2000);
-        return;
-      } else if(magaluPendentes.length>1){
-        // Mais de 1 pedido: aguarda 2s e mostra modal para escolher
+      if(magaluPendentes.length>=1){
+        // Aguarda 2s e mostra modal para escolher (SEMPRE pergunta)
         scanPaused=true;
         document.getElementById('camStatus').textContent='Verificando...';
         setTimeout(function(){
@@ -2041,13 +2026,8 @@ function handleScan(rawCode,photo){
           var stillPending=packages.filter(function(p){
             return p.mkt==='magalu'&&p.status==='pendente'&&!p.urgente&&!p.numeracao&&colSession.indexOf(p.etiqueta)===-1;
           });
-          if(stillPending.length>1){
+          if(stillPending.length>=1){
             showMagaluPicker(stillPending, code, photo);
-          } else if(stillPending.length===1){
-            var pkgAssoc=stillPending[0];
-            pkgAssoc.numeracao=code;
-            sv('expv5_pkgs',packages);
-            handleScan(code, photo);
           }
         }, 2000);
         return;
@@ -2491,6 +2471,9 @@ function renderProblemaList(){
 
 // ═══ ENCERRAR PARCIAL ═══
 function showEncerrar(){
+  // Para a câmera de bipar
+  stopCamera();
+  
   var pend=getPkgsAtivos().filter(function(p){return p.status==='pendente'&&colSession.indexOf(p.etiqueta)===-1;});
   document.getElementById('encerrarBtn').classList.remove('show');
   document.getElementById('motivoArea').classList.add('show');
@@ -2500,6 +2483,13 @@ function showEncerrar(){
     '<div style="font-size:11px;color:var(--am);margin-bottom:8px;font-family:var(--mono)">'+pend.length+' pacote(s) que NÃO serão despachados:</div>'+
     pend.map(function(p){return '<div style="font-size:11px;font-family:var(--mono);color:var(--tm);padding:4px 0;border-bottom:1px solid var(--b1)">• '+p.numero+(p.nf?' · NF '+p.nf:'')+(p.numLoja?' · 🛒'+p.numLoja:'')+'<br><span style="color:var(--th);font-size:10px">'+p.destinatario+'</span></div>';}).join('');
   document.getElementById('motivoArea').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function voltarDoEncerrar(){
+  document.getElementById('motivoArea').classList.remove('show');
+  document.getElementById('confirmArea').classList.remove('show');
+  encerrandoParcial=false;
+  renderProgress();
 }
 
 function confirmarEncerrarParcial(){
