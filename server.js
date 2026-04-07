@@ -696,6 +696,29 @@ app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
   }
 });
 
+// ═══ NF DIRETA POR ID ═══
+// Busca NF diretamente pelo ID (muito mais rápido que paginação)
+app.get('/nfe-direct/:nfeId', requireAuth, async (req, res) => {
+  const { nfeId } = req.params;
+  try {
+    const url = `${BLING_BASE}/nfe/${nfeId}`;
+    const r = await blingFetch(url);
+    if (!r.ok) {
+      return res.json({ numero: '', chave: '' });
+    }
+    const d = await r.json().catch(() => ({}));
+    const nfe = d.data || d;
+    return res.json({ 
+      numero: nfe.numero || '', 
+      chave: nfe.chaveAcesso || nfe.chave || '', 
+      id: nfe.id || nfeId 
+    });
+  } catch(e) {
+    console.error('❌ Erro ao buscar NF direta:', e.message);
+    res.json({ numero: '', chave: '' });
+  }
+});
+
 // ═══ MAGALU TRACKING ═══
 // Busca tracking de um pedido Magalu pelo código do pedido no marketplace
 app.get('/magalu/tracking/:orderCode', requireAuth, async (req, res) => {
