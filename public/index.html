@@ -388,9 +388,11 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           Buscar no Bling
         </button>
-        <button onclick="buscarPedidoManual()" style="height:52px;padding:0 14px;background:var(--s1);color:var(--tm);border:1.5px solid var(--b2);border-radius:var(--rl);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap">
-          🔍 Nº pedido
-        </button>
+        <div style="position:relative;width:140px">
+          <input type="text" id="buscaPedido" placeholder="🔍 Buscar..." 
+            style="width:100%;height:52px;padding:0 12px;background:var(--s1);color:var(--tx);border:1.5px solid var(--b2);border-radius:var(--rl);font-size:13px;font-family:var(--sans);box-sizing:border-box"
+            onkeydown="if(event.key==='Enter')buscarPedido()">
+        </div>
       </div>
 
       <div class="flex-banner" id="flexBanner">
@@ -898,88 +900,96 @@ var MKT_TO_LOJA = {
 
 // Busca Bling filtrado por loja — chamado ao selecionar marketplace
 // Busca um pedido específico pelo número diretamente no Bling
-function buscarPedidoManual(){
-  var num=prompt('Digite o número do pedido Bling (ex: 103803):');
-  if(!num||!num.trim()) return;
-  num=num.trim();
-  toast('🔍 Buscando pedido '+num+'...','warn');
-  // Busca por número do pedido
-  apiFetch('/bling/pedidos/vendas?numeroLoja='+num+'&limite=10')
+function buscarPedido(){
+  var input=document.getElementById('buscaPedido');
+  var termo=(input.value||'').trim().toLowerCase();
+  if(!termo){ toast('Digite algo para buscar','warn'); return; }
+  
+  // Busca no array local: número, nome, NF, etiqueta
+  var resultados=packages.filter(function(p){
+    if(!p.date || p.date!==todayStr()) return false;
+    if(String(p.numero).toLowerCase()===termo) return true;
+    if(String(p.nf).toLowerCase()===termo) return true;
+    if(String(p.etiqueta).toLowerCase().indexOf(termo)!==-1) return true;
+    if(p.destinatario && p.destinatario.toLowerCase().indexOf(termo)!==-1) return true;
+    return false;
+  });
+  
+  if(resultados.length>0){
+    var p=resultados[0];
+    input.value='';
+    // Abre o card do marketplace e scrolla até o pedido
+    if(activeMkt!==p.mkt && !p.urgente){
+      selectMkt(p.mkt);
+    } else if(p.urgente && activeMkt!=='flex'){
+      selectMkt('flex');
+    }
+    toast('✅ '+p.numero+' · '+p.destinatario.split(' ')[0]+' ('+p.status+')','ok');
+    // Destaca o pedido brevemente
+    setTimeout(function(){
+      var el=document.querySelector('[data-etiqueta="'+p.etiqueta+'"]');
+      if(el){
+        el.scrollIntoView({behavior:'smooth',block:'center'});
+        el.style.outline='2px solid var(--am)';
+        setTimeout(function(){el.style.outline='';},2000);
+      }
+    },300);
+    return;
+  }
+  
+  // Não achou local — busca no Bling
+  toast('🔍 Buscando '+termo+' no Bling...','warn');
+  apiFetch('/bling/pedidos/vendas?numero='+encodeURIComponent(termo)+'&limite=5')
   .then(function(r){return r.ok?r.json():null;})
   .then(function(d){
     var orders=(d&&d.data)||[];
-    // Também tenta pelo número interno
     if(orders.length===0){
-      return apiFetch('/bling/pedidos/vendas?numero='+num+'&limite=10')
-      .then(function(r){return r.ok?r.json():null;})
-      .then(function(d2){return (d2&&d2.data)||[];});
-    }
-    return orders;
-  })
-  .then(function(orders){
-    if(!orders||orders.length===0){
-      // Tenta buscar pelo ID diretamente (pedido antigo com esse numero)
-      var found=null;
-      for(var i=0;i<packages.length;i++){
-        if(String(packages[i].numero)===num||String(packages[i].etiqueta)===num){
-          found=packages[i]; break;
-        }
-      }
-      if(found){
-        toast('Pedido '+num+' já carregado (status: '+found.status+')','warn');
-      } else {
-        toast('Pedido '+num+' não encontrado. Confirme o status no Bling.','err');
-      }
+      toast('Pedido '+termo+' não encontrado','err');
       return;
     }
+    var o=orders[0];
+    var situacaoId=Number((o.situacao&&o.situacao.id)||0);
+    if(situacaoId!==24){
+      toast('Pedido '+o.numero+' não está em VERIFICADO (status: '+situacaoId+')','warn');
+      return;
+    }
+    // Adiciona ou atualiza
     var today=todayStr();
-    var novos=0;
-    orders.forEach(function(o){
-      var situacaoId=Number((o.situacao&&o.situacao.id)||0);
-      if(situacaoId!==24){
-        toast('Pedido '+o.numero+' não está em VERIFICADO (status: '+situacaoId+')','warn');
-        return;
-      }
-      var etiqueta=String((o.numero||o.id||'')).trim().toUpperCase();
-      var mkt=lojaToMkt(String((o.loja&&o.loja.id)||'0'))||'melhorenvio';
-      var existing=null;
-      for(var k=0;k<packages.length;k++){if(packages[k].blingId===o.id){existing=packages[k];break;}}
-      if(existing){
-        // Reseta para pendente se estava coletado
-        if(existing.status==='coletado'||existing.status==='problema'){
-          existing.status='pendente'; existing.colT=null;
-          existing.date=today; // atualiza data para hoje
-          toast('↩ Pedido '+o.numero+' resetado para pendente!','ok');
-        } else {
-          existing.date=today;
-          toast('Pedido '+o.numero+' já está pendente.','warn');
-        }
+    var existing=packages.find(function(x){return x.blingId===o.id;});
+    if(existing){
+      existing.date=today;
+      if(existing.status==='coletado'||existing.status==='problema'){
+        existing.status='pendente'; existing.colT=null;
+        toast('↩ Pedido '+o.numero+' resetado para pendente!','ok');
       } else {
-        // Adiciona novo
-        packages.unshift({
-          id:o.id,numero:o.numero,etiqueta:etiqueta,nf:'',nfChave:'',numLoja:'',
-          destinatario:(o.contato&&o.contato.nome)||'—',
-          servico:'',lojaId:String((o.loja&&o.loja.id)||'0'),
-          mkt:mkt,urgente:false,numeracao:'',
-          blingStatus:24,dataPedido:o.data||'',
-          date:today,pulledAt:nowTS(),
-          status:'pendente',colT:null,obs:'',blingId:o.id
-        });
-        novos++;
-        toast('✅ Pedido '+o.numero+' adicionado!','ok');
+        toast('Pedido '+o.numero+' já está pendente','ok');
       }
-      sv('expv5_pkgs',packages);
-      syncToServer();
-      renderMktGrid(); updateBadge();
-      // Detecta FLEX se for ML
-      if(mkt==='ml'){
-        setTimeout(function(){
-          detectFlexML([existing||packages[0]], function(){renderMktGrid();});
-        },500);
-      }
-    });
+    } else {
+      var mkt=lojaToMkt(String((o.loja&&o.loja.id)||'0'))||'melhorenvio';
+      packages.unshift({
+        id:o.id,numero:o.numero,etiqueta:String(o.numero||o.id).trim().toUpperCase(),nf:'',nfChave:'',numLoja:'',
+        destinatario:(o.contato&&o.contato.nome)||'—',
+        servico:'',lojaId:String((o.loja&&o.loja.id)||'0'),
+        mkt:mkt,urgente:false,numeracao:'',
+        blingStatus:24,dataPedido:o.data||'',
+        date:today,pulledAt:nowTS(),
+        status:'pendente',colT:null,obs:'',blingId:o.id
+      });
+      toast('✅ Pedido '+o.numero+' adicionado!','ok');
+    }
+    sv('expv5_pkgs',packages);
+    syncToServer();
+    renderMktGrid();
+    input.value='';
   })
-  .catch(function(e){toast('Erro: '+e.message,'err');});
+  .catch(function(e){
+    toast('Erro: '+e.message,'err');
+  });
+}
+
+function buscarPedidoManual(){
+  // Mantido para compatibilidade — agora foca no campo
+  document.getElementById('buscaPedido').focus();
 }
 
 function pullFromBlingMkt(mkt){
@@ -1441,7 +1451,7 @@ function renderPkgList(){
         fotoHtml='<div class="pkg-photo-placeholder" title="Sem foto">📷</div>';
       }
     }
-    return '<div class="pkg-row '+(ativo?'scanned':'')+'">'+
+    return '<div class="pkg-row '+(ativo?'scanned':'')+'" data-etiqueta="'+p.etiqueta+'">'+
       fotoHtml+
       '<div style="flex:1;min-width:0">'+
       // Linha 1: número do pedido Bling (principal)
