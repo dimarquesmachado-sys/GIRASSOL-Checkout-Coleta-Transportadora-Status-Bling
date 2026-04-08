@@ -408,6 +408,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
       <div class="coleta-panel" id="coletaPanel">
         <div class="coleta-header">
           <div class="coleta-title" id="coletaTitle">Coleta</div>
+          <div id="coletaTimer" style="display:none;font-family:var(--mono);font-size:14px;font-weight:700;margin-left:auto;margin-right:12px"></div>
           <button class="coleta-close" onclick="closeColeta()">✕</button>
         </div>
 
@@ -615,6 +616,7 @@ var FLEX_KEYWORDS = ['mercado envios flex','entrega local','vapt','shopee entreg
 // ═══ STATE ═══
 var packages = [], scans = [], sessionToken = '', currentUser = '';
 var colSession = [], activeMkt = '';
+var coletaTimeout = null; // Timer de inatividade (20 min)
 var fotosVeiculo = [], problemaPkgs = [];
 var camStream = null, barcodeDetector = null, scanning = false, scanPaused = false;
 var lastCode = '', lastCodeAt = 0;
@@ -1158,8 +1160,10 @@ function pullFromBling(){
       if(ex.nfChave) p.nfChave=ex.nfChave;
       // Propaga NF só se for do mesmo dia (evita NF errada de dia anterior)
       if(ex.nf&&ex.date===today) p.nf=ex.nf;
-      // ⚠ DEVOLUÇÃO: estava coletado/problema mas voltou ao Bling como VERIFICADO (24)
-      if((ex.status==='coletado'||ex.status==='problema') && p.blingStatus===24){
+      // ⚠ DEVOLUÇÃO: estava coletado/problema em DIA ANTERIOR mas voltou ao Bling como VERIFICADO (24)
+      // IMPORTANTE: só considera devolução se era de dia anterior (ex.date !== today)
+      // Se foi coletado HOJE mas ainda está VERIFICADO no Bling, é porque o update ainda não rodou
+      if((ex.status==='coletado'||ex.status==='problema') && p.blingStatus===24 && ex.date!==today){
         p.status='pendente'; p.colT=null;
         console.log('↩ Devolvido #'+p.numero+' (era '+ex.status+', data anterior: '+ex.date+') → pendente hoje');
         toast('↩ '+p.numero+' devolvido — volta para expedição!','warn');
@@ -1168,6 +1172,9 @@ function pullFromBling(){
         p.status=ex.status;
         p.colT=ex.colT;
         p.obs=ex.obs;
+      } else if(ex.status==='coletado'||ex.status==='problema'){
+        // Dia anterior mas já está DESPACHADO no Bling: ignora (não é devolução)
+        // Não faz nada, mantém como pendente do pull
       }
       // Se era de outro dia e não foi devolvido: fica como pendente (novo pull)
     });
@@ -1314,6 +1321,7 @@ function selectMkt(mkt){
   if(activeMkt===mkt){closeColeta();return;}
   stopCamera();
   activeMkt=mkt; colSession=[]; scanPaused=false; encerrandoParcial=false; fotosVeiculo=[]; problemaPkgs=[];
+  clearColetaTimer(); // Limpa timer anterior se houver
   ['wrongAlert','confirmArea','missingArea','motivoArea','desfazerBar'].forEach(function(id){document.getElementById(id).classList.remove('show');});
   document.getElementById('encerrarBtn').classList.remove('show');
   document.getElementById('coletaFb').className='fb';
@@ -1335,9 +1343,47 @@ function selectMkt(mkt){
 
 function closeColeta(){
   activeMkt=''; colSession=[]; scanPaused=false; encerrandoParcial=false;
+  clearColetaTimer();
   stopCamera();
   document.getElementById('coletaPanel').classList.remove('show');
   renderMktGrid();
+}
+
+var coletaTimerInterval = null;
+var coletaDeadline = null;
+
+function clearColetaTimer(){
+  if(coletaTimeout){ clearTimeout(coletaTimeout); coletaTimeout=null; }
+  if(coletaTimerInterval){ clearInterval(coletaTimerInterval); coletaTimerInterval=null; }
+  coletaDeadline=null;
+  var el=document.getElementById('coletaTimer');
+  if(el) el.style.display='none';
+}
+
+function startColetaTimer(){
+  if(coletaDeadline) return; // Já iniciou
+  coletaDeadline = Date.now() + 20*60*1000; // 20 minutos
+  
+  // Atualiza contador a cada segundo
+  coletaTimerInterval = setInterval(function(){
+    var restante = Math.max(0, coletaDeadline - Date.now());
+    var min = Math.floor(restante/60000);
+    var sec = Math.floor((restante%60000)/1000);
+    var el = document.getElementById('coletaTimer');
+    if(el){
+      el.style.display='block';
+      el.textContent = '⏱ '+min+':'+('0'+sec).slice(-2);
+      if(restante < 60000) el.style.color='var(--rd)'; // Último minuto = vermelho
+      else if(restante < 5*60000) el.style.color='var(--am)'; // Últimos 5 min = amarelo
+      else el.style.color='var(--tm)';
+    }
+    if(restante <= 0){
+      clearColetaTimer();
+      toast('⏰ Tempo esgotado! Coleta resetada.','err');
+      beepError();
+      closeColeta();
+    }
+  }, 1000);
 }
 
 function getPkgsAtivos(){
@@ -1645,6 +1691,7 @@ function handleScan(rawCode,photo){
     }
   }
   if(colSession.indexOf(chave)===-1) colSession.push(chave);
+  startColetaTimer(); // Inicia timer de 20 min no primeiro bip
   scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
   sv('expv5_scans',scans);
   syncToServer();
@@ -3034,12 +3081,23 @@ function loadFromServer(cb){
       packages.forEach(function(p){localMap[p.blingId]=p;});
       serverPkgs.forEach(function(sp){
         if(localMap[sp.blingId]){
-          // Mantém status e fotos locais, mas pega campos do servidor se mais completos
+          // Pega campos do servidor se mais completos
           if(sp.nf&&!localMap[sp.blingId].nf) localMap[sp.blingId].nf=sp.nf;
           if(sp.nfChave&&!localMap[sp.blingId].nfChave) localMap[sp.blingId].nfChave=sp.nfChave;
           if(sp.numeracao&&!localMap[sp.blingId].numeracao) localMap[sp.blingId].numeracao=sp.numeracao;
           if(sp.numLoja&&!localMap[sp.blingId].numLoja) localMap[sp.blingId].numLoja=sp.numLoja;
-          if(sp.status==='coletado'&&localMap[sp.blingId].status==='pendente') localMap[sp.blingId].status=sp.status;
+          // Servidor diz coletado e local diz pendente: atualiza local
+          if(sp.status==='coletado'&&localMap[sp.blingId].status==='pendente'){
+            localMap[sp.blingId].status=sp.status;
+            localMap[sp.blingId].colT=sp.colT;
+            localMap[sp.blingId].obs=sp.obs;
+          }
+          // Servidor diz problema e local diz pendente: atualiza local
+          if(sp.status==='problema'&&localMap[sp.blingId].status==='pendente'){
+            localMap[sp.blingId].status=sp.status;
+            localMap[sp.blingId].colT=sp.colT;
+            localMap[sp.blingId].obs=sp.obs;
+          }
         } else if(sp.date===today){
           // Pacote do servidor que não está local — adiciona
           packages.push(sp);
