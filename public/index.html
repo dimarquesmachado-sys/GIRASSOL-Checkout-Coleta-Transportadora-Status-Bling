@@ -1147,8 +1147,17 @@ function pullFromBling(){
     });
     // ── MERGE ROBUSTO: busca por blingId em TODOS os packages (qualquer data)
     // Isso resolve devoluções de dias anteriores
+    // IMPORTANTE: se tiver duplicatas, prioriza o que está coletado/problema
     var existingMap={};
-    packages.forEach(function(p){existingMap[p.blingId]=p;});
+    packages.forEach(function(p){
+      var curr=existingMap[p.blingId];
+      if(!curr){
+        existingMap[p.blingId]=p;
+      } else if(p.status==='coletado'||p.status==='problema'){
+        // Prioriza status coletado/problema
+        existingMap[p.blingId]=p;
+      }
+    });
 
     newPkgs.forEach(function(p){
       var ex=existingMap[p.blingId];
@@ -1195,6 +1204,13 @@ function pullFromBling(){
     // Remove todos os de hoje e substitui
     packages=packages.filter(function(p){return p.date!==today;});
     packages=newPkgs.concat(expedidosHoje).concat(packages);
+    // Remove duplicatas por blingId (mantém o primeiro, que é o mais recente)
+    var seen={};
+    packages=packages.filter(function(p){
+      if(seen[p.blingId]) return false;
+      seen[p.blingId]=true;
+      return true;
+    });
     sv('expv5_pkgs',packages);
     syncToServer(); // sincroniza packages para outros dispositivos (desktop)
     toast(newPkgs.length+' pedidos carregados','ok');
