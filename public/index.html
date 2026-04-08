@@ -1632,20 +1632,24 @@ function renderProgress(){
 
 function showConfirm(){
   var confirmArea = document.getElementById('confirmArea');
-  // Se já está visível, não reseta nada - só retorna
-  if(confirmArea.classList.contains('show')) return;
+  var jaVisivel = confirmArea.classList.contains('show');
   
   confirmArea.classList.add('show');
   document.getElementById('confirmText').innerHTML='Todos os <b style="color:var(--gr)">'+colSession.length+'</b> pacotes de '+(MKT[activeMkt]||{}).icon+' '+(MKT[activeMkt]||{n:activeMkt}).n+' foram bipados.<br><span style="color:var(--tm);font-size:12px">Preencha abaixo para finalizar.</span>';
   document.getElementById('missingArea').classList.remove('show');
   document.getElementById('fotoAlert').style.display='none';
+  
+  // SÓ reseta se ainda não tem fotos E não estava visível antes
+  if(!jaVisivel && fotosVeiculo.length === 0){
+    document.getElementById('obsLote').value='';
+    document.getElementById('btnFotoVeiculo').className='foto-btn';
+    document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto (0/3)';
+    problemaPkgs=[];
+  }
+  
   renderFotosVeiculo();
   renderProblemaList();
   renderProblemaSelect();
-  document.getElementById('obsLote').value='';
-  document.getElementById('btnFotoVeiculo').className='foto-btn';
-  document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto (0/3)';
-  fotosVeiculo=[]; problemaPkgs=[];
 }
 
 // ═══ CÂMERA ═══
@@ -2070,6 +2074,9 @@ function onFotoSelecionadaFallback(input){
 function capturarFotoVeiculo(){
   _tirando_fotos = true; // Impede reset do array
   
+  // DEBUG: mostrar estado do array ANTES
+  var antesLength = fotosVeiculo.length;
+  
   var video = document.getElementById('cameraVideo');
   var canvas = document.getElementById('cameraCanvas');
   canvas.width = video.videoWidth || 640;
@@ -2080,6 +2087,9 @@ function capturarFotoVeiculo(){
   // Adiciona direto no array global
   fotosVeiculo.push(dataUrl);
   var total = fotosVeiculo.length;
+  
+  // DEBUG: mostrar antes e depois
+  toast('ANTES:'+antesLength+' DEPOIS:'+total,'warn');
   
   // Atualiza contador no overlay
   var counter = document.getElementById('cameraCounter');
@@ -2094,7 +2104,7 @@ function capturarFotoVeiculo(){
   renderFotosVeiculo();
   atualizarBotaoFoto();
   
-  // Feedback
+  // Feedback após debug
   toast('Foto '+total+'/3 ✓','ok');
   
   if(total >= 3){
