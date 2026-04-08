@@ -2066,15 +2066,34 @@ function capturarFotoVeiculo(){
   var canvas = document.getElementById('cameraCanvas');
   var ctx = canvas.getContext('2d');
   
-  canvas.width = video.videoWidth || 1280;
-  canvas.height = video.videoHeight || 720;
+  // Verifica se vídeo está pronto
+  if(!video.videoWidth || video.videoWidth < 100){
+    toast('Aguarde a câmera carregar...','warn');
+    return;
+  }
+  
+  // Evita clique duplo
+  var btn = document.getElementById('cameraCapture');
+  if(btn.disabled) return;
+  btn.disabled = true;
+  setTimeout(function(){ btn.disabled = false; }, 500);
+  
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   
   var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  
+  // Verifica se imagem foi gerada
+  if(!dataUrl || dataUrl.length < 1000){
+    toast('Erro ao capturar, tente novamente','err');
+    return;
+  }
+  
   fotosVeiculo.push(dataUrl);
+  console.log('📸 Foto capturada! Total: '+fotosVeiculo.length);
   
   // Feedback visual
-  var btn = document.getElementById('cameraCapture');
   btn.style.transform = 'scale(0.85)';
   setTimeout(function(){ btn.style.transform = ''; }, 100);
   
