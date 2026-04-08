@@ -262,6 +262,128 @@ app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
   }
 });
 
+// BATCH: busca NFs para múltiplos pedidos de uma vez só (muito mais rápido)
+app.post('/nfs-batch', requireAuth, async (req, res) => {
+  const { pedidos } = req.body; // Array de { blingId }
+  if (!Array.isArray(pedidos) || pedidos.length === 0) {
+    return res.json({ nfs: {} });
+  }
+  
+  const TOLERANCE = 2000;
+  const result = {}; // { blingId: { numero, chave } }
+  const pedidoIds = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0);
+  const minPedido = Math.min(...pedidoIds);
+  const maxPedido = Math.max(...pedidoIds);
+  
+  try {
+    // Busca NFs até cobrir o range de pedidos
+    let allNfes = [];
+    for (let pagina = 1; pagina <= 20; pagina++) {
+      if (pagina > 1) await new Promise(r => setTimeout(r, 300));
+      const url = `${BLING_BASE}/nfe?limite=100&pagina=${pagina}`;
+      const r = await blingFetch(url);
+      if (!r.ok) break;
+      const d = await r.json().catch(() => ({}));
+      const nfes = d.data || [];
+      if (nfes.length === 0) break;
+      allNfes = allNfes.concat(nfes);
+      // Se já passou do range mínimo, para
+      const minId = Math.min(...nfes.map(n => n.id));
+      if (minId < minPedido - TOLERANCE) break;
+    }
+    
+    console.log(`📋 NFs batch: ${allNfes.length} NFs, ${pedidoIds.length} pedidos`);
+    
+    // Cruza NFs com pedidos
+    for (const pedidoId of pedidoIds) {
+      const candidatas = allNfes
+        .filter(n => n.id > pedidoId && n.id <= pedidoId + TOLERANCE)
+        .sort((a, b) => a.id - b.id);
+      if (candidatas.length > 0) {
+        const nfe = candidatas[0];
+        result[pedidoId] = { 
+          numero: nfe.numero, 
+          chave: nfe.chaveAcesso || nfe.chave || '' 
+        };
+      }
+    }
+    
+    console.log(`✅ NFs encontradas: ${Object.keys(result).length}/${pedidoIds.length}`);
+    res.json({ nfs: result });
+  } catch(e) {
+    console.error('❌ nfs-batch erro:', e.message);
+    res.status(500).json({ error: e.message, nfs: {} });
+  }
+});
+
+app.get('/bling-nf/:blingId', async (req, res) => { // diagnóstico temporário
+
+// ═══ NFs EM LOTE — busca todas de uma vez ═══
+app.post('/nfs-batch', requireAuth, async (req, res) => {
+  const { pedidos } = req.body; // Array de { blingId, numero }
+  if (!Array.isArray(pedidos) || pedidos.length === 0) {
+    return res.json({ nfs: {} });
+  }
+  
+  const TOLERANCE = 2000;
+  const minId = Math.min(...pedidos.map(p => parseInt(p.blingId)));
+  const maxId = Math.max(...pedidos.map(p => parseInt(p.blingId))) + TOLERANCE;
+  
+  console.log(`🧾 NFs batch: ${pedidos.length} pedidos, range ${minId}-${maxId}`);
+  
+  try {
+    // Busca NFs até cobrir o range de IDs
+    let allNfes = [];
+    let pagina = 1;
+    const MAX_PAGES = 15;
+    
+    while (pagina <= MAX_PAGES) {
+      const url = `${BLING_BASE}/nfe?limite=100&pagina=${pagina}`;
+      const r = await blingFetch(url);
+      if (!r.ok) break;
+      
+      const d = await r.json().catch(() => ({}));
+      const nfes = d.data || [];
+      if (nfes.length === 0) break;
+      
+      allNfes = allNfes.concat(nfes);
+      
+      // Se o menor ID desta página já é menor que nosso range, temos todas
+      const pageMinId = Math.min(...nfes.map(n => n.id));
+      if (pageMinId < minId - TOLERANCE) break;
+      
+      pagina++;
+      await new Promise(r => setTimeout(r, 300)); // Rate limit
+    }
+    
+    console.log(`🧾 Buscou ${allNfes.length} NFs em ${pagina} páginas`);
+    
+    // Cruza cada pedido com sua NF
+    const result = {};
+    for (const ped of pedidos) {
+      const pedidoId = parseInt(ped.blingId);
+      const candidatas = allNfes
+        .filter(n => n.id > pedidoId && n.id <= pedidoId + TOLERANCE)
+        .sort((a, b) => a.id - b.id);
+      
+      if (candidatas.length > 0) {
+        const nfe = candidatas[0];
+        result[ped.blingId] = {
+          numero: nfe.numero,
+          chave: nfe.chaveAcesso || nfe.chave || ''
+        };
+      }
+    }
+    
+    console.log(`✅ NFs encontradas: ${Object.keys(result).length}/${pedidos.length}`);
+    res.json({ nfs: result });
+    
+  } catch(e) {
+    console.error('❌ nfs-batch erro:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/bling-nf/:blingId', async (req, res) => { // diagnóstico temporário
   const id = req.params.blingId;
   const results = {};
