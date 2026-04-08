@@ -1999,6 +1999,17 @@ function abrirCameraFoto(){
   var overlay = document.getElementById('cameraOverlay');
   var video = document.getElementById('cameraVideo');
   
+  // Se já tem 3 fotos, não abre mais
+  if(fotosVeiculo.length >= 3){
+    toast('Já tem 3 fotos!','warn');
+    return;
+  }
+  
+  // Se overlay já está aberto, não reabre
+  if(overlay.classList.contains('show')){
+    return;
+  }
+  
   // Atualiza contador
   atualizarCameraUI();
   
@@ -2214,9 +2225,12 @@ function confirmarEncerrarParcial(){
   renderFotosVeiculo();
   renderProblemaList();
   renderProblemaSelect();
-  document.getElementById('btnFotoVeiculo').className='foto-btn';
-  document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto (0/3)';
-  fotosVeiculo=[]; problemaPkgs=[];
+  // Só reseta fotos se ainda não começou a tirar
+  if(fotosVeiculo.length === 0){
+    document.getElementById('btnFotoVeiculo').className='foto-btn';
+    document.getElementById('btnFotoVeiculo').textContent='📷 Tirar foto (0/3)';
+    problemaPkgs=[];
+  }
   document.getElementById('confirmArea').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
