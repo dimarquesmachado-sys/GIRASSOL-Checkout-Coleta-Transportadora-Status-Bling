@@ -2967,50 +2967,43 @@ function clearDay(){
 // ═══ BUSCA NF ═══
 // A NF não vem no pedido — precisa consultar endpoint separado /nfe
 function detectNF(pkgsSemNF, onDone){
-  // Busca NF para todos os pedidos sem NF (incluindo ML)
+  // Busca NF para todos os pedidos sem NF — EM LOTE (muito mais rápido)
   if(pkgsSemNF.length===0){ if(onDone) onDone(); return; }
-  console.log('🧾 detectNF para '+pkgsSemNF.length+' pedidos sem NF');
-  var BATCH=3; // 3 por vez para não dar rate limit
-  var idx=0;
-  var found=0;
+  console.log('🧾 detectNF batch para '+pkgsSemNF.length+' pedidos sem NF');
   
-  function processBatch(){
-    if(idx>=pkgsSemNF.length){
-      sv('expv5_pkgs',packages);
-      syncToServer();
-      if(onDone) onDone();
-      toast('✅ '+found+' NFs carregadas!','ok');
-      return;
-    }
-    var batch=pkgsSemNF.slice(idx,idx+BATCH);
-    idx+=BATCH;
-    var promises=batch.map(function(pkg){
-      if(pkg.nf) return Promise.resolve();
-      var _nfUrl='/nf-pedido/'+pkg.blingId+'?lojaId='+pkg.lojaId+'&data='+pkg.pedidoData;
-      return apiFetch(_nfUrl)
-        .then(function(r){if(!r.ok)return null;return r.json();})
-        .then(function(d){
-          if(!d||!d.numero) return;
-          var p=packages.find(function(x){return x.blingId===pkg.blingId;});
-          if(p){
-            p.nf=String(d.numero).trim();
-            if(d.chave) p.nfChave=String(d.chave).replace(/\s/g,'');
-            found++;
-            console.log('✅ NF #'+p.numero+': '+p.nf);
-          }
-        })
-        .catch(function(){});
+  var pedidos = pkgsSemNF.map(function(p){ return { blingId: p.blingId, numero: p.numero }; });
+  
+  apiFetch('/nfs-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pedidos: pedidos })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    var nfs = data.nfs || {};
+    var found = 0;
+    
+    Object.keys(nfs).forEach(function(blingId){
+      var nf = nfs[blingId];
+      var p = packages.find(function(x){ return String(x.blingId) === String(blingId); });
+      if(p && nf.numero){
+        p.nf = String(nf.numero).trim();
+        if(nf.chave) p.nfChave = String(nf.chave).replace(/\s/g,'');
+        found++;
+        console.log('✅ NF #'+p.numero+': '+p.nf);
+      }
     });
-    Promise.all(promises).then(function(){
-      sv('expv5_pkgs',packages);
-      renderMktGrid();
-      if(activeMkt) renderPkgList();
-      // Progresso
-      if(idx<pkgsSemNF.length) toast('🧾 NFs: '+idx+'/'+pkgsSemNF.length+'...','warn');
-      setTimeout(processBatch,1500); // 1.5s entre lotes
-    });
-  }
-  processBatch();
+    
+    sv('expv5_pkgs', packages);
+    syncToServer();
+    renderMktGrid();
+    if(activeMkt) renderPkgList();
+    if(onDone) onDone();
+  })
+  .catch(function(e){
+    console.error('❌ detectNF batch erro:', e.message);
+    if(onDone) onDone();
+  });
 }
 
 // ═══ SYNC SERVIDOR ═══
