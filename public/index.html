@@ -1307,12 +1307,27 @@ function pullFromBling(){
       // Propaga NF só se for do mesmo dia (evita NF errada de dia anterior)
       if(ex.nf&&ex.date===today) p.nf=ex.nf;
       // ⚠ DEVOLUÇÃO: estava coletado/problema em DIA ANTERIOR mas voltou ao Bling como VERIFICADO (24)
-      // IMPORTANTE: só considera devolução se era de dia anterior (ex.date !== today)
-      // Se foi coletado HOJE mas ainda está VERIFICADO no Bling, é porque o update ainda não rodou
+      // IMPORTANTE: só considera devolução se passou mais de 48h desde a coleta
+      // Se foi coletado recentemente, pode ser apenas delay na atualização do Bling
       if((ex.status==='coletado'||ex.status==='problema') && p.blingStatus===24 && ex.date!==today){
-        p.status='pendente'; p.colT=null;
-        console.log('↩ Devolvido #'+p.numero+' (era '+ex.status+', data anterior: '+ex.date+') → pendente hoje');
-        toast('↩ '+p.numero+' devolvido — volta para expedição!','warn');
+        // Verifica se foi coletado há mais de 48h
+        var colTime = ex.colT ? new Date(ex.colT).getTime() : 0;
+        var agora = Date.now();
+        var horasDesdeColeta = (agora - colTime) / (1000*60*60);
+        
+        if(horasDesdeColeta > 48){
+          // Mais de 48h → provavelmente é devolução real
+          p.status='pendente'; p.colT=null;
+          console.log('↩ Devolvido #'+p.numero+' (era '+ex.status+', coleta há '+Math.round(horasDesdeColeta)+'h) → pendente');
+          toast('↩ '+p.numero+' devolvido — volta para expedição!','warn');
+        } else {
+          // Menos de 48h → mantém como coletado, só delay no Bling
+          p.status=ex.status;
+          p.colT=ex.colT;
+          p.obs=ex.obs;
+          p.date=ex.date; // mantém data original
+          console.log('⏳ Pedido #'+p.numero+' coletado há '+Math.round(horasDesdeColeta)+'h, Bling ainda não atualizou');
+        }
       } else if(ex.date===today){
         // Mesmo dia: mantém status local
         p.status=ex.status;
@@ -1337,14 +1352,21 @@ function pullFromBling(){
     });
 
     // Preserva expedidos de HOJE que não voltaram do Bling (já estão em DESPACHADO)
+    // Também preserva coletados das últimas 48h que ainda não atualizaram no Bling
     var idsNovos={};
     newPkgs.forEach(function(p){idsNovos[p.blingId]=true;});
-    var expedidosHoje=packages.filter(function(p){
-      return p.date===today&&(p.status==='coletado'||p.status==='problema')&&!idsNovos[p.blingId];
+    var agora = Date.now();
+    var expedidosRecentes=packages.filter(function(p){
+      if(p.status!=='coletado'&&p.status!=='problema') return false;
+      if(idsNovos[p.blingId]) return false; // já veio no newPkgs (foi tratado no merge)
+      // Preserva se foi coletado nas últimas 48h
+      var colTime = p.colT ? new Date(p.colT).getTime() : 0;
+      var horasDesdeColeta = (agora - colTime) / (1000*60*60);
+      return horasDesdeColeta <= 48;
     });
     // Remove todos os de hoje e substitui
     packages=packages.filter(function(p){return p.date!==today;});
-    packages=newPkgs.concat(expedidosHoje).concat(packages);
+    packages=newPkgs.concat(expedidosRecentes).concat(packages);
     // Remove duplicatas por blingId (mantém o primeiro, que é o mais recente)
     var seen={};
     packages=packages.filter(function(p){
@@ -3378,13 +3400,14 @@ function initApp(){
     if(p.numLoja&&String(p.numLoja).toLowerCase().indexOf('object')!==-1){
       p.numLoja=''; cleaned=true;
     }
-    // Remove urgente de pedidos Shopee Xpress (não é FLEX)
-    if(p.urgente&&p.mkt==='shopee'){
+    // Remove urgente indevido de TODOS os pedidos (não só Shopee)
+    // Só é urgente se o serviço contém uma das FLEX_KEYWORDS
+    if(p.urgente){
       var svcLow=(p.servico||'').toLowerCase();
       var validFlex=FLEX_KEYWORDS.some(function(f){return svcLow.indexOf(f)!==-1;});
       if(!validFlex){
         p.urgente=false;
-        console.log('🧹 Removendo urgente indevido Shopee: #'+p.numero+' ('+p.servico+')');
+        console.log('🧹 Removendo urgente indevido: #'+p.numero+' mkt='+p.mkt+' servico='+(p.servico||'vazio'));
         cleaned=true;
       }
     }
