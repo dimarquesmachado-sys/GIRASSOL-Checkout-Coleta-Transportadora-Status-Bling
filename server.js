@@ -176,7 +176,7 @@ setInterval(async () => {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function blingFetch(url, options = {}, retries = 3) {
+async function blingFetch(url, options = {}, retries = 5) {
   for (let i = 0; i < retries; i++) {
     if (tokenExpires > 0 && Date.now() > tokenExpires - 60 * 1000) {
       await refreshAccessToken();
@@ -193,8 +193,9 @@ async function blingFetch(url, options = {}, retries = 3) {
     });
 
     if (r.status === 429) {
-      const waitMs = i === 0 ? 2000 : Math.pow(2, i) * 1000;
-      console.warn(`⚠ Rate limit (429) — aguardando ${waitMs}ms`);
+      // Rate limit: espera mais tempo a cada tentativa
+      const waitMs = 3000 + (i * 2000); // 3s, 5s, 7s, 9s, 11s
+      console.warn(`⚠ Rate limit (429) — aguardando ${waitMs}ms (tentativa ${i+1}/${retries})`);
       await sleep(waitMs);
       continue;
     }
@@ -279,8 +280,9 @@ app.post('/nfs-batch', requireAuth, async (req, res) => {
   
   try {
     let allNfes = [];
-    for (let pagina = 1; pagina <= 20; pagina++) {
-      if (pagina > 1) await new Promise(r => setTimeout(r, 300));
+    // Limita a 10 páginas para evitar rate limit
+    for (let pagina = 1; pagina <= 10; pagina++) {
+      if (pagina > 1) await new Promise(r => setTimeout(r, 1500)); // 1.5s entre páginas
       const url = `${BLING_BASE}/nfe?limite=100&pagina=${pagina}`;
       const r = await blingFetch(url);
       if (!r.ok) break;
