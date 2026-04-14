@@ -541,7 +541,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
       <div id="dayLotes"></div>
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
         <button onclick="exportCSV()" style="flex:1;height:44px;background:var(--s1);color:var(--tm);border:1px solid var(--b2);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans)">↓ CSV</button>
-        
+        <button id="btnForcarDesp" onclick="forcarDespachados()" style="flex:1;height:44px;background:var(--am2);color:var(--am);border:1px solid var(--am3);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:600">⚡ Forçar DESPACHADOS</button>
       </div>
     </div>
 
@@ -820,7 +820,8 @@ function detectTrackingPkgs(pkgs){
           if(i>=pkgs.length){
             toast('✅ Trackings carregados!','ok');
             var semNF=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
-            if(semNF.length>0) setTimeout(function(){detectNF(semNF,null);},3000);
+            // NF será buscada manualmente se necessário
+            // if(semNF.length>0) setTimeout(function(){detectNF(semNF,null);},3000);
           }
         }
         next();
@@ -1191,7 +1192,8 @@ function pullFromBlingMkt(mkt){
         if(mkt==='ml') return !p.numLoja; // ML: busca numLoja (número loja virtual)
         return !p.numeracao&&(mkt==='tiktok'||mkt==='shopee'||mkt==='amazon'||mkt==='magalu');
       });
-      if(semTrack.length>0) setTimeout(function(){detectTrackingPkgs(semTrack);},800);
+      // DESABILITADO - rate limit
+      // if(semTrack.length>0) setTimeout(function(){detectTrackingPkgs(semTrack);},800);
     });
   })
   .catch(function(){});
@@ -1392,28 +1394,34 @@ function pullFromBling(){
       return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='magalu'||p.mkt==='amazon');
     });
     var semTracking_count=semTracking.length;
+    
+    // DESABILITADO TEMPORARIAMENTE - Rate limit do Bling
+    // detectFlexML e detectTrackingPkgs fazem muitas requisições
+    // Pedidos aparecem mesmo sem esses detalhes
+    toast('✅ '+newPkgs.length+' pedidos carregados!','ok');
+    if(semTracking_count>0) toast('⚠ '+semTracking_count+' sem tracking (buscar manual)','warn');
+    
+    /*
     if(mlSemFlex.length>0||mlPkgs.length>0){
       var mlParaDetectar=typeof mlSemFlex!=='undefined'?mlSemFlex:mlPkgs;
       detectFlexML(mlParaDetectar, function(){
         if(semTracking.length>0){
           detectTrackingPkgs(semTracking);
         } else {
-          // Após FLEX, busca NF de TODOS (ML + outros)
-toast('✅ Tudo carregado!','ok');
+          toast('✅ Tudo carregado!','ok');
         }
       });
     } else if(semTracking.length>0){
       detectTrackingPkgs(semTracking);
     } else {
-      // Sem ML nem semTracking: busca NF direto
       var semNF3=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
-
     }
 
     setTimeout(function(){
       var semNFfinal=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
       if(semNFfinal.length>0) detectNF(semNFfinal,null);
     },10000);
+    */
     resetSyncBtn();
   }
   function resetSyncBtn(){
@@ -2348,7 +2356,7 @@ function finalizeColeta(){
     }
   });
   blingIds.forEach(function(id,idx){
-    setTimeout(function(){updateBlingStatus(id);},idx*2000);
+    setTimeout(function(){updateBlingStatus(id);},idx*5000);
   });
   var mktInfo=MKT[activeMkt]||{n:activeMkt};
   var msgFinal=mktInfo.n+': '+qtdEntregues+' entregues'+(problemaPkgs.length>0?', '+problemaPkgs.length+' problema(s)':'')+' ✓';
@@ -2390,6 +2398,56 @@ function updateBlingStatus(id){
   .catch(function(e){
     console.error('❌ updateBlingStatus erro:',e.message);
     toast('❌ Erro ao atualizar #'+id,'err');
+  });
+}
+
+// ═══ FORÇAR DESPACHADOS EM LOTE ═══
+function forcarDespachados(){
+  // Pega todos os pedidos coletados que precisam atualizar no Bling
+  var coletados = packages.filter(function(p){
+    return p.status === 'coletado' && p.blingId;
+  });
+  
+  if(coletados.length === 0){
+    toast('Nenhum pedido coletado para atualizar','warn');
+    return;
+  }
+  
+  var blingIds = coletados.map(function(p){ return p.blingId; });
+  
+  if(!confirm('Atualizar '+blingIds.length+' pedidos para DESPACHADOS no Bling?\n\nIsso pode levar '+Math.ceil(blingIds.length*3/60)+' minuto(s).')){
+    return;
+  }
+  
+  var btn = document.getElementById('btnForcarDesp');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Atualizando...';
+  toast('Enviando '+blingIds.length+' pedidos para DESPACHADOS...','ok');
+  
+  apiFetch('/admin/despachar-lote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ blingIds: blingIds })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Forçar DESPACHADOS';
+    
+    if(data.ok > 0){
+      toast('✅ '+data.ok+'/'+data.total+' atualizados!','ok');
+    }
+    if(data.fail > 0){
+      toast('⚠ '+data.fail+' falharam','warn');
+    }
+    
+    console.log('Resultado despachar-lote:', data);
+  })
+  .catch(function(e){
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Forçar DESPACHADOS';
+    toast('❌ Erro: '+e.message,'err');
+    console.error('Erro forcarDespachados:', e);
   });
 }
 
