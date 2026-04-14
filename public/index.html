@@ -820,13 +820,13 @@ function detectTrackingPkgs(pkgs){
           if(i>=pkgs.length){
             toast('✅ Trackings carregados!','ok');
             var semNF=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
-            if(semNF.length>0) setTimeout(function(){detectNF(semNF,null);},1200);
+            if(semNF.length>0) setTimeout(function(){detectNF(semNF,null);},3000);
           }
         }
         next();
       })
       .catch(function(e){console.error('❌ detectTracking erro:',e.message);next();});
-    },1100); // 1100ms entre chamadas — evita rate limit Bling
+    },2000); // 2s entre chamadas — evita rate limit Bling
   }
   next();
 }
@@ -888,7 +888,7 @@ function detectFlexML(mlPkgs, onDone){
         next();
       })
       .catch(function(e){console.error('❌ FLEX erro:',e.message);next();});
-    },1100); // 1100ms entre chamadas — evita rate limit Bling (limite ~1 req/s)
+    },2000); // 2s entre chamadas — evita rate limit Bling (limite ~1 req/s)
   }
   next();
 }
@@ -1214,7 +1214,7 @@ function pullFromBling(){
         var orders=d.data||[];
         if(orders.length===0){finishFetch(all);return;}
         all=all.concat(orders);
-        if(orders.length===100&&page<4){page++;setTimeout(fetchPage,1000);}
+        if(orders.length===100&&page<4){page++;setTimeout(fetchPage,2000);}
         else finishFetch(all);
       });
     })
@@ -2348,7 +2348,7 @@ function finalizeColeta(){
     }
   });
   blingIds.forEach(function(id,idx){
-    setTimeout(function(){updateBlingStatus(id);},idx*1200);
+    setTimeout(function(){updateBlingStatus(id);},idx*2000);
   });
   var mktInfo=MKT[activeMkt]||{n:activeMkt};
   var msgFinal=mktInfo.n+': '+qtdEntregues+' entregues'+(problemaPkgs.length>0?', '+problemaPkgs.length+' problema(s)':'')+' ✓';
@@ -3423,7 +3423,7 @@ function initApp(){
   // 2. Busca dados do servidor e faz merge
   loadFromServer(function(){
     renderMktGrid(); updateBadge();
-    setTimeout(pullFromBling,1200);
+    setTimeout(pullFromBling,2500);
   });
 
   // Auto-sync a cada 30s — envia E recebe dados entre dispositivos
