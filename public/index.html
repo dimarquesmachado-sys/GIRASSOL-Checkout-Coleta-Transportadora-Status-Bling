@@ -373,7 +373,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
   <div class="main">
 
     <!-- ROMANEIO -->
-    <div id="pageRomaneio">
+    <div id="pageRomaneio" style="display:none">
       <div class="status-bar">
         <div>
           <div class="status-date" id="statusDate">Carregando...</div>
@@ -523,7 +523,7 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
     </div>
 
     <!-- DIA -->
-    <div id="pageDia" style="display:none">
+    <div id="pageDia">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div style="font-size:16px;font-weight:700;color:var(--bl)" id="diaTitulo">Resumo do Dia</div>
         <div style="display:flex;align-items:center;gap:6px">
@@ -581,11 +581,11 @@ header{background:var(--s1);border-bottom:1px solid var(--b1);padding:12px 16px;
   </div>
 
   <nav class="bottom-nav">
-    <button class="nav-btn active" id="navRom" onclick="showPage('romaneio')">
+    <button class="nav-btn" id="navRom" onclick="showPage('romaneio')">
       <span class="nav-icon">📦</span><span>Romaneio</span>
       <span class="nav-badge" id="nbRom"></span>
     </button>
-    <button class="nav-btn" id="navDia" onclick="showPage('dia')">
+    <button class="nav-btn active" id="navDia" onclick="showPage('dia')">
       <span class="nav-icon">📊</span><span>Dia</span>
     </button>
     <button class="nav-btn" id="navHist" onclick="showPage('historico')">
