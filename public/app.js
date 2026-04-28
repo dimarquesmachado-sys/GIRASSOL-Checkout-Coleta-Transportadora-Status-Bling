@@ -29,6 +29,7 @@ var lastPullAt = 0;        // timestamp do último pullFromBling
 var diaSelectedDate = '';  // data selecionada na aba Dia ('' = hoje)
 var histFilterDate = '';   // filtro ativo de data no histórico
 var histFilterMkt  = '';   // filtro ativo de mkt no histórico
+var histLoteAberto = '';
 
 // ═══ STORAGE ═══
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
@@ -1961,17 +1962,17 @@ function renderDia(){
     document.getElementById('dayLotes').innerHTML='';
   }
 }
-function toggleHistLote(id,header){
-  var el=document.getElementById(id);
-  if(!el) return;
-  var arrow=header.querySelector('.lote-arrow');
-  if(el.style.display==='none'){
-    el.style.display='block';
-    if(arrow) arrow.style.transform='rotate(180deg)';
-  } else {
-    el.style.display='none';
-    if(arrow) arrow.style.transform='';
-  }
+function toggleHistLote(id, el){
+  var body = document.getElementById(id);
+  if(!body) return;
+
+  var abrir = body.style.display === 'none' || body.style.display === '';
+
+  body.style.display = abrir ? 'block' : 'none';
+  histLoteAberto = abrir ? id : '';
+
+  var arrow = el ? el.querySelector('.lote-arrow') : null;
+  if(arrow) arrow.textContent = abrir ? '▲' : '▼';
 }
 
 function toggleLotePkgs(loteId, headerEl){
@@ -2437,9 +2438,19 @@ function renderHistContent(){
     }
   }
 
-  document.getElementById('histContent').innerHTML=html;
+if(histLoteAberto){
+  var aberto = document.getElementById(histLoteAberto);
+  if(aberto){
+    aberto.style.display = 'block';
+    var header = aberto.previousElementSibling;
+    if(header){
+      var arrow = header.querySelector('.lote-arrow');
+      if(arrow) arrow.textContent = '▲';
+    }
+  }
 }
-
+}
+}
 // ═══ MODAL — fechar com botão Voltar Android ═══
 function closeTopModal(){
   var modals=document.querySelectorAll('.modal-overlay');
