@@ -1711,14 +1711,14 @@ var obs=document.getElementById('obsLote').value.trim();
   colSession.forEach(function(chave){
     if(problemaPkgs.indexOf(chave)!==-1) return;
     for(var i=0;i<packages.length;i++){
-      if(packages[i].etiqueta===chave&&packages[i].date===todayStr()){
+      if(packages[i].etiqueta===chave&&packages[i].date===loteDate){
         packages[i].status='coletado'; packages[i].colT=now; if(obs) packages[i].obs=obs; break;
       }
     }
   });
   problemaPkgs.forEach(function(chave){
     for(var i=0;i<packages.length;i++){
-      if(packages[i].etiqueta===chave&&packages[i].date===todayStr()){
+      if(packages[i].etiqueta===chave&&packages[i].date===loteDate){
         packages[i].status='problema'; packages[i].colT=now; packages[i].obs=obs||'Problema na coleta'; break;
       }
     }
@@ -1750,7 +1750,7 @@ scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:loteDate,time:now,qtd:qt
   var blingIds=[];
   toUpdate.forEach(function(chave){
     for(var i=0;i<packages.length;i++){
-      if(packages[i].etiqueta===chave&&packages[i].date===todayStr()){
+      if(packages[i].etiqueta===chave&&packages[i].date===loteDate){
         blingIds.push(packages[i].blingId); break;
       }
     }
