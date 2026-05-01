@@ -1705,8 +1705,9 @@ function finalizeColeta(){
     document.getElementById('btnFotoVeiculo').scrollIntoView({behavior:'smooth',block:'center'});
     toast('Tire mais '+(3-fotosVeiculo.length)+' foto(s) do veículo!','err'); beepError(); return;
   }
-  var now=nowTS();
-  var obs=document.getElementById('obsLote').value.trim();
+  var loteDate = todayStr();
+var now=nowTS();
+var obs=document.getElementById('obsLote').value.trim();
   colSession.forEach(function(chave){
     if(problemaPkgs.indexOf(chave)!==-1) return;
     for(var i=0;i<packages.length;i++){
@@ -1730,7 +1731,7 @@ function finalizeColeta(){
   for(var i=0;i<scans.length;i++){
     if(
       scans[i].etiqueta===chave &&
-      scans[i].date===todayStr() &&
+      scans[i].date===loteDate &&
       scans[i].tipo!=='lote' &&
       scans[i].mkt===activeMkt
     ){
