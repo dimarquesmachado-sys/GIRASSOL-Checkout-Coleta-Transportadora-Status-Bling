@@ -1727,12 +1727,17 @@ function finalizeColeta(){
   var qtdEntregues=colSession.length-problemaPkgs.filter(function(e){return colSession.indexOf(e)!==-1;}).length;
   // Marca loteId em cada scan da sessão para associação correta no histórico
   colSession.forEach(function(chave){
-    for(var i=0;i<scans.length;i++){
-      if(scans[i].etiqueta===chave&&scans[i].date===todayStr()&&!scans[i].loteId){
-        scans[i].loteId=loteId; break;
-      }
+  for(var i=0;i<scans.length;i++){
+    if(
+      scans[i].etiqueta===chave &&
+      scans[i].date===todayStr() &&
+      scans[i].tipo!=='lote' &&
+      scans[i].mkt===activeMkt
+    ){
+      scans[i].loteId = loteId;
     }
-  });
+  }
+});
   scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:todayStr(),time:now,qtd:qtdEntregues,problemas:problemaPkgs.length,obs:obs,fotosVeiculo:fotosVeiculo.slice()});
   sv('expv5_scans',scans);
   sv('expv5_scans',scans); // salva loteId nos scans antes de sync
