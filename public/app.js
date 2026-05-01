@@ -1739,7 +1739,7 @@ var obs=document.getElementById('obsLote').value.trim();
     }
   }
 });
-  scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:todayStr(),time:now,qtd:qtdEntregues,problemas:problemaPkgs.length,obs:obs,fotosVeiculo:fotosVeiculo.slice()});
+scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:loteDate,time:now,qtd:qtdEntregues,problemas:problemaPkgs.length,obs:obs,fotosVeiculo:fotosVeiculo.slice()});
   sv('expv5_scans',scans);
   sv('expv5_scans',scans); // salva loteId nos scans antes de sync
   syncToServer();
