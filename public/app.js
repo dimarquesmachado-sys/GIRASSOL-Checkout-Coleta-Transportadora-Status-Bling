@@ -2608,11 +2608,10 @@ function detectNF(pkgsSemNF, onDone){
 
 // ═══ SYNC SERVIDOR ═══
 function stripPhotos(arr){
-  // Remove fotos antes de enviar pro servidor (economia de banda)
   return arr.map(function(item){
     var copy={};
     Object.keys(item).forEach(function(k){
-      if(k==='photo'||k==='fotosVeiculo') return; // não envia fotos
+      if(k==='photo') return;
       copy[k]=item[k];
     });
     return copy;
