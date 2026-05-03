@@ -189,11 +189,7 @@ function renderPkgList(){
         (p.nf?'<span style="color:var(--gr)">NF '+p.nf+'</span>':
               '<span style="color:var(--th);font-style:italic">NF ...</span>')+
         (p.numLoja?'<span style="color:var(--bl)"> · 🛒 '+p.numLoja+'</span>':'')+
-     (
-  p.tracking
-    ? '<span style="color:var(--tm)"> · 📦 '+p.tracking+'</span>'
-    : ''
-)+
+   (p.numeracao?'<span style="color:var(--tm)"> · 📦 '+p.numeracao+'</span>':'')+
       '</div>'+
       '<div class="pkg-dest">'+p.destinatario+'</div>'+
       '</div>'+
