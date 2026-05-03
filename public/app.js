@@ -2611,7 +2611,7 @@ function stripPhotos(arr){
   return arr.map(function(item){
     var copy={};
     Object.keys(item).forEach(function(k){
-      if(k==='photo') return;
+      if(k==='photo') return; // mantém fotosVeiculo, remove só foto pesada da etiqueta
       copy[k]=item[k];
     });
     return copy;
