@@ -412,6 +412,10 @@ function pullFromBlingMkt(mkt){
         var numLoja=(o.numeroPedidoLoja)||(o.numeroLoja)||(o.loja&&o.loja.numeroPedido)||'';
         var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
                            (o.transporte&&o.transporte.codigoRastreamento)||'';
+        // Ignora se for objeto JSON (ML/Magalu às vezes retornam objeto/GUID no campo numeracao)
+        if(numeracaoLista && typeof numeracaoLista === 'object') numeracaoLista = '';
+        if(numeracaoLista && String(numeracaoLista).indexOf('{') !== -1) numeracaoLista = '';
+        if(numeracaoLista && /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(String(numeracaoLista).trim())) numeracaoLista = '';
         if(numeracaoLista) numeracaoLista=String(numeracaoLista).replace(/\s/g,'').toUpperCase();
         // Verifica se já existe
         var existente=null;
@@ -522,6 +526,10 @@ function pullFromBling(){
       // Extrai tracking da listagem (pode já estar disponível para Shopee, TikTok etc.)
       var numeracaoLista=(o.transporte&&o.transporte.volumes&&o.transporte.volumes[0]&&o.transporte.volumes[0].numeracao)||
                          (o.transporte&&o.transporte.codigoRastreamento)||'';
+      // Ignora se for objeto JSON (ML/Magalu às vezes retornam objeto/GUID no campo numeracao)
+      if(numeracaoLista && typeof numeracaoLista === 'object') numeracaoLista = '';
+      if(numeracaoLista && String(numeracaoLista).indexOf('{') !== -1) numeracaoLista = '';
+      if(numeracaoLista && /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(String(numeracaoLista).trim())) numeracaoLista = '';
       if(numeracaoLista) numeracaoLista=String(numeracaoLista).replace(/\s/g,'').toUpperCase();
       var nfChave=(o.notaFiscal&&o.notaFiscal.chave)||(o.nfe&&o.nfe.chave)||'';
       if(nfChave) nfChave=String(nfChave).replace(/\s/g,'');
