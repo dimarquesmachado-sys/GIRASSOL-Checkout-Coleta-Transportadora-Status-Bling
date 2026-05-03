@@ -5,13 +5,33 @@ function detectTrackingPkgs(pkgs){
   function next(){
     if(i>=pkgs.length) return;
     var pkg=pkgs[i++];
-    if(pkg.numeracao&&String(pkg.numeracao).toLowerCase().indexOf('object')===-1){next();return;}
+    // Se já tem tracking VÁLIDO (não é "object" e não é GUID) → pula
+    var nAtual=pkg.numeracao?String(pkg.numeracao):'';
+    var ehObject=nAtual.toLowerCase().indexOf('object')!==-1;
+    var ehGuid=/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(nAtual.trim());
+    var ehJson=nAtual.indexOf('{')!==-1;
+    if(nAtual&&!ehObject&&!ehGuid&&!ehJson){next();return;}
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
       .then(function(r){if(!r.ok)return null;return r.json();})
       .then(function(d){
         if(!d) return;
         var order=d.data||d;
+
+        var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
+        // Mesmos campos que o detectFlexML usa — sem fallback genérico
+        var track = extractTrackStr(vol&&vol.numeracao)
+                 || extractTrackStr(vol&&vol.codigoRastreio)
+                 || extractTrackStr(vol&&vol.codigoRastreamento)
+                 || extractTrackStr(vol&&vol.tracking)
+                 || extractTrackStr(order.transporte&&order.transporte.codigoRastreamento)
+                 || extractTrackStr(order.transporte&&order.transporte.codigoRastreio)
+                 || '';
+
+        // Rejeita track se for GUID (formato XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)
+        if(track && /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(String(track).trim())){
+          track='';
+        }
 
         // DEBUG: loga transporte completo para ML sem tracking
         if(pkg.mkt==='ml'&&!track){
@@ -25,20 +45,9 @@ function detectTrackingPkgs(pkgs){
           console.log('🔍 NÚMEROS LONGOS NO ORDER:', nums.slice(0,10).join(', '));
         }
 
-        var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
-        // Mesmos campos que o detectFlexML usa — sem fallback genérico
-        var track = extractTrackStr(vol&&vol.numeracao)
-                 || extractTrackStr(vol&&vol.codigoRastreio)
-                 || extractTrackStr(vol&&vol.codigoRastreamento)
-                 || extractTrackStr(vol&&vol.tracking)
-                 || extractTrackStr(order.transporte&&order.transporte.codigoRastreamento)
-                 || extractTrackStr(order.transporte&&order.transporte.codigoRastreio)
-                 || '';
-
         // NF — tenta todos os caminhos
         // numLoja — número da venda no marketplace
         var numLojaD=(order.numeroPedidoLoja)||(order.numeroLoja)||(order.numeroloja)||(order.loja&&order.loja.numeroPedido)||'';
-        if(numLojaD&&p&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
         // Para ML: numeroPedidoLoja = número loja virtual (2000015489054448)
         // numeracao = número de envio (46625715803)
         var nfDetalhe = (order.notaFiscal&&order.notaFiscal.numero)
@@ -60,6 +69,7 @@ function detectTrackingPkgs(pkgs){
         var p=null;
         for(var k=0;k<packages.length;k++){if(packages[k].blingId===pkg.blingId){p=packages[k];break;}}
         if(p){
+          if(numLojaD&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
           if(track){p.numeracao=String(track).replace(/\s/g,'').toUpperCase(); console.log('✅ Tracking '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.numeracao);}
           else{console.warn('⚠ SEM tracking para '+p.mkt.toUpperCase()+' #'+p.numero);}
           // Detecta urgente pelo serviço (Shopee Xpress, VAPT, etc)
