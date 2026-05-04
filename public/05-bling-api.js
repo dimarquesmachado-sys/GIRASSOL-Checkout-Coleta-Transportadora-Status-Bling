@@ -134,6 +134,10 @@ function detectFlexML(mlPkgs, onDone){
               ||extractTrackStr(order.transporte&&order.transporte.codigoRastreamento)
               ||extractTrackStr(order.transporte&&order.transporte.codigoRastreio)
               ||'';
+          // Rejeita se for GUID (formato XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX) — não é tracking real
+          if(nr && /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(String(nr).trim())){
+            nr='';
+          }
           if(isFlex){
             p.urgente=true;
             p.servico=order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]?
@@ -143,6 +147,12 @@ function detectFlexML(mlPkgs, onDone){
           if(nr){
             p.numeracao=String(nr).replace(/\s/g,'').toUpperCase();
             console.log('✅ Tracking ML'+(isFlex?' FLEX':'')+'  #'+p.numero+': '+p.numeracao);
+          } else {
+            // Limpa qualquer tracking inválido salvo anteriormente
+            if(p.numeracao && /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(String(p.numeracao).trim())){
+              delete p.numeracao;
+              console.log('🧹 Limpou GUID inválido de #'+p.numero);
+            }
           }
           // NF e chave DANFE
           var nfFlex=(order.notaFiscal&&order.notaFiscal.numero)||(order.nfe&&order.nfe.numero)||'';
