@@ -96,6 +96,20 @@ function selectMkt(mkt){
 }
 
 function closeColeta(){
+  // Remove os scans da sessão atual que NÃO foram finalizados em lote
+  // (evita duplicatas ao re-bipar a mesma etiqueta depois)
+  if(colSession.length>0){
+    var today=todayStr();
+    for(var i=scans.length-1;i>=0;i--){
+      if(scans[i].tipo==='lote') continue;
+      if(scans[i].date!==today) continue;
+      if(scans[i].loteId) continue; // Se já tem loteId, foi finalizado, mantém
+      if(colSession.indexOf(scans[i].etiqueta)!==-1){
+        scans.splice(i,1);
+      }
+    }
+    sv('expv5_scans',scans);
+  }
   activeMkt=''; colSession=[]; scanPaused=false; encerrandoParcial=false;
   clearColetaTimer();
   stopCamera();
