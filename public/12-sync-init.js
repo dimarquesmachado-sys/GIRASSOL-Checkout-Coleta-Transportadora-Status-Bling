@@ -149,6 +149,34 @@ function loadFromServer(cb){
         sv('expv5_scans',scans);
         console.log('📥 '+novos.length+' scans novos do servidor (incluindo lotes)');
       }
+      // ── Dedup por etiqueta+date — quando re-bipa o mesmo pacote, mantém só o scan mais recente
+      // Lotes (tipo='lote') NÃO entram nessa dedup (eles têm id único)
+      var dedupMap={};
+      var scansLote=[];
+      scans.forEach(function(s){
+        if(s.tipo==='lote'){scansLote.push(s);return;}
+        var k=s.etiqueta+'_'+s.date;
+        // Se já tem um scan dessa etiqueta+date, fica com o de tempo MAIOR (mais recente)
+        // Mas se algum dos dois já tem loteId, prioriza o que tem loteId (já foi finalizado)
+        if(!dedupMap[k]){
+          dedupMap[k]=s;
+        } else {
+          var atual=dedupMap[k];
+          // Se um tem loteId e outro não, prefere o que tem
+          if(s.loteId&&!atual.loteId){dedupMap[k]=s;}
+          else if(!s.loteId&&atual.loteId){/* mantém atual */}
+          // Senão, fica com o mais recente (time maior)
+          else if((s.time||'')>(atual.time||'')){dedupMap[k]=s;}
+        }
+      });
+      var scansDeduplicados=Object.keys(dedupMap).map(function(k){return dedupMap[k];}).concat(scansLote);
+      var antesCount=scans.length;
+      if(scansDeduplicados.length<antesCount){
+        scans=scansDeduplicados;
+        sv('expv5_scans',scans);
+        console.log('🧹 Removidos '+(antesCount-scansDeduplicados.length)+' scans duplicados (re-bipagem)');
+        syncToServer(); // propaga a limpeza para o servidor
+      }
     }
     // Merge packages: atualiza status dos pacotes que foram coletados em outro dispositivo
     if(serverPkgs.length>0){
