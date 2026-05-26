@@ -70,30 +70,30 @@ app.get('/callback', async (req, res) => {
     refreshToken = data.refresh_token;
     tokenExpires = Date.now() + (data.expires_in * 1000) - (5 * 60 * 1000);
     console.log('✅ Tokens obtidos! Expira em:', new Date(tokenExpires).toLocaleTimeString('pt-BR'));
+    saveTokensToDisk(); // salva no disco persistente
 
     res.send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
       <style>body{font-family:sans-serif;background:#0C0E13;color:#EBE9E2;padding:40px;max-width:700px;margin:0 auto}
       h2{color:#2ECC8A} .box{background:#181B24;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:16px;margin:12px 0;word-break:break-all;font-family:monospace;font-size:12px}
       .lbl{font-size:11px;color:#8B8D9B;text-transform:uppercase;margin-bottom:6px}
-      .warn{background:rgba(240,164,66,.13);border:1px solid rgba(240,164,66,.3);border-radius:8px;padding:14px;color:#F0A442;margin-top:20px;font-size:13px;line-height:1.6}
+      .warn{background:rgba(46,204,138,.13);border:1px solid rgba(46,204,138,.3);border-radius:8px;padding:14px;color:#2ECC8A;margin-top:20px;font-size:13px;line-height:1.6}
       button{background:#2ECC8A;color:#071A0F;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;margin-top:6px}
       code{background:#111;padding:2px 6px;border-radius:4px;font-size:11px}
       </style></head><body>
-      <h2>✅ Tokens gerados com sucesso!</h2>
-      <p style="color:#8B8D9B;margin-bottom:20px">Copie os valores abaixo e cole no Render → Environment → Save, rebuild, and deploy</p>
-      <div class="lbl">BLING_ACCESS_TOKEN</div>
-      <div class="box">${accessToken}</div>
-      <button onclick="navigator.clipboard.writeText('${accessToken}').then(()=>this.textContent='Copiado!')">Copiar Access Token</button>
-      <div class="lbl" style="margin-top:16px">BLING_REFRESH_TOKEN</div>
-      <div class="box">${refreshToken}</div>
-      <button onclick="navigator.clipboard.writeText('${refreshToken}').then(()=>this.textContent='Copiado!')">Copiar Refresh Token</button>
+      <h2>✅ Tokens gerados e salvos com sucesso!</h2>
       <div class="warn">
-        ⚠ <strong>Cole os dois tokens no Render agora:</strong><br><br>
-        1. Abra o Render → seu serviço → <strong>Environment</strong><br>
-        2. Cole em <code>BLING_ACCESS_TOKEN</code> e <code>BLING_REFRESH_TOKEN</code><br>
-        3. Clique em <strong>Save, rebuild, and deploy</strong><br><br>
-        ✅ O token dura <strong>1 hora</strong> — o sistema renova automaticamente usando o refresh token.
+        ✅ <strong>Pronto! Não precisa fazer mais nada.</strong><br><br>
+        Os tokens foram salvos automaticamente no disco persistente do servidor.
+        O sistema vai renovar sozinho a partir de agora.<br><br>
+        Pode fechar esta página.
       </div>
+      <details style="margin-top:24px;color:#8B8D9B">
+        <summary style="cursor:pointer;font-size:12px">Ver tokens (caso queira copiar manualmente)</summary>
+        <div class="lbl" style="margin-top:12px">BLING_ACCESS_TOKEN</div>
+        <div class="box">${accessToken}</div>
+        <div class="lbl" style="margin-top:12px">BLING_REFRESH_TOKEN</div>
+        <div class="box">${refreshToken}</div>
+      </details>
       </body></html>`);
   } catch (e) {
     console.error('Erro callback:', e.message);
@@ -101,37 +101,40 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-// Variáveis de ambiente do Render (necessário para persistir tokens)
-const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || '';
-const RENDER_API_KEY    = process.env.RENDER_API_KEY    || '';
+// ═══ PERSISTÊNCIA DE TOKEN EM DISCO ═══
+// Salva tokens em /data (disco persistente do Render) para sobreviver a restarts/crashes.
+// NÃO usa a API do Render (que reiniciava o servidor e causava o loop de invalid_grant).
+const fs = require('fs');
+const TOKEN_FILE = '/data/bling-tokens.json';
 
-// Persiste tokens no Render para sobreviver a restarts
-async function persistTokensToRender(newAccess, newRefresh) {
-  if (!RENDER_SERVICE_ID || !RENDER_API_KEY) {
-    console.log('💾 Tokens atualizados em memória (sem RENDER_API_KEY para persistir)');
-    return;
-  }
+function saveTokensToDisk() {
   try {
-    // Usa PATCH individual em cada variável — não substitui as outras
-    for (const [key, value] of [['BLING_ACCESS_TOKEN', newAccess], ['BLING_REFRESH_TOKEN', newRefresh]]) {
-      const r = await fetch(`https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars/${key}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${RENDER_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ value }),
-      });
-      if (r.ok) {
-        console.log('✅ '+key+' persistido no Render!');
-      } else {
-        const err = await r.text();
-        console.warn('⚠ Render API erro para '+key+':', err.substring(0,200));
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify({
+      accessToken, refreshToken, tokenExpires, savedAt: new Date().toISOString()
+    }));
+    console.log('💾 Tokens salvos no disco:', TOKEN_FILE);
+  } catch (e) {
+    console.warn('⚠ Não foi possível salvar tokens no disco:', e.message);
+  }
+}
+
+function loadTokensFromDisk() {
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const t = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
+      if (t.refreshToken) {
+        accessToken  = t.accessToken  || accessToken;
+        refreshToken = t.refreshToken || refreshToken;
+        tokenExpires = t.tokenExpires || tokenExpires;
+        console.log('📂 Tokens carregados do disco (salvos em '+(t.savedAt||'?')+')');
+        return true;
       }
     }
-  } catch(e) {
-    console.warn('⚠ Não foi possível persistir tokens:', e.message);
+  } catch (e) {
+    console.warn('⚠ Erro ao ler tokens do disco:', e.message);
   }
+  console.log('📂 Sem tokens no disco — usando variáveis de ambiente');
+  return false;
 }
 
 async function refreshAccessToken() {
@@ -159,8 +162,8 @@ async function refreshAccessToken() {
 
     console.log('✅ Token renovado! Próxima renovação:', new Date(tokenExpires).toLocaleTimeString('pt-BR'));
 
-    // Persiste os novos tokens no Render para sobreviver a restarts
-    await persistTokensToRender(accessToken, refreshToken).catch(() => {});
+    // Salva no disco (instantâneo, NÃO reinicia o servidor)
+    saveTokensToDisk();
     return true;
   } catch (e) {
     console.error('❌ Erro ao renovar token:', e.message);
@@ -268,15 +271,15 @@ app.post('/nfs-batch', requireAuth, async (req, res) => {
   if (!Array.isArray(pedidos) || pedidos.length === 0) {
     return res.json({ nfs: {} });
   }
-  
+
   const TOLERANCE = 2000;
   const result = {};
   const pedidoIds = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0);
   if (pedidoIds.length === 0) return res.json({ nfs: {} });
-  
+
   const minPedido = Math.min(...pedidoIds);
   const maxPedido = Math.max(...pedidoIds);
-  
+
   try {
     let allNfes = [];
     for (let pagina = 1; pagina <= 20; pagina++) {
@@ -291,22 +294,22 @@ app.post('/nfs-batch', requireAuth, async (req, res) => {
       const minId = Math.min(...nfes.map(n => n.id));
       if (minId < minPedido - TOLERANCE) break;
     }
-    
+
     console.log(`📋 NFs batch: ${allNfes.length} NFs, ${pedidoIds.length} pedidos`);
-    
+
     for (const pedidoId of pedidoIds) {
       const candidatas = allNfes
         .filter(n => n.id > pedidoId && n.id <= pedidoId + TOLERANCE)
         .sort((a, b) => a.id - b.id);
       if (candidatas.length > 0) {
         const nfe = candidatas[0];
-        result[pedidoId] = { 
-          numero: nfe.numero, 
-          chave: nfe.chaveAcesso || nfe.chave || '' 
+        result[pedidoId] = {
+          numero: nfe.numero,
+          chave: nfe.chaveAcesso || nfe.chave || ''
         };
       }
     }
-    
+
     console.log(`✅ NFs encontradas: ${Object.keys(result).length}/${pedidoIds.length}`);
     res.json({ nfs: result });
   } catch(e) {
@@ -517,8 +520,52 @@ app.get('/admin/migrar-status', (req, res) => {
 });
 
 // ═══ SYNC — packages e scans (sem fotos) compartilhados entre dispositivos ═══
+// Persistidos em disco (/data) para sobreviver a restarts e crashes (OOM).
 let sharedPackages = [];
 let sharedScans    = [];
+
+const PACKAGES_FILE = '/data/shared-packages.json';
+const SCANS_FILE    = '/data/shared-scans.json';
+
+function loadSharedFromDisk() {
+  try {
+    if (fs.existsSync(PACKAGES_FILE)) {
+      sharedPackages = JSON.parse(fs.readFileSync(PACKAGES_FILE, 'utf8')) || [];
+      console.log('📂 '+sharedPackages.length+' packages carregados do disco');
+    }
+  } catch(e) { console.warn('⚠ Erro ao ler packages do disco:', e.message); }
+  try {
+    if (fs.existsSync(SCANS_FILE)) {
+      sharedScans = JSON.parse(fs.readFileSync(SCANS_FILE, 'utf8')) || [];
+      console.log('📂 '+sharedScans.length+' scans carregados do disco');
+    }
+  } catch(e) { console.warn('⚠ Erro ao ler scans do disco:', e.message); }
+}
+
+function saveSharedToDisk() {
+  try { fs.writeFileSync(PACKAGES_FILE, JSON.stringify(sharedPackages)); }
+  catch(e) { console.warn('⚠ Erro ao salvar packages:', e.message); }
+  try { fs.writeFileSync(SCANS_FILE, JSON.stringify(sharedScans)); }
+  catch(e) { console.warn('⚠ Erro ao salvar scans:', e.message); }
+}
+
+// Remove scans com mais de 45 dias para não estourar memória/disco (evita OOM)
+function limparScansAntigos() {
+  const LIMITE_DIAS = 45;
+  const hoje = new Date();
+  const antes = sharedScans.length;
+  sharedScans = sharedScans.filter(function(s){
+    if(!s || !s.date) return true; // mantém se não tiver data
+    const d = new Date(s.date);
+    if(isNaN(d.getTime())) return true;
+    const diasAtras = (hoje - d) / (1000*60*60*24);
+    return diasAtras <= LIMITE_DIAS;
+  });
+  if(sharedScans.length < antes){
+    console.log('🧹 Removidos '+(antes-sharedScans.length)+' scans com mais de '+LIMITE_DIAS+' dias');
+    saveSharedToDisk();
+  }
+}
 
 // ═══ FOTOS — Supabase Storage (permanente, acessível de qualquer dispositivo) ═══
 // Configurar no Render: SUPABASE_URL e SUPABASE_KEY
@@ -621,6 +668,7 @@ app.post('/sync/packages', requireAuth, (req, res) => {
   const { packages } = req.body;
   if(Array.isArray(packages)){
     sharedPackages = packages;
+    saveSharedToDisk();
   }
   res.json({ ok: true });
 });
@@ -629,6 +677,7 @@ app.post('/sync/scans', requireAuth, (req, res) => {
   const { scans } = req.body;
   if(Array.isArray(scans)){
     sharedScans = scans;
+    saveSharedToDisk();
   }
   res.json({ ok: true });
 });
@@ -666,6 +715,13 @@ app.get('/photos/lote/:loteId/:idx', requireAuth, async (req, res) => {
   if(photo.startsWith('http')) return res.json({ url: photo });
   res.json({ photo });
 });
+
+// ═══ STARTUP ═══
+loadTokensFromDisk();   // lê tokens do disco (fallback: env vars)
+loadSharedFromDisk();   // lê packages e scans do disco
+limparScansAntigos();   // remove scans antigos (evita OOM)
+// Limpa scans antigos a cada 6 horas
+setInterval(limparScansAntigos, 6 * 60 * 60 * 1000);
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
