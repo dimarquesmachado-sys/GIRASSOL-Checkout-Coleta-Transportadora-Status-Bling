@@ -66,7 +66,7 @@ function renderDia(){
   var prob=today.filter(function(p){return p.status==='problema';}).length;
   var pend=today.length-col-prob;
   // Atualiza título
-  document.getElementById('diaTitulo').textContent=isToday?'Resumo do Dia':'Histórico — '+diaDate;
+  document.getElementById('diaTitulo').textContent=isToday?'Resumo do Dia':'Histórico — '+formatDate(diaDate);
   updateDiaLabel();
   document.getElementById('dayCards').innerHTML=
     '<div class="day-card"><div class="day-lbl">Total</div><div class="day-val">'+today.length+'</div></div>'+
@@ -423,7 +423,8 @@ function renderHistorico(){
   var ontem=new Date(); ontem.setDate(ontem.getDate()-1);
   var ontemStr=ontem.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
   document.getElementById('filterDateRow').innerHTML=datas.map(function(d){
-    var label=d===today?'Hoje':d===ontemStr?'Ontem':d.slice(5); // MM-DD
+    var pBR=d.split('-'); // ['2026','05','26']
+    var label=d===today?'Hoje':d===ontemStr?'Ontem':(pBR.length===3?pBR[2]+'/'+pBR[1]:d); // DD/MM (padrão BR)
     var on=histFilterDate===d||(!histFilterDate&&d===today);
     if(on&&!histFilterDate) histFilterDate=today;
     return '<button class="filter-chip'+(on?' on':'')+'" data-d="'+d+'" onclick="setHistDate(this.dataset.d)">'+label+'</button>';
