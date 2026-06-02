@@ -143,6 +143,13 @@ function detectFlexML(mlPkgs, onDone){
             p.servico=order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]?
               (order.transporte.volumes[0].servico||svcNome||'ML Flex'):
               (svcNome||'ML Flex');
+          } else if(p.urgente && allSvc.trim()!==''){
+            // Serviço foi lido e NÃO é FLEX → desmarca (corrige Shopee "Logistica Shopee" marcado errado)
+            p.urgente=false;
+            if(order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico){
+              p.servico=order.transporte.volumes[0].servico;
+            }
+            console.log('🔄 Desmarcado FLEX (serviço normal): #'+p.numero+' ('+allSvc.trim()+')');
           }
           if(nr){
             p.numeracao=String(nr).replace(/\s/g,'').toUpperCase();
