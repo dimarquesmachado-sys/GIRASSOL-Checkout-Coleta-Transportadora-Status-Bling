@@ -405,6 +405,39 @@ app.get('/info/pedido/:id', async (req, res) => {
   } catch(e) { res.json({ error: e.message }); }
 });
 
+// Diagnóstico: busca pedido pelo NÚMERO e mostra o serviço de entrega de forma legível
+app.get('/info/servico/:numero', async (req, res) => {
+  try {
+    await sleep(300);
+    const r = await blingFetch(BLING_BASE + '/pedidos/vendas?numero=' + req.params.numero + '&limite=5');
+    const data = await r.json();
+    const lista = data.data || [];
+    if (lista.length === 0) return res.send('<pre>Pedido ' + req.params.numero + ' não encontrado (pode não estar VERIFICADO no Bling).</pre>');
+    // Busca detalhe completo do primeiro
+    await sleep(400);
+    const r2 = await blingFetch(BLING_BASE + '/pedidos/vendas/' + lista[0].id);
+    const d2 = await r2.json();
+    const p = d2.data || d2;
+    const t = p.transporte || {};
+    const vol = (t.volumes && t.volumes[0]) || {};
+    const out = {
+      numero: p.numero,
+      id: p.id,
+      situacao_id: p.situacao && p.situacao.id,
+      loja_id: p.loja && p.loja.id,
+      '--- SERVIÇO DE ENTREGA ---': '---',
+      etiqueta_servico: t.etiqueta && t.etiqueta.servico,
+      volume_servico: vol.servico,
+      transportadora_nome: (t.contato && t.contato.nome) || (t.transportadora),
+      frete_por_conta: t.fretePorConta,
+      tracking: vol.numeracao || vol.codigoRastreamento,
+      '--- TRANSPORTE COMPLETO ---': '---',
+      transporte: t,
+    };
+    res.send('<html><body style="font-family:monospace;background:#0c0e13;color:#2ECC8A;padding:20px"><h3>Pedido ' + p.numero + '</h3><pre style="white-space:pre-wrap;color:#EBE9E2">' + JSON.stringify(out, null, 2) + '</pre></body></html>');
+  } catch(e) { res.send('<pre>Erro: ' + e.message + '</pre>'); }
+});
+
 app.get('/info/count24', async (req, res) => {
   try {
     const r = await blingFetch(BLING_BASE + '/pedidos/vendas?idSituacao=24&limite=100&pagina=1');
