@@ -14,4 +14,4 @@ var MKT = {
 var LOJA_MAP = {'203146903':'ml','203583169':'shopee','203967708':'amazon','203262016':'magalu','205523707':'tiktok'};
 var MKT_ORDER = ['ml','shopee','amazon','magalu','tiktok','melhorenvio','velozz','lalamove','outro'];
 var ALWAYS_SHOW = ['melhorenvio','velozz','lalamove'];
-var FLEX_KEYWORDS = ['mercado envios flex','entrega local','vapt','shopee entrega direta','logistica shopee'];
+var FLEX_KEYWORDS = ['mercado envios flex','entrega local','vapt','shopee entrega direta'];
