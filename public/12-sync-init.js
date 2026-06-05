@@ -248,6 +248,11 @@ function initApp(){
   loadFromServer(function(){
     renderMktGrid(); updateBadge();
     setTimeout(pullFromBling,1200);
+    // 3. Restaura sessão de coleta se o app recarregou no meio de uma bipagem
+    // (ex: funcionário esbarrou no celular). Precisa dos packages já carregados.
+    if(typeof restaurarSessaoColeta==='function'){
+      setTimeout(restaurarSessaoColeta, 300);
+    }
   });
 
   // Auto-sync a cada 30s — envia E recebe dados entre dispositivos
