@@ -301,24 +301,47 @@ function limparSessaoColeta(){
   sv('expv5_sessao_coleta', null);
 }
 
-// Restaura a sessão se o app recarregou no meio de uma coleta (mesmo dia, < 25 min)
+// Restaura a sessão se o app recarregou no meio de uma coleta.
+// ROBUSTO: reconstrói a partir dos próprios bipes salvos (scans), que sempre
+// sobrevivem ao reload. Um bipe de HOJE sem loteId = pacote bipado mas não finalizado.
 function restaurarSessaoColeta(){
-  var s = ld('expv5_sessao_coleta', null);
-  if(!s || !s.mkt || !s.colSession || s.colSession.length===0) return false;
-  // Só restaura se for do mesmo dia e dentro da janela de 25 min
-  if(s.date !== todayStr()) { limparSessaoColeta(); return false; }
-  if(Date.now() - (s.ts||0) > 25*60*1000) { limparSessaoColeta(); return false; }
-  // Abre o card do marketplace ANTES de restaurar o colSession
-  // (selectMkt zera o colSession e roda limpeza de órfãos — por isso restauramos DEPOIS)
+  var hoje = todayStr();
+  // Junta todos os bipes de hoje que ainda NÃO foram finalizados em lote
+  var orfaos = scans.filter(function(s){
+    return s && s.tipo!=='lote' && s.date===hoje && !s.loteId && s.etiqueta;
+  });
+  if(orfaos.length===0) return false;
+
+  // Descobre qual marketplace restaurar: usa o da sessão salva, senão o do bipe mais recente
+  var mkt = '';
+  var sav = ld('expv5_sessao_coleta', null);
+  if(sav && sav.mkt && sav.date===hoje) mkt = sav.mkt;
+  if(!mkt){
+    // bipe mais recente (scans é unshift, então o índice 0 é o mais novo)
+    mkt = orfaos[0].mkt || '';
+  }
+  if(!mkt) return false;
+
+  // Filtra só os bipes do marketplace que vamos restaurar
+  var doMkt = orfaos.filter(function(s){ return (s.mkt||'')===mkt; });
+  if(doMkt.length===0) return false;
+  var etiquetas = doMkt.map(function(s){ return s.etiqueta; });
+
   if(typeof selectMkt === 'function'){
-    selectMkt(s.mkt);
-    colSession = s.colSession.slice();
-    salvarSessaoColeta(); // re-salva (selectMkt pode ter limpado)
+    selectMkt(mkt);              // selectMkt zera colSession e roda limpeza de órfãos
+    colSession = etiquetas.slice(); // restaura DEPOIS (senão a limpeza apaga)
+    salvarSessaoColeta();
     if(typeof renderPkgList === 'function') renderPkgList();
     if(typeof renderProgress === 'function') renderProgress();
+    // Reaplica após o pullFromBlingMkt do selectMkt terminar (recarrega pacotes)
+    setTimeout(function(){
+      colSession = etiquetas.slice();
+      if(typeof renderPkgList === 'function') renderPkgList();
+      if(typeof renderProgress === 'function') renderProgress();
+    }, 1500);
   } else {
-    colSession = s.colSession.slice();
+    colSession = etiquetas.slice();
   }
-  if(typeof toast === 'function') toast('↩ Coleta restaurada: '+colSession.length+' pacotes bipados','ok');
+  if(typeof toast === 'function') toast('↩ Coleta restaurada: '+etiquetas.length+' pacotes bipados','ok');
   return true;
 }
