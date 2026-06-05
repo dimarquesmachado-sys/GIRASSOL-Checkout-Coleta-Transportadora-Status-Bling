@@ -152,9 +152,10 @@ function clearColetaTimer(){
   if(el) el.style.display='none';
 }
 
-function startColetaTimer(){
+function startColetaTimer(deadlineExistente){
   if(coletaDeadline) return; // Já iniciou
-  coletaDeadline = Date.now() + 25*60*1000; // 25 minutos
+  coletaDeadline = deadlineExistente || (Date.now() + 25*60*1000); // 25 minutos
+  sv('expv5_coleta_deadline', coletaDeadline); // persiste p/ sobreviver a reload
   
   // Atualiza contador a cada segundo
   coletaTimerInterval = setInterval(function(){
