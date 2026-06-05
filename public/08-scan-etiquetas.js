@@ -137,6 +137,7 @@ function handleScan(rawCode,photo){
   startColetaTimer(); // Inicia timer de 20 min no primeiro bip
   scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
   sv('expv5_scans',scans);
+  salvarSessaoColeta(); // Salva sessão (colSession+mkt) p/ restaurar se o app recarregar
   syncToServer();
   // Upload da foto para o servidor (permite acesso de qualquer dispositivo)
   if(photo) uploadScanPhoto(chave, today, photo);
@@ -281,4 +282,43 @@ function desfazerUltimo(){
   if(colSession.length===0) return;
   var etiqueta=colSession[colSession.length-1];
   cancelarScan(etiqueta);
+}
+
+// ═══ PERSISTÊNCIA DE SESSÃO DE COLETA ═══
+// Salva a sessão atual (colSession + activeMkt) para sobreviver a recarregamentos
+// acidentais do app (ex: funcionário esbarra no celular durante a bipagem).
+function salvarSessaoColeta(){
+  if(!activeMkt || colSession.length===0){ limparSessaoColeta(); return; }
+  sv('expv5_sessao_coleta', {
+    mkt: activeMkt,
+    colSession: colSession,
+    date: todayStr(),
+    ts: Date.now()
+  });
+}
+
+function limparSessaoColeta(){
+  sv('expv5_sessao_coleta', null);
+}
+
+// Restaura a sessão se o app recarregou no meio de uma coleta (mesmo dia, < 25 min)
+function restaurarSessaoColeta(){
+  var s = ld('expv5_sessao_coleta', null);
+  if(!s || !s.mkt || !s.colSession || s.colSession.length===0) return false;
+  // Só restaura se for do mesmo dia e dentro da janela de 25 min
+  if(s.date !== todayStr()) { limparSessaoColeta(); return false; }
+  if(Date.now() - (s.ts||0) > 25*60*1000) { limparSessaoColeta(); return false; }
+  // Abre o card do marketplace ANTES de restaurar o colSession
+  // (selectMkt zera o colSession e roda limpeza de órfãos — por isso restauramos DEPOIS)
+  if(typeof selectMkt === 'function'){
+    selectMkt(s.mkt);
+    colSession = s.colSession.slice();
+    salvarSessaoColeta(); // re-salva (selectMkt pode ter limpado)
+    if(typeof renderPkgList === 'function') renderPkgList();
+    if(typeof renderProgress === 'function') renderProgress();
+  } else {
+    colSession = s.colSession.slice();
+  }
+  if(typeof toast === 'function') toast('↩ Coleta restaurada: '+colSession.length+' pacotes bipados','ok');
+  return true;
 }
