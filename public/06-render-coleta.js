@@ -134,6 +134,7 @@ function closeColeta(){
     }
   }
   activeMkt=''; colSession=[]; scanPaused=false; encerrandoParcial=false;
+  if(typeof limparSessaoColeta==='function') limparSessaoColeta(); // limpa sessão restaurável
   clearColetaTimer();
   stopCamera();
   document.getElementById('coletaPanel').classList.remove('show');
