@@ -135,7 +135,7 @@ function handleScan(rawCode,photo){
   }
   if(colSession.indexOf(chave)===-1) colSession.push(chave);
   startColetaTimer(); // Inicia timer de 20 min no primeiro bip
-  scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
+  scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),ts:Date.now(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
   sv('expv5_scans',scans);
   salvarSessaoColeta(); // Salva sessão (colSession+mkt) p/ restaurar se o app recarregar
   syncToServer();
@@ -299,6 +299,7 @@ function salvarSessaoColeta(){
 
 function limparSessaoColeta(){
   sv('expv5_sessao_coleta', null);
+  sv('expv5_coleta_deadline', null);
 }
 
 // Restaura a sessão se o app recarregou no meio de uma coleta.
@@ -311,6 +312,34 @@ function restaurarSessaoColeta(){
     return s && s.tipo!=='lote' && s.date===hoje && !s.loteId && s.etiqueta;
   });
   if(orfaos.length===0) return false;
+
+  // ── LIMITE DE 25 MIN, contado do 1º bipe ──
+  // Usa o timestamp gravado NOS PRÓPRIOS bipes (sincroniza entre dispositivos),
+  // então qualquer aparelho chega na mesma conclusão sobre expirou/não expirou.
+  var tsList = orfaos.map(function(s){return s.ts||0;}).filter(function(t){return t>0;});
+  if(tsList.length===0){
+    // Bipes antigos sem timestamp (anteriores a esta versão) — não restaura nem mexe
+    return false;
+  }
+  var primeiroBip = Math.min.apply(null, tsList);
+  var deadline = primeiroBip + 25*60*1000;
+  if(Date.now() > deadline){
+    // Expirou → descarta os bipes, igual o "Tempo esgotado" do timer
+    var removeu=false;
+    for(var i=scans.length-1;i>=0;i--){
+      if(scans[i].tipo==='lote') continue;
+      if(scans[i].date!==hoje) continue;
+      if(scans[i].loteId) continue;
+      scans.splice(i,1); removeu=true;
+    }
+    if(removeu){
+      sv('expv5_scans',scans);
+      if(typeof syncToServer==='function') syncToServer();
+      if(typeof toast==='function') toast('⏰ Coleta anterior expirou (25 min) — bipes descartados','warn');
+    }
+    limparSessaoColeta();
+    return false;
+  }
 
   // Descobre qual marketplace restaurar: usa o da sessão salva, senão o do bipe mais recente
   var mkt = '';
@@ -331,6 +360,7 @@ function restaurarSessaoColeta(){
     selectMkt(mkt);              // selectMkt zera colSession e roda limpeza de órfãos
     colSession = etiquetas.slice(); // restaura DEPOIS (senão a limpeza apaga)
     salvarSessaoColeta();
+    if(typeof startColetaTimer==='function') startColetaTimer(deadline); // retoma timer com tempo restante
     if(typeof renderPkgList === 'function') renderPkgList();
     if(typeof renderProgress === 'function') renderProgress();
     // Reaplica após o pullFromBlingMkt do selectMkt terminar (recarrega pacotes)
