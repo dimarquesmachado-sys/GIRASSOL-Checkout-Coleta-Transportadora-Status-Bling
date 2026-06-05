@@ -608,24 +608,15 @@ function pullFromBling(){
       // IMPORTANTE: só considera devolução se passou mais de 48h desde a coleta
       // Se foi coletado recentemente, pode ser apenas delay na atualização do Bling
       if((ex.status==='coletado'||ex.status==='problema') && p.blingStatus===24 && ex.date!==today){
-        // Verifica se foi coletado há mais de 48h
+        // Coletado em dia ANTERIOR, mas AINDA está VERIFICADO no Bling = NÃO foi despachado.
+        // O Bling é a fonte da verdade → traz de volta para HOJE como pendente, p/ ser expedido.
+        // (atrasos de sincronização do mesmo dia são tratados no ramo 'ex.date===today' abaixo;
+        //  aqui só entra cross-day, quando o Bling já teve tempo de sobra para processar.)
         var colTime = ex.colT ? new Date(ex.colT).getTime() : 0;
-        var agora = Date.now();
-        var horasDesdeColeta = (agora - colTime) / (1000*60*60);
-        
-        if(horasDesdeColeta > 48){
-          // Mais de 48h → provavelmente é devolução real
-          p.status='pendente'; p.colT=null;
-          console.log('↩ Devolvido #'+p.numero+' (era '+ex.status+', coleta há '+Math.round(horasDesdeColeta)+'h) → pendente');
-          toast('↩ '+p.numero+' devolvido — volta para expedição!','warn');
-        } else {
-          // Menos de 48h → mantém como coletado, só delay no Bling
-          p.status=ex.status;
-          p.colT=ex.colT;
-          p.obs=ex.obs;
-          p.date=ex.date; // mantém data original
-          console.log('⏳ Pedido #'+p.numero+' coletado há '+Math.round(horasDesdeColeta)+'h, Bling ainda não atualizou');
-        }
+        var horasDesdeColeta = colTime ? Math.round((Date.now()-colTime)/(1000*60*60)) : 0;
+        p.status='pendente'; p.colT=null;
+        console.log('↩ #'+p.numero+' ainda VERIFICADO (coletado em '+ex.date+', há '+horasDesdeColeta+'h) → volta p/ hoje pendente');
+        toast('↩ '+p.numero+' voltou para expedição','warn');
       } else if(ex.date===today){
         // Mesmo dia: mantém status local
         p.status=ex.status;
