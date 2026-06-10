@@ -1,14 +1,5 @@
 // ═══ SYNC SERVIDOR ═══
-function stripPhotos(arr){
-  return arr.map(function(item){
-    var copy={};
-    Object.keys(item).forEach(function(k){
-      if(k==='photo') return; // mantém fotosVeiculo, remove só foto pesada da etiqueta
-      copy[k]=item[k];
-    });
-    return copy;
-  });
-}
+// (stripPhotos agora vive no 03-storage-helpers-som.js, junto com svScans)
 
 // ─── Upload de fotos para o servidor ────────────────────────────────────────
 function uploadScanPhoto(etiqueta, date, photo){
@@ -24,7 +15,7 @@ function uploadScanPhoto(etiqueta, date, photo){
       for(var i=0;i<scans.length;i++){
         if(scans[i].etiqueta===etiqueta&&scans[i].date===date){
           scans[i].photoUrl=d.url;
-          sv('expv5_scans',scans);
+          svScans();
           break;
         }
       }
@@ -74,7 +65,7 @@ function syncToServer(){
 
   apiFetch('/sync/scans', {
     method: 'POST',
-    body: JSON.stringify({ scans: scanHoje })
+    body: JSON.stringify({ scans: scanHoje, removedKeys: removedScanKeys })
   }).catch(function(){});
 
   if(activeState){
@@ -146,9 +137,32 @@ function loadFromServer(cb){
       });
       if(novos.length>0){
         scans=scans.concat(novos);
-        sv('expv5_scans',scans);
         console.log('📥 '+novos.length+' scans novos do servidor (incluindo lotes)');
       }
+      // Dedup local por etiqueta+date (re-bipagem): prefere o que tem loteId, senão o mais recente.
+      // APENAS local — NÃO sincroniza aqui (o servidor já faz o próprio dedup no merge).
+      var dM={};
+      scans.forEach(function(s){
+        if(!s) return;
+        if(s.tipo==='lote') return;
+        var k2=s.etiqueta+'_'+s.date;
+        var cur=dM[k2];
+        if(!cur) dM[k2]=s;
+        else if(s.loteId&&!cur.loteId) dM[k2]=s;
+        else if(!s.loteId&&cur.loteId){/* mantém cur */}
+        else if((s.ts||0)>(cur.ts||0)) dM[k2]=s;
+      });
+      // Filtra preservando a ORDEM original do array (restauração depende do índice 0 = mais novo)
+      var antes=scans.length;
+      scans=scans.filter(function(s){
+        if(!s) return false;
+        if(s.tipo==='lote') return true;
+        return dM[s.etiqueta+'_'+s.date]===s; // só mantém o vencedor de cada chave
+      });
+      if(scans.length!==antes){
+        console.log('🧹 Dedup local: '+(antes-scans.length)+' scans duplicados removidos da exibição');
+      }
+      svScans();
     }
     // Merge packages: atualiza status dos pacotes que foram coletados em outro dispositivo
     if(serverPkgs.length>0){

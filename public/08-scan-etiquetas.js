@@ -135,8 +135,8 @@ function handleScan(rawCode,photo){
   }
   if(colSession.indexOf(chave)===-1) colSession.push(chave);
   startColetaTimer(); // Inicia timer de 20 min no primeiro bip
-  scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),ts:Date.now(),photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
-  sv('expv5_scans',scans);
+  scans.unshift({etiqueta:chave,mkt:activeMkt,date:today,time:nowTS(),ts:Date.now(),user:currentUser,photo:photo,destinatario:pkg.destinatario,numero:pkg.numero});
+  svScans();
   salvarSessaoColeta(); // Salva sessão (colSession+mkt) p/ restaurar se o app recarregar
   syncToServer();
   // Upload da foto para o servidor (permite acesso de qualquer dispositivo)
@@ -267,10 +267,11 @@ function cancelarScan(etiqueta){
   // Remove do array de scans também
   for(var j=0;j<scans.length;j++){
     if(scans[j].etiqueta===etiqueta&&scans[j].date===todayStr()&&scans[j].tipo!=='lote'){
+      registrarRemocaoScan(scans[j]); // p/ o servidor remover no merge
       scans.splice(j,1); break;
     }
   }
-  sv('expv5_scans',scans);
+  svScans();
   document.getElementById('confirmArea').classList.remove('show');
   document.getElementById('desfazerBar').classList.remove('show');
   beepError();
@@ -308,8 +309,10 @@ function limparSessaoColeta(){
 function restaurarSessaoColeta(){
   var hoje = todayStr();
   // Junta todos os bipes de hoje que ainda NÃO foram finalizados em lote
+  // Só considera bipes do PRÓPRIO usuário logado (não restaura/mexe na coleta de outra pessoa)
   var orfaos = scans.filter(function(s){
-    return s && s.tipo!=='lote' && s.date===hoje && !s.loteId && s.etiqueta;
+    return s && s.tipo!=='lote' && s.date===hoje && !s.loteId && s.etiqueta
+      && (!s.user || s.user===currentUser);
   });
   if(orfaos.length===0) return false;
 
@@ -330,10 +333,12 @@ function restaurarSessaoColeta(){
       if(scans[i].tipo==='lote') continue;
       if(scans[i].date!==hoje) continue;
       if(scans[i].loteId) continue;
+      if(scans[i].user && scans[i].user!==currentUser) continue; // não mexe nos bipes de outro usuário
+      registrarRemocaoScan(scans[i]); // p/ o servidor remover no merge
       scans.splice(i,1); removeu=true;
     }
     if(removeu){
-      sv('expv5_scans',scans);
+      svScans();
       if(typeof syncToServer==='function') syncToServer();
       if(typeof toast==='function') toast('⏰ Coleta anterior expirou (25 min) — bipes descartados','warn');
     }

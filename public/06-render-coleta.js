@@ -82,12 +82,13 @@ function selectMkt(mkt){
       if(scans[iK].date!==todayK) continue;
       if(scans[iK].loteId) continue; // Se já tem loteId, foi finalizado, mantém
       if(colSession.indexOf(scans[iK].etiqueta)!==-1){
+        registrarRemocaoScan(scans[iK]); // p/ o servidor remover no merge
         scans.splice(iK,1);
         removeu=true;
       }
     }
     if(removeu){
-      sv('expv5_scans',scans);
+      svScans();
       syncToServer(); // propaga limpeza para o servidor (evita scan órfão voltar)
     }
   }
@@ -124,12 +125,13 @@ function closeColeta(){
       if(scans[i].date!==today) continue;
       if(scans[i].loteId) continue; // Se já tem loteId, foi finalizado, mantém
       if(colSession.indexOf(scans[i].etiqueta)!==-1){
+        registrarRemocaoScan(scans[i]); // p/ o servidor remover no merge
         scans.splice(i,1);
         removeu2=true;
       }
     }
     if(removeu2){
-      sv('expv5_scans',scans);
+      svScans();
       syncToServer(); // propaga limpeza para o servidor (evita scan órfão voltar)
     }
   }

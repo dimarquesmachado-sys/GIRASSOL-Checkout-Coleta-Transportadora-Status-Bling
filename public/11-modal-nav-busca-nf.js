@@ -111,7 +111,7 @@ function clearDay(){
   if(!confirm('Limpar registros de hoje?')) return;
   packages=packages.filter(function(p){return p.date!==todayStr();});
   scans=scans.filter(function(s){return s.date!==todayStr();});
-  sv('expv5_pkgs',packages); sv('expv5_scans',scans);
+  sv('expv5_pkgs',packages); svScans();
   renderMktGrid(); updateBadge(); renderDia();
   toast('Limpo','warn');
 }
