@@ -706,10 +706,40 @@ app.post('/sync/packages', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Chave única de um scan (mesmo formato usado no cliente)
+function scanKeyOf(s){ return s && s.tipo==='lote' ? 'L_'+s.id : 'S_'+(s?s.etiqueta:'')+'_'+(s?s.date:'')+'_'+(s?s.time:''); }
+
 app.post('/sync/scans', requireAuth, (req, res) => {
-  const { scans } = req.body;
+  const { scans, removedKeys } = req.body;
   if(Array.isArray(scans)){
-    sharedScans = scans;
+    // ── MERGE (união) em vez de substituição ──
+    // Antes: sharedScans = scans → quem sincronizava por último APAGAVA os dados
+    // dos outros dispositivos (lotes do histórico sumiam). Agora: mescla por chave.
+    const map = new Map();
+    sharedScans.forEach(s => { if(s) map.set(scanKeyOf(s), s); });
+    scans.forEach(s => {
+      if(!s) return;
+      const k = scanKeyOf(s);
+      const cur = map.get(k);
+      if(!cur) { map.set(k, s); return; }
+      // Cliente atualiza: lote sempre (pode ganhar obs/fotos), scan se ganhou loteId
+      if(s.tipo==='lote') { map.set(k, s); return; }
+      if(s.loteId && !cur.loteId) { map.set(k, s); return; }
+    });
+    // Remoções intencionais do cliente (cancelar bipagem, fechar card, expirar 25min)
+    if(Array.isArray(removedKeys)) removedKeys.forEach(k => map.delete(k));
+    // Dedup re-bipagem: por etiqueta+date, prefere quem tem loteId, senão o mais recente
+    const winners = new Map(); const all = [...map.values()];
+    all.forEach(s => {
+      if(s.tipo==='lote') return;
+      const k2 = s.etiqueta+'_'+s.date;
+      const cur = winners.get(k2);
+      if(!cur) winners.set(k2, s);
+      else if(s.loteId && !cur.loteId) winners.set(k2, s);
+      else if(!s.loteId && cur.loteId) { /* mantém cur */ }
+      else if((s.ts||0) > (cur.ts||0)) winners.set(k2, s);
+    });
+    sharedScans = all.filter(s => s.tipo==='lote' || winners.get(s.etiqueta+'_'+s.date)===s);
     saveSharedToDisk();
   }
   res.json({ ok: true });
