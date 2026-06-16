@@ -306,66 +306,72 @@ function limparSessaoColeta(){
 // Restaura a sessão se o app recarregou no meio de uma coleta.
 // ROBUSTO: reconstrói a partir dos próprios bipes salvos (scans), que sempre
 // sobrevivem ao reload. Um bipe de HOJE sem loteId = pacote bipado mas não finalizado.
+// O prazo de 25 min é POR MARKETPLACE (cada card é uma sessão própria) — assim,
+// restos órfãos de uma tentativa antiga (ex: erro ao finalizar de manhã) NÃO
+// contaminam nem expiram a coleta atual de outro card.
 function restaurarSessaoColeta(){
   var hoje = todayStr();
-  // Junta todos os bipes de hoje que ainda NÃO foram finalizados em lote
-  // Só considera bipes do PRÓPRIO usuário logado (não restaura/mexe na coleta de outra pessoa)
+  // Bipes de hoje, não finalizados, do PRÓPRIO usuário logado
   var orfaos = scans.filter(function(s){
     return s && s.tipo!=='lote' && s.date===hoje && !s.loteId && s.etiqueta
       && (!s.user || s.user===currentUser);
   });
   if(orfaos.length===0) return false;
 
-  // ── LIMITE DE 25 MIN, contado do 1º bipe ──
-  // Usa o timestamp gravado NOS PRÓPRIOS bipes (sincroniza entre dispositivos),
-  // então qualquer aparelho chega na mesma conclusão sobre expirou/não expirou.
-  var tsList = orfaos.map(function(s){return s.ts||0;}).filter(function(t){return t>0;});
-  if(tsList.length===0){
-    // Bipes antigos sem timestamp (anteriores a esta versão) — não restaura nem mexe
-    return false;
-  }
-  var primeiroBip = Math.min.apply(null, tsList);
-  var deadline = primeiroBip + 25*60*1000;
-  if(Date.now() > deadline){
-    // Expirou → descarta os bipes, igual o "Tempo esgotado" do timer
-    var removeu=false;
-    for(var i=scans.length-1;i>=0;i--){
-      if(scans[i].tipo==='lote') continue;
-      if(scans[i].date!==hoje) continue;
-      if(scans[i].loteId) continue;
-      if(scans[i].user && scans[i].user!==currentUser) continue; // não mexe nos bipes de outro usuário
-      registrarRemocaoScan(scans[i]); // p/ o servidor remover no merge
-      scans.splice(i,1); removeu=true;
+  // Agrupa por marketplace — cada card tem o próprio prazo de 25 min
+  var porMkt={};
+  orfaos.forEach(function(s){
+    var m=s.mkt||'';
+    if(!porMkt[m]) porMkt[m]=[];
+    porMkt[m].push(s);
+  });
+
+  var agora=Date.now();
+  var candidatoMkt=null, candidatoUltimo=0, candidatoDeadline=0;
+  var descartados=0, mktsExpirados=[];
+
+  Object.keys(porMkt).forEach(function(m){
+    var lst=porMkt[m];
+    var tsL=lst.map(function(s){return s.ts||0;}).filter(function(t){return t>0;});
+    if(tsL.length===0) return; // bipes antigos sem timestamp: não restaura nem mexe
+    var dl=Math.min.apply(null,tsL)+25*60*1000;
+    if(agora>dl){
+      // Este card expirou → descarta SÓ os bipes dele (igual o "Tempo esgotado")
+      lst.forEach(function(s){
+        registrarRemocaoScan(s); // p/ o servidor remover no merge
+        var ix=scans.indexOf(s);
+        if(ix!==-1){ scans.splice(ix,1); descartados++; }
+      });
+      mktsExpirados.push(m);
+    } else {
+      // Card ainda válido — candidato a restaurar (escolhe o de bipe mais recente)
+      var ult=Math.max.apply(null,tsL);
+      if(!candidatoMkt || ult>candidatoUltimo){
+        candidatoMkt=m; candidatoUltimo=ult; candidatoDeadline=dl;
+      }
     }
-    if(removeu){
-      svScans();
-      if(typeof syncToServer==='function') syncToServer();
-      if(typeof toast==='function') toast('⏰ Coleta anterior expirou (25 min) — bipes descartados','warn');
-    }
-    limparSessaoColeta();
-    return false;
+  });
+
+  if(descartados>0){
+    svScans();
+    if(typeof syncToServer==='function') syncToServer();
+    if(typeof toast==='function') toast('⏰ '+descartados+' bipe(s) de coleta(s) antiga(s) expirou(aram) (25 min)','warn');
+    console.log('⏰ Expirados e descartados: '+descartados+' bipes de ['+mktsExpirados.join(', ')+']');
   }
 
-  // Descobre qual marketplace restaurar: usa o da sessão salva, senão o do bipe mais recente
-  var mkt = '';
-  var sav = ld('expv5_sessao_coleta', null);
-  if(sav && sav.mkt && sav.date===hoje) mkt = sav.mkt;
-  if(!mkt){
-    // bipe mais recente (scans é unshift, então o índice 0 é o mais novo)
-    mkt = orfaos[0].mkt || '';
-  }
-  if(!mkt) return false;
+  if(!candidatoMkt){ limparSessaoColeta(); return false; }
 
-  // Filtra só os bipes do marketplace que vamos restaurar
-  var doMkt = orfaos.filter(function(s){ return (s.mkt||'')===mkt; });
-  if(doMkt.length===0) return false;
-  var etiquetas = doMkt.map(function(s){ return s.etiqueta; });
+  // Restaura o card válido mais recente
+  var etiquetas = porMkt[candidatoMkt]
+    .filter(function(s){ return scans.indexOf(s)!==-1; })
+    .map(function(s){ return s.etiqueta; });
+  if(etiquetas.length===0){ limparSessaoColeta(); return false; }
 
   if(typeof selectMkt === 'function'){
-    selectMkt(mkt);              // selectMkt zera colSession e roda limpeza de órfãos
+    selectMkt(candidatoMkt);        // selectMkt zera colSession e roda limpeza de órfãos
     colSession = etiquetas.slice(); // restaura DEPOIS (senão a limpeza apaga)
     salvarSessaoColeta();
-    if(typeof startColetaTimer==='function') startColetaTimer(deadline); // retoma timer com tempo restante
+    if(typeof startColetaTimer==='function') startColetaTimer(candidatoDeadline); // retoma com tempo restante
     if(typeof renderPkgList === 'function') renderPkgList();
     if(typeof renderProgress === 'function') renderProgress();
     // Reaplica após o pullFromBlingMkt do selectMkt terminar (recarrega pacotes)
