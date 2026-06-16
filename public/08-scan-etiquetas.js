@@ -316,6 +316,28 @@ function restaurarSessaoColeta(){
     return s && s.tipo!=='lote' && s.date===hoje && !s.loteId && s.etiqueta
       && (!s.user || s.user===currentUser);
   });
+
+  // ===== DIAGNÓSTICO TEMPORÁRIO (remover depois) =====
+  try{
+    var totalScans = scans.length;
+    var scansHoje = scans.filter(function(s){return s&&s.tipo!=='lote'&&s.date===hoje;}).length;
+    var semLote = scans.filter(function(s){return s&&s.tipo!=='lote'&&s.date===hoje&&!s.loteId;}).length;
+    var amostra = scans.filter(function(s){return s&&s.tipo!=='lote'&&s.date===hoje;}).slice(0,3).map(function(s){
+      return s.etiqueta+' (mkt='+(s.mkt||'?')+', user='+(s.user||'?')+', loteId='+(s.loteId||'não')+')';
+    }).join('\n');
+    alert('DIAGNÓSTICO RESTAURAÇÃO\n'+
+      '------------------------\n'+
+      'Usuário logado: '+currentUser+'\n'+
+      'Data hoje: '+hoje+'\n'+
+      'Total de scans: '+totalScans+'\n'+
+      'Scans de hoje: '+scansHoje+'\n'+
+      'De hoje sem lote: '+semLote+'\n'+
+      'Órfãos p/ restaurar: '+orfaos.length+'\n'+
+      '------------------------\n'+
+      'Amostra (até 3):\n'+(amostra||'(nenhum)'));
+  }catch(e){}
+  // ===== FIM DIAGNÓSTICO =====
+
   if(orfaos.length===0) return false;
 
   // Agrupa por marketplace — cada card tem o próprio prazo de 25 min
