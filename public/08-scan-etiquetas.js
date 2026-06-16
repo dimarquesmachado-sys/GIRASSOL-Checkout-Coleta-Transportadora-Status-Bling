@@ -334,9 +334,12 @@ function restaurarSessaoColeta(){
     var lst=porMkt[m];
     var tsL=lst.map(function(s){return s.ts||0;}).filter(function(t){return t>0;});
     if(tsL.length===0) return; // bipes antigos sem timestamp: não restaura nem mexe
-    var dl=Math.min.apply(null,tsL)+25*60*1000;
+    // Prazo de INATIVIDADE: 25 min contados do ÚLTIMO bipe (não do primeiro).
+    // Coleta longa ativa (bipando) nunca expira; só expira se ficou 25 min parada.
+    var ult=Math.max.apply(null,tsL);
+    var dl=ult+25*60*1000;
     if(agora>dl){
-      // Este card expirou → descarta SÓ os bipes dele (igual o "Tempo esgotado")
+      // Ficou 25 min sem bipar → coleta abandonada → descarta SÓ os bipes deste card
       lst.forEach(function(s){
         registrarRemocaoScan(s); // p/ o servidor remover no merge
         var ix=scans.indexOf(s);
@@ -345,7 +348,6 @@ function restaurarSessaoColeta(){
       mktsExpirados.push(m);
     } else {
       // Card ainda válido — candidato a restaurar (escolhe o de bipe mais recente)
-      var ult=Math.max.apply(null,tsL);
       if(!candidatoMkt || ult>candidatoUltimo){
         candidatoMkt=m; candidatoUltimo=ult; candidatoDeadline=dl;
       }
