@@ -71,8 +71,27 @@ function renderMktGrid(){
 }
 
 function selectMkt(mkt){
-  if(activeMkt===mkt){closeColeta();return;}
+  // ── Clique no card que JÁ está ativo (toggle para fechar) ──
+  if(activeMkt===mkt){
+    // PROTEÇÃO: se há pacotes bipados nesta sessão, confirma antes de descartar.
+    // Evita perda acidental — ex: o funcionário reabre o app, o sistema restaura a
+    // tela de bipagem onde ele parou, e ele clica no card por reflexo, zerando tudo.
+    if(colSession.length>0){
+      if(!confirm('⚠ ATENÇÃO\n\nVocê tem '+colSession.length+' pacote(s) JÁ bipado(s) aqui que ainda NÃO foram despachados.\n\nSe fechar agora, esses bipes serão DESCARTADOS e os pacotes NÃO serão despachados.\n\n👉 Para despachar, finalize a coleta (botão verde) em vez de fechar.\n\nFechar e descartar mesmo assim?')){
+        return; // funcionário cancelou — mantém o card aberto com os bipes intactos
+      }
+    }
+    closeColeta();
+    return;
+  }
   if(_tirando_fotos) return; // Não muda de card durante captura de fotos
+  // PROTEÇÃO: trocar para OUTRO card com bipes não finalizados também os descarta.
+  // Confirma antes (mesmo risco de perda acidental ao clicar em outro card sem querer).
+  if(colSession.length>0){
+    if(!confirm('⚠ ATENÇÃO\n\nVocê tem '+colSession.length+' pacote(s) bipado(s) em '+((MKT[activeMkt]||{}).n||activeMkt||'')+' que ainda NÃO foram despachados.\n\nTrocar de card agora vai DESCARTAR esses bipes.\n\n👉 Para despachar, finalize a coleta (botão verde) antes de trocar.\n\nTrocar e descartar mesmo assim?')){
+      return; // funcionário cancelou — fica no card atual, bipes intactos
+    }
+  }
   // Limpa scans da sessão atual ANTES de trocar de card (evita órfãos duplicados)
   if(colSession.length>0){
     var todayK=todayStr();
