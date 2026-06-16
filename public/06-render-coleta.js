@@ -155,10 +155,17 @@ function clearColetaTimer(){
 }
 
 function startColetaTimer(deadlineExistente){
-  if(coletaDeadline) return; // Já iniciou
-  coletaDeadline = deadlineExistente || (Date.now() + 25*60*1000); // 25 minutos
-  sv('expv5_coleta_deadline', coletaDeadline); // persiste p/ sobreviver a reload
-  
+  // Limite de 25 min de INATIVIDADE: cada bipe renova o prazo.
+  // Assim, uma coleta longa (ex: 40 pacotes) não expira enquanto o funcionário
+  // está bipando; só expira se ficar 25 min PARADA (coleta abandonada).
+  if(deadlineExistente){
+    coletaDeadline = deadlineExistente;            // restauração: continua de onde parou
+  } else {
+    coletaDeadline = Date.now() + 25*60*1000;      // bipe normal: renova os 25 min
+  }
+  sv('expv5_coleta_deadline', coletaDeadline);     // persiste p/ sobreviver a reload
+  if(coletaTimerInterval) return;                  // já há contador rodando — só renovou o prazo
+
   // Atualiza contador a cada segundo
   coletaTimerInterval = setInterval(function(){
     var restante = Math.max(0, coletaDeadline - Date.now());
