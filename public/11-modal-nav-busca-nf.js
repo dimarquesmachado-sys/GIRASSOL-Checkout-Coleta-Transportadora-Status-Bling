@@ -20,8 +20,16 @@ window.addEventListener('popstate',function(e){
     history.pushState({app:true},''); // re-empurra estado para continuar interceptando
     return;
   }
-  // Se tem card de loja aberto, fecha o card
+  // Se tem card de loja aberto
   if(activeMkt){
+    // PROTEÇÃO: coleta com pacotes já bipados NÃO é fechada pelo botão Voltar
+    // (evita perder a coleta com um toque acidental). Para fechar, usar o X.
+    if(typeof colSession!=='undefined' && colSession && colSession.length>0){
+      history.pushState({app:true},''); // mantém no site e segue interceptando
+      if(typeof toast==='function') toast('⚠ Coleta em andamento — toque no X para fechar','warn');
+      return;
+    }
+    // Card aberto SEM bipes: pode fechar normalmente
     closeColeta();
     history.pushState({app:true},'');
     return;
