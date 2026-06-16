@@ -23,18 +23,34 @@ function parseUsers() {
   }).filter(u => u.nome && u.senha);
 }
 
-const sessions = new Map();
-function generateToken() { return crypto.randomBytes(32).toString('hex'); }
+// ── Sessões STATELESS (token assinado) ──────────────────────────────────────
+// O token carrega o usuário + validade + assinatura HMAC. O servidor valida pela
+// assinatura, SEM guardar nada na memória. Assim a sessão sobrevive a restarts do
+// Render (deploy/crash). Antes, o Map em memória zerava no restart e deslogava todo
+// mundo de uma vez — problema crítico no iPhone, que recarrega o app ao voltar do
+// background e revalida o login, caindo no loop de "volta pro login".
+const SESSION_TTL = 24 * 60 * 60 * 1000; // 24h
+function generateToken(user) {
+  const payload = Buffer.from(JSON.stringify({ u: user, exp: Date.now() + SESSION_TTL })).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return payload + '.' + sig;
+}
+function verifyToken(tok) {
+  if (!tok) return null;
+  const parts = String(tok).split('.');
+  if (parts.length !== 2) return null;
+  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(parts[0]).digest('base64url');
+  if (parts[1] !== expectedSig) return null; // assinatura inválida (adulterado ou token antigo formato aleatório)
+  let payload;
+  try { payload = JSON.parse(Buffer.from(parts[0], 'base64url').toString()); } catch (e) { return null; }
+  if (!payload.exp || Date.now() > payload.exp) return null; // expirado
+  return payload.u;
+}
 
 function requireAuth(req, res, next) {
-  const auth = req.headers['x-session-token'];
-  if (!auth || !sessions.has(auth)) return res.status(401).json({ error: 'Não autorizado.' });
-  const s = sessions.get(auth);
-  if (Date.now() - s.createdAt > 24 * 60 * 60 * 1000) {
-    sessions.delete(auth);
-    return res.status(401).json({ error: 'Sessão expirada.' });
-  }
-  req.user = s.user;
+  const user = verifyToken(req.headers['x-session-token']);
+  if (!user) return res.status(401).json({ error: 'Sessão expirada.' });
+  req.user = user;
   next();
 }
 
@@ -230,14 +246,13 @@ app.post('/login', (req, res) => {
   const { usuario, senha } = req.body;
   const found = parseUsers().find(u => u.nome === usuario && u.senha === senha);
   if (!found) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
-  const token = generateToken();
-  sessions.set(token, { user: usuario, createdAt: Date.now() });
+  const token = generateToken(usuario);
   res.json({ token, usuario });
 });
 
 app.post('/logout', (req, res) => {
-  const auth = req.headers['x-session-token'];
-  if (auth) sessions.delete(auth);
+  // Sessão stateless: não há estado no servidor para remover.
+  // O cliente apaga o token do localStorage; o token expira sozinho em 24h.
   res.json({ ok: true });
 });
 
@@ -801,6 +816,7 @@ setInterval(limparScansAntigos, 6 * 60 * 60 * 1000);
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🔐 Sessões: STATELESS (token assinado) — sobrevive a restart`);
   console.log(`📦 Client ID: ${CLIENT_ID ? '✓ configurado' : '✗ NÃO configurado'}`);
   console.log(`🔑 Access Token: ${accessToken ? '✓ presente' : '✗ ausente — acesse /callback'}`);
   console.log(`🔄 Refresh Token: ${refreshToken ? '✓ presente' : '✗ ausente'}`);
