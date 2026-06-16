@@ -48,7 +48,20 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+// Arquivos estáticos. JS e HTML são servidos com "no-cache" (o navegador pode
+// guardar, mas DEVE revalidar com o servidor antes de usar) — assim todo deploy
+// novo é pego automaticamente, sem precisar limpar cache no celular.
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: function(res, filePath){
+    if(filePath.endsWith('.js') || filePath.endsWith('.html')){
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // imagens/css: 1 dia
+    }
+  }
+}));
 
 app.get('/callback', async (req, res) => {
   const code = req.query.code;
