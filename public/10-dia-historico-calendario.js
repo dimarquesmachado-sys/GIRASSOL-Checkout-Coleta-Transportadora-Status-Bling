@@ -165,11 +165,20 @@ function renderDia(){
       html+='<span style="font-size:11px;color:var(--tm)">'+l.time+'</span></div>';
       html+='<div style="font-size:11px;font-family:var(--mono);color:var(--tm);margin-bottom:'+(l.obs?'6':'0')+'px">✓ '+l.qtd+' entregues'+(l.problemas>0?' · 🚫 '+l.problemas+' prob.':'')+'</div>';
       if(l.obs) html+='<div style="font-size:11px;color:var(--am);background:var(--am2);border-radius:6px;padding:6px 8px;margin-bottom:6px">📝 '+l.obs+'</div>';
-      if(l.fotosVeiculo&&l.fotosVeiculo.length>0){
+      var fotosReaisD=(l.fotosVeiculo||[]).filter(function(f){return f&&String(f).length>20;});
+      var qtdFotosD=(l.fotosVeiculo&&l.fotosVeiculo.length)||0;
+      if(qtdFotosD>0){
+        var supaBaseD='https://wexikjzztxpfdbzjfnxl.supabase.co/storage/v1/object/public/expedicao/';
         html+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">';
-        l.fotosVeiculo.forEach(function(f,idx){
-          html+='<img src="'+f+'" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b2)" onclick="verFotoLote(\''+l.id+'\','+idx+')" alt="foto">';
-        });
+        if(fotosReaisD.length>0){
+          fotosReaisD.forEach(function(f,idx){
+            html+='<img src="'+f+'" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b2)" onclick="verFotoLote(\''+l.id+'\','+idx+')" alt="foto">';
+          });
+        } else {
+          for(var fiD=0;fiD<qtdFotosD;fiD++){
+            html+='<img src="'+supaBaseD+'lote_'+l.id+'_'+fiD+'" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b2)" onclick="verFotoLote(\''+l.id+'\','+fiD+')" onerror="this.outerHTML=\'<div style=&quot;width:60px;height:60px;border-radius:6px;background:var(--s2);border:1px dashed var(--b2);display:flex;align-items:center;justify-content:center;font-size:18px&quot;>🚛</div>\'" alt="foto">';
+          }
+        }
         html+='</div>';
       }
       html+='</div>';
@@ -579,7 +588,8 @@ function renderHistContent(){
       lotes.forEach(function(l){
         var info=MKT[l.mkt]||{icon:'📦',n:l.mkt};
         var supaBase='https://wexikjzztxpfdbzjfnxl.supabase.co/storage/v1/object/public/expedicao/';
-        var nFotos=(l.fotosVeiculo&&l.fotosVeiculo.length)||0;
+        var fotosReaisLote=(l.fotosVeiculo||[]).filter(function(f){return f&&String(f).length>20;});
+        var qtdFotosLote=(l.fotosVeiculo&&l.fotosVeiculo.length)||0;
         var lotePkgs=getScansDaLote(l,pkgScans,lotes);
         // Card do lote — clica para expandir
         html+='<div style="background:var(--s1);border:1.5px solid var(--b1);border-radius:var(--rl);margin-bottom:10px;overflow:hidden">';
@@ -602,12 +612,14 @@ function renderHistContent(){
         // Fotos do veículo
         html+='<div style="font-size:11px;color:var(--tm);font-family:var(--mono);margin-bottom:6px">📸 FOTOS DO VEÍCULO</div>';
         html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">';
-        if(nFotos>0){
-          l.fotosVeiculo.forEach(function(f,idx){
+        if(fotosReaisLote.length>0){
+          // Fotos base64 disponíveis localmente (no aparelho que bipou) — mostra direto
+          fotosReaisLote.forEach(function(f,idx){
             html+='<img src="'+f+'" data-id="'+l.id+'" data-idx="'+idx+'" onclick="verFotoLote(this.dataset.id,this.dataset.idx)" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--b2)">';
           });
-        } else {
-          for(var fi=0;fi<3;fi++){
+        } else if(qtdFotosLote>0){
+          // Lote recebido por sync (fotos viraram strings vazias) — busca do Supabase
+          for(var fi=0;fi<qtdFotosLote;fi++){
             html+='<img src="'+supaBase+'lote_'+l.id+'_'+fi+'" data-id="'+l.id+'" data-idx="'+fi+'" onclick="verFotoLote(this.dataset.id,this.dataset.idx)" onerror="this.outerHTML=\'<div style=&quot;width:80px;height:80px;border-radius:8px;background:var(--s2);border:1px dashed var(--b2);display:flex;align-items:center;justify-content:center;font-size:20px&quot;>🚛</div>\'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--b2)">';
           }
         }
