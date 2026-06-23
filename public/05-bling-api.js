@@ -503,23 +503,36 @@ function pullFromBling(){
   function fetchPage(){
     apiFetch('/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial='+dateFrom30+'&pagina='+page+'&limite=100')
     .then(function(r){
-      if(r.status===304||r.status!==200){finishFetch(all);return;}
+      if(r.status===304||r.status!==200){finishFetch(all,false);return;} // erro/sem-conteudo: NÃO confia, não limpa fantasmas
       return r.json().then(function(d){
         var orders=d.data||[];
-        if(orders.length===0){finishFetch(all);return;}
+        if(orders.length===0){finishFetch(all,true);return;} // HTTP 200 + vazio: Bling confirmou que não há Verificado
         all=all.concat(orders);
         if(orders.length===100&&page<4){page++;setTimeout(fetchPage,1000);}
-        else finishFetch(all);
+        else finishFetch(all,true);
       });
     })
     .catch(function(e){flash('Erro: '+e.message,'err');resetSyncBtn();});
   }
-  function finishFetch(all){
+  function finishFetch(all,buscaOk){
     if(all.length===0){
-      // Só avisa se realmente não há nada — se já tem pacotes de hoje no localStorage, fica quieto
+      // Remove pendentes "fantasma" SOMENTE se: a busca teve sucesso (HTTP 200 — o Bling
+      // confirmou que não há nada em VERIFICADO) E ninguém está no meio de uma coleta
+      // (pra não mexer em pacotes que o funcionário esteja bipando agora).
+      // Fantasma = pedido que já saiu do Verificado (despachado/faturado por fora) mas
+      // que o initApp ressuscita pra hoje todo dia. Coletados/problema são preservados.
+      if(buscaOk && colSession.length===0){
+        var antesF=packages.length;
+        packages=packages.filter(function(p){return !(p.status==='pendente'&&p.date===todayStr());});
+        if(packages.length!==antesF){
+          sv('expv5_pkgs',packages);
+          syncToServer();
+          console.log('🧹 '+(antesF-packages.length)+' pendente(s) fantasma removido(s) — não estavam mais em Verificado no Bling');
+        }
+      }
       var temHoje=packages.filter(function(p){return p.date===todayStr();}).length>0;
-      if(!temHoje) flash('Nenhum pedido VERIFICADO','warn');
-      renderMktGrid(); resetSyncBtn(); return;
+      if(!temHoje) flash(buscaOk?'Nenhum pedido VERIFICADO no Bling':'Erro ao buscar no Bling — tente de novo','warn');
+      renderMktGrid(); updateBadge(); resetSyncBtn(); return;
     }
     // DEBUG NF: loga os campos da 1ª ordem para identificar onde está a NF
     if(all.length>0){
