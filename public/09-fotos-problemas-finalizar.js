@@ -325,9 +325,10 @@ scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:loteDate,time:now,qtd:qt
       }
     }
   });
-  blingIds.forEach(function(id,idx){
-    setTimeout(function(){updateBlingStatus(id);},idx*1200);
-  });
+  // Despacho pelo SERVIDOR (robusto: completa mesmo se o app fechar / iPhone descarregar).
+  // Antes era setTimeout no cliente — se o funcionário saísse antes dos timers dispararem,
+  // os pedidos ficavam presos em VERIFICADO. Fallback local automático se o servidor não responder.
+  if(blingIds.length>0) despacharNoServidor(blingIds);
   var mktInfo=MKT[activeMkt]||{n:activeMkt};
   var msgFinal=mktInfo.n+': '+qtdEntregues+' entregues'+(problemaPkgs.length>0?', '+problemaPkgs.length+' problema(s)':'')+' ✓';
   toast(msgFinal,'ok');
@@ -336,6 +337,22 @@ scans.unshift({tipo:'lote',id:loteId,mkt:activeMkt,date:loteDate,time:now,qtd:qt
   syncToServer();
   closeColeta(); renderMktGrid(); updateBadge();
 }
+// Envia os IDs ao servidor, que faz os PATCHs em background (sobrevive ao app fechar).
+// Se o servidor não responder (ex: deploy ainda sem a rota /despachar), cai no
+// despacho local pelo cliente (comportamento antigo, melhor que não despachar).
+function despacharNoServidor(blingIds){
+  apiFetch('/despachar',{method:'POST',body:JSON.stringify({blingIds:blingIds})})
+  .then(function(r){
+    if(!r.ok) throw new Error('status '+r.status);
+    return r.json();
+  })
+  .then(function(d){ console.log('🚚 Despacho enviado ao servidor: '+(d&&d.total)+' pedido(s)'); })
+  .catch(function(e){
+    console.warn('⚠ /despachar indisponível ('+e.message+') — usando fallback local');
+    blingIds.forEach(function(id,idx){ setTimeout(function(){updateBlingStatus(id);},idx*1200); });
+  });
+}
+
 function updateBlingStatus(id){
   // Bling v3: PATCH /pedidos/vendas/{id}/situacoes/{idSituacao} sem body
   console.log('🚚 Movendo para DESPACHADOS: #'+id);
