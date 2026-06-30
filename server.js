@@ -433,6 +433,34 @@ app.get('/info/pedido/:id', async (req, res) => {
   } catch(e) { res.json({ error: e.message }); }
 });
 
+// ── DESPACHAR (mover pedidos para DESPACHADOS = 743515) ─────────────────────
+// Recebe os IDs do lote e faz os PATCHs NO SERVIDOR, em background, com throttle.
+// Antes o cliente agendava setTimeout e fechava o card na hora — se o app fechasse
+// (ou o iPhone descarregasse) antes dos timers dispararem, os pedidos ficavam presos
+// em VERIFICADO. Aqui o servidor garante o despacho independente do app.
+// blingFetch já cuida de renovação de token, rate-limit 429 e retry.
+const DESPACHADO_ID = 743515;
+async function despacharEmBackground(blingIds) {
+  let ok = 0, fail = 0;
+  for (let i = 0; i < blingIds.length; i++) {
+    const id = blingIds[i];
+    try {
+      const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + id + '/situacoes/' + DESPACHADO_ID, { method: 'PATCH' });
+      if (r.ok) { ok++; console.log('✅ DESPACHADO (servidor): #' + id); }
+      else { fail++; const t = await r.text(); console.warn('⚠ Falha despacho #' + id + ': ' + r.status + ' ' + t.substring(0, 150)); }
+    } catch (e) { fail++; console.error('❌ Erro despacho #' + id + ':', e.message); }
+    await sleep(700); // throttle entre PATCHs — respeita o limite ~3 req/s do Bling
+  }
+  console.log('🏁 Despacho concluído: ' + ok + ' ok, ' + fail + ' falha(s) de ' + blingIds.length);
+}
+app.post('/despachar', requireAuth, (req, res) => {
+  const { blingIds } = req.body;
+  if (!Array.isArray(blingIds) || blingIds.length === 0) return res.status(400).json({ error: 'blingIds obrigatório' });
+  const ids = [...new Set(blingIds.filter(Boolean).map(String))]; // sem duplicatas/vazios
+  res.json({ ok: true, total: ids.length }); // responde já; o despacho roda em background
+  despacharEmBackground(ids);
+});
+
 // Diagnóstico: busca pedido pelo NÚMERO e mostra o serviço de entrega de forma legível
 app.get('/info/servico/:numero', async (req, res) => {
   try {
