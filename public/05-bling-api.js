@@ -646,6 +646,24 @@ function pullFromBling(){
       // Se era de outro dia e não foi devolvido: fica como pendente (novo pull)
     });
 
+    // ── RECONCILIAÇÃO ──────────────────────────────────────────────────────
+    // Pedidos que o app marcou 'coletado' mas que o Bling ainda mostra em VERIFICADO
+    // (situação 24) — sinal de que o despacho não pegou. Re-despacha pelo servidor
+    // (PATCH é idempotente). Cooldown de 8 min pra não competir com um despacho que
+    // acabou de ser disparado nem gerar PATCHs repetidos a cada pull.
+    var agoraRec=Date.now();
+    if(!window._reconciliouEm || (agoraRec-window._reconciliouEm)>8*60*1000){
+      var presos=newPkgs.filter(function(p){
+        var ex=existingMap[p.blingId];
+        return ex && ex.status==='coletado' && ex.date===today && p.blingStatus===24;
+      }).map(function(p){return p.blingId;});
+      if(presos.length>0){
+        window._reconciliouEm=agoraRec;
+        console.log('🔧 Reconciliação: '+presos.length+' coletado(s) ainda em Verificado → re-despachando');
+        if(typeof despacharNoServidor==='function') despacharNoServidor(presos);
+      }
+    }
+
     // Log de rastreamento para qualquer pacote devolvido
     newPkgs.forEach(function(p){
       if(p.urgente&&p.status==='pendente'){
