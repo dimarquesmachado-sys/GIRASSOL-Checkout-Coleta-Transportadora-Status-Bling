@@ -103,6 +103,7 @@ function loadFromServer(cb){
           if(sp.nf&&!localMap[sp.blingId].nf) localMap[sp.blingId].nf=sp.nf;
           if(sp.nfChave&&!localMap[sp.blingId].nfChave) localMap[sp.blingId].nfChave=sp.nfChave;
           if(sp.numeracao&&!localMap[sp.blingId].numeracao) localMap[sp.blingId].numeracao=sp.numeracao;
+          if(sp.codigosBip&&sp.codigosBip.length&&!(localMap[sp.blingId].codigosBip&&localMap[sp.blingId].codigosBip.length)) localMap[sp.blingId].codigosBip=sp.codigosBip;
           if(sp.numLoja&&!localMap[sp.blingId].numLoja) localMap[sp.blingId].numLoja=sp.numLoja;
           // Servidor diz coletado e local diz pendente: atualiza local
           if(sp.status==='coletado'&&localMap[sp.blingId].status==='pendente'){
