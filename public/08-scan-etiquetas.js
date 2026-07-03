@@ -73,6 +73,16 @@ function handleScan(rawCode,photo){
     if(p.nfChave&&p.nfChave.length===44&&p.nfChave.slice(-13)===c.slice(-13)&&c.length>=13) return true;
     // Número da NF (ex: "12345")
     if(p.nf&&String(p.nf).trim()===c) return true;
+    // Números de envio capturados do Bling (shipment/pack) — reconhece o QR do ML
+    // (ex: QR {"id":"47384104092"}) e o código de barras de envio da etiqueta.
+    // Só correspondência exata (por número) — evita falso positivo entre pedidos.
+    if(p.codigosBip&&p.codigosBip.length&&c.length>=8){
+      for(var ci=0;ci<p.codigosBip.length;ci++){
+        var cb=String(p.codigosBip[ci]);
+        if(cb===c) return true;
+        if(parseInt(cb,10)===parseInt(c,10)) return true;
+      }
+    }
     return false;
   }
   var pkg=null, wrongPkg=null, already=null;
