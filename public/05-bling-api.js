@@ -1,4 +1,21 @@
 // ═══ BLING — busca rastreio FLEX ═══
+// Captura os números longos (número de envio/shipment, pack_id) do pedido do Bling,
+// pra o matching reconhecer o QR e o código de barras da etiqueta ML.
+// Ex: QR do ML = {"id":"47384104092","t":"lm"} — o "47384104092" precisa estar guardado.
+// Pega só de campos de envio/loja (transporte, numeroPedidoLoja) — evita CPF/telefone do contato.
+function capturarCodigosBip(order){
+  if(!order) return [];
+  try{
+    var fonte=JSON.stringify({
+      t: order.transporte||null,
+      npl: order.numeroPedidoLoja||null,
+      nl: order.numeroLoja||null,
+      nl2: order.numeroloja||null
+    });
+    var nums=fonte.match(/\d{10,16}/g)||[];
+    return nums.filter(function(v,i,a){return a.indexOf(v)===i;}); // remove duplicatas
+  }catch(e){ return []; }
+}
 // Busca tracking individual para marketplaces que não trazem rastreio na listagem
 function detectTrackingPkgs(pkgs){
   var i=0;
@@ -71,6 +88,8 @@ function detectTrackingPkgs(pkgs){
         if(p){
           if(numLojaD&&!p.numLoja){p.numLoja=String(numLojaD).trim();}
           if(track){p.numeracao=String(track).replace(/\s/g,'').toUpperCase(); console.log('✅ Tracking '+p.mkt.toUpperCase()+' #'+p.numero+': '+p.numeracao);}
+          // Captura números de envio (shipment/pack) pro matching do QR e código de barras ML
+          var cbTrk=capturarCodigosBip(order); if(cbTrk.length) p.codigosBip=cbTrk;
           else{console.warn('⚠ SEM tracking para '+p.mkt.toUpperCase()+' #'+p.numero);}
           // Detecta urgente pelo serviço (Shopee Xpress, VAPT, etc)
           if(!p.urgente){
@@ -161,6 +180,8 @@ function detectFlexML(mlPkgs, onDone){
               console.log('🧹 Limpou GUID inválido de #'+p.numero);
             }
           }
+          // Captura números de envio (shipment/pack) pro matching do QR e código de barras ML
+          var cbFlex=capturarCodigosBip(order); if(cbFlex.length) p.codigosBip=cbFlex;
           // NF e chave DANFE
           var nfFlex=(order.notaFiscal&&order.notaFiscal.numero)||(order.nfe&&order.nfe.numero)||'';
           var nfChaveFlex=(order.notaFiscal&&order.notaFiscal.chave)||(order.nfe&&order.nfe.chave)||'';
@@ -614,6 +635,7 @@ function pullFromBling(){
       if(ex.urgente) p.urgente=true; // CRITICAL: preserva flag FLEX/urgente
       if(ex.servico) p.servico=ex.servico;
       if(ex.numeracao) p.numeracao=ex.numeracao;
+      if(ex.codigosBip&&ex.codigosBip.length) p.codigosBip=ex.codigosBip; // preserva números de envio (QR/código ML)
       if(ex.nfChave) p.nfChave=ex.nfChave;
       // Propaga NF só se for do mesmo dia (evita NF errada de dia anterior)
       if(ex.nf&&ex.date===today) p.nf=ex.nf;
