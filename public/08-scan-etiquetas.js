@@ -137,9 +137,12 @@ function handleScan(rawCode,photo){
     document.getElementById('camStatus').style.background='rgba(0,0,0,.6)';
   },3000);
   var chave=pkg.etiqueta;
-  // Remove scan anterior desta etiqueta hoje (evita duplicata ao re-bipar após desfazer)
+  // Remove scan anterior desta etiqueta hoje (evita duplicata ao re-bipar após desfazer).
+  // Preserva scans com loteId (histórico de lote já finalizado — ex: devolução no mesmo dia)
+  // e registra a remoção p/ o servidor não ressuscitar o scan antigo no merge.
   for(var _si=scans.length-1;_si>=0;_si--){
-    if(scans[_si].etiqueta===chave&&scans[_si].date===today&&scans[_si].tipo!=='lote'){
+    if(scans[_si].etiqueta===chave&&scans[_si].date===today&&scans[_si].tipo!=='lote'&&!scans[_si].loteId){
+      registrarRemocaoScan(scans[_si]);
       scans.splice(_si,1);
     }
   }
