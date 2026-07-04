@@ -134,7 +134,11 @@ function loadFromServer(cb){
       });
       var novos=serverScans.filter(function(s){
         var key=(s.tipo==='lote'?s.id:s.etiqueta+'_'+s.date+'_'+s.time);
-        return !localIds[key];
+        if(localIds[key]) return false;
+        // Não ressuscita scans removidos NESTE aparelho (cancelar/fechar/expirar) —
+        // fecha a janela de corrida em que o servidor ainda não processou a remoção.
+        if(removedScanKeys.indexOf(scanKeyOf(s))!==-1) return false;
+        return true;
       });
       if(novos.length>0){
         scans=scans.concat(novos);
