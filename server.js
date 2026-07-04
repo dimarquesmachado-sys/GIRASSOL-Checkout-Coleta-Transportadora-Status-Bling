@@ -10,6 +10,10 @@ const BLING_BASE = 'https://api.bling.com.br/Api/v3';
 const CLIENT_ID      = process.env.BLING_CLIENT_ID || '';
 const CLIENT_SECRET  = process.env.BLING_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'girassol-2024';
+// Chave p/ rotas de diagnóstico/admin (acessadas pelo navegador com ?k=CHAVE).
+// Sem a env ADMIN_KEY configurada, essas rotas ficam DESLIGADAS (404) — seguro por padrão.
+const ADMIN_KEY = process.env.ADMIN_KEY || '';
+function adminOk(req){ return ADMIN_KEY && req.query.k === ADMIN_KEY; }
 
 let accessToken  = process.env.BLING_ACCESS_TOKEN || '';
 let refreshToken = process.env.BLING_REFRESH_TOKEN || '';
@@ -346,7 +350,8 @@ app.post('/nfs-batch', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/bling-nf/:blingId', async (req, res) => { // diagnóstico temporário
+app.get('/bling-nf/:blingId', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY // diagnóstico temporário
   const id = req.params.blingId;
   const results = {};
   // Testa todos os parâmetros possíveis do endpoint /nfe do Bling v3
@@ -417,6 +422,7 @@ app.all('/bling/*', requireAuth, async (req, res) => {
 });
 
 app.get('/info/pedido/:id', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   try {
     await sleep(300);
     const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + req.params.id);
@@ -463,6 +469,7 @@ app.post('/despachar', requireAuth, (req, res) => {
 
 // Diagnóstico: busca pedido pelo NÚMERO e mostra o serviço de entrega de forma legível
 app.get('/info/servico/:numero', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   try {
     await sleep(300);
     const r = await blingFetch(BLING_BASE + '/pedidos/vendas?numero=' + req.params.numero + '&limite=5');
@@ -495,6 +502,7 @@ app.get('/info/servico/:numero', async (req, res) => {
 });
 
 app.get('/info/count24', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   try {
     const r = await blingFetch(BLING_BASE + '/pedidos/vendas?idSituacao=24&limite=100&pagina=1');
     const d = await r.json();
@@ -513,6 +521,7 @@ app.get('/info/count24', async (req, res) => {
 });
 
 app.get('/info/situacoes', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   if (!accessToken) return res.json({ error: 'Token não configurado' });
   try {
     await sleep(300);
@@ -524,6 +533,7 @@ app.get('/info/situacoes', async (req, res) => {
 });
 
 app.get('/info/teste-filtro', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   const results = {};
   const params = ['idSituacao=24','idsSituacoes=24','situacao=24','situacoes=24'];
   for(const p of params){
@@ -538,6 +548,7 @@ app.get('/info/teste-filtro', async (req, res) => {
 });
 
 app.get('/info/teste-data', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   const today = new Date().toISOString().split('T')[0];
   const d30 = new Date(); d30.setDate(d30.getDate()-30);
   const from = d30.toISOString().split('T')[0];
@@ -562,6 +573,7 @@ let migrationRunning = false;
 let migrationLog = [];
 
 app.get('/admin/migrar-verificados', async (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   if(migrationRunning) return res.json({ status: 'rodando', log: migrationLog.slice(-20) });
   migrationRunning = true;
   migrationLog = ['Iniciando migração...'];
@@ -605,6 +617,7 @@ app.get('/admin/migrar-verificados', async (req, res) => {
 });
 
 app.get('/admin/migrar-status', (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found'); // protegido: exige ?k=ADMIN_KEY
   res.json({ rodando: migrationRunning, log: migrationLog });
 });
 
@@ -841,6 +854,22 @@ loadSharedFromDisk();   // lê packages e scans do disco
 limparScansAntigos();   // remove scans antigos (evita OOM)
 // Limpa scans antigos a cada 6 horas
 setInterval(limparScansAntigos, 6 * 60 * 60 * 1000);
+
+// ── BACKUP dos dados operacionais (protegido por ?k=ADMIN_KEY) ──────────────
+// Baixa um JSON com packages + scans compartilhados (o conteúdo do disco /data).
+// NÃO inclui os tokens do Bling (segredo — recuperáveis via re-autorização OAuth).
+app.get('/admin/backup', (req, res) => {
+  if(!adminOk(req)) return res.status(404).send('Not found');
+  const hoje = new Date().toISOString().slice(0,10);
+  res.setHeader('Content-Disposition', 'attachment; filename="backup-expedicao-'+hoje+'.json"');
+  res.json({
+    geradoEm: new Date().toISOString(),
+    totalPackages: sharedPackages.length,
+    totalScans: sharedScans.length,
+    packages: sharedPackages,
+    scans: sharedScans
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
