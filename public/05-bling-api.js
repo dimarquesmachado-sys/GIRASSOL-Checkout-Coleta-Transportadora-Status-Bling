@@ -647,7 +647,7 @@ function pullFromBling(){
         // O Bling é a fonte da verdade → traz de volta para HOJE como pendente, p/ ser expedido.
         // (atrasos de sincronização do mesmo dia são tratados no ramo 'ex.date===today' abaixo;
         //  aqui só entra cross-day, quando o Bling já teve tempo de sobra para processar.)
-        var colTime = ex.colT ? new Date(ex.colT).getTime() : 0;
+        var colTime = ex.colTs || 0; // colT é "HH:MM" (Invalid Date) — usa o timestamp real
         var horasDesdeColeta = colTime ? Math.round((Date.now()-colTime)/(1000*60*60)) : 0;
         p.status='pendente'; p.colT=null;
         console.log('↩ #'+p.numero+' ainda VERIFICADO (coletado em '+ex.date+', há '+horasDesdeColeta+'h) → volta p/ hoje pendente');
@@ -693,18 +693,19 @@ function pullFromBling(){
       }
     });
 
-    // Preserva expedidos de HOJE que não voltaram do Bling (já estão em DESPACHADO)
-    // Também preserva coletados das últimas 48h que ainda não atualizaram no Bling
+    // Preserva expedidos de HOJE que não voltaram do Bling (já estão em DESPACHADO).
+    // BUG CORRIGIDO: a regra antiga fazia new Date(colT) com colT="HH:MM" → Invalid
+    // Date → NaN <= 48 sempre FALSO → todo coletado de hoje já despachado no Bling
+    // era DESCARTADO a cada pull (Resumo do Dia perdia os Expedidos).
+    // Como o rebuild abaixo só remove/recoloca pacotes de HOJE, basta preservar os
+    // coletados/problema de hoje que não vieram no pull (os de dias anteriores nem
+    // são removidos). Devolução do mesmo dia vem no pull (idsNovos) e é tratada no merge.
     var idsNovos={};
     newPkgs.forEach(function(p){idsNovos[p.blingId]=true;});
-    var agora = Date.now();
     var expedidosRecentes=packages.filter(function(p){
       if(p.status!=='coletado'&&p.status!=='problema') return false;
       if(idsNovos[p.blingId]) return false; // já veio no newPkgs (foi tratado no merge)
-      // Preserva se foi coletado nas últimas 48h
-      var colTime = p.colT ? new Date(p.colT).getTime() : 0;
-      var horasDesdeColeta = (agora - colTime) / (1000*60*60);
-      return horasDesdeColeta <= 48;
+      return p.date===today;
     });
     // Remove todos os de hoje e substitui
     packages=packages.filter(function(p){return p.date!==today;});
@@ -719,7 +720,6 @@ function pullFromBling(){
     sv('expv5_pkgs',packages);
     syncToServer(); // sincroniza packages para outros dispositivos (desktop)
     toast(newPkgs.length+' pedidos carregados','ok');
-    if(semTracking_count>0) toast('Buscando tracking de '+semTracking_count+' pedido(s)... aguarde','warn');
     renderMktGrid(); updateBadge();
     // Detecta FLEX em todos os ML e Shopee pendentes
     var mlPkgs=newPkgs.filter(function(p){return p.mkt==='ml'||p.mkt==='shopee';});
@@ -734,6 +734,7 @@ function pullFromBling(){
       return !p.numeracao && (p.mkt==='tiktok'||p.mkt==='magalu'||p.mkt==='amazon');
     });
     var semTracking_count=semTracking.length;
+    if(semTracking_count>0) toast('Buscando tracking de '+semTracking_count+' pedido(s)... aguarde','warn');
     if(mlSemFlex.length>0||mlPkgs.length>0){
       var mlParaDetectar=typeof mlSemFlex!=='undefined'?mlSemFlex:mlPkgs;
       detectFlexML(mlParaDetectar, function(){
@@ -746,10 +747,6 @@ toast('✅ Tudo carregado!','ok');
       });
     } else if(semTracking.length>0){
       detectTrackingPkgs(semTracking);
-    } else {
-      // Sem ML nem semTracking: busca NF direto
-      var semNF3=packages.filter(function(p){return p.date===todayStr()&&!p.nf;});
-
     }
 
     setTimeout(function(){
