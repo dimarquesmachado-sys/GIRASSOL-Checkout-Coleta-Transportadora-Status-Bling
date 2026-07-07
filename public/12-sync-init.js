@@ -302,9 +302,16 @@ function initApp(){
         // Atualiza histórico se estiver na aba — MAS só se o usuário não tiver um
         // card de lote aberto (senão o re-render colapsaria o card enquanto ele lê).
         if(document.getElementById('pageHist').style.display!=='none'){
+          // Não re-renderiza se o usuário tem QUALQUER card aberto (senão colapsaria
+          // enquanto ele lê). Cobre os 3 tipos: marketplace (diaToggle, margin-top:10px),
+          // lote (lote-pkgs-*) e lote-do-histórico (lh_*).
           var temCardAberto=false;
-          var expansiveis=document.querySelectorAll('#pageHist [id^="lote-pkgs-"]');
-          for(var i=0;i<expansiveis.length;i++){ if(expansiveis[i].style.display==='block'){ temCardAberto=true; break; } }
+          var divs=document.querySelectorAll('#pageHist div[id]');
+          for(var i=0;i<divs.length;i++){
+            var d=divs[i];
+            var ehExp=(d.id.indexOf('lote-pkgs-')===0)||(d.id.indexOf('lh_')===0)||(d.style.marginTop==='10px');
+            if(ehExp && d.style.display==='block'){ temCardAberto=true; break; }
+          }
           if(!temCardAberto) renderHistorico();
         }
       });
