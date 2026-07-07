@@ -2,16 +2,17 @@
 // (stripPhotos agora vive no 03-storage-helpers-som.js, junto com svScans)
 
 // ─── Upload de fotos para o servidor ────────────────────────────────────────
-function uploadScanPhoto(etiqueta, date, photo){
+function uploadScanPhoto(etiqueta, date, photo, _tentativa){
   if(!photo||!etiqueta) return;
+  _tentativa = _tentativa || 1;
   var key='scan_'+etiqueta+'_'+date;
-  console.log('📤 Enviando foto etiqueta: '+key+' ('+Math.round(photo.length/1024)+'KB)');
+  if(_tentativa===1) console.log('📤 Enviando foto etiqueta: '+key+' ('+Math.round(photo.length/1024)+'KB)');
   apiFetch('/photos/scan',{method:'POST',body:JSON.stringify({key:key,photo:photo})})
   .then(function(r){return r.json();})
   .then(function(d){
-    console.log('✅ Foto etiqueta enviada:', key, d);
-    // Salva URL do Supabase no scan para acesso posterior
     if(d&&d.url){
+      console.log('✅ Foto etiqueta enviada:', key);
+      // Salva URL do Supabase no scan para acesso posterior
       for(var i=0;i<scans.length;i++){
         if(scans[i].etiqueta===etiqueta&&scans[i].date===date){
           scans[i].photoUrl=d.url;
@@ -19,9 +20,20 @@ function uploadScanPhoto(etiqueta, date, photo){
           break;
         }
       }
+    } else {
+      throw new Error('resposta sem url'); // servidor respondeu mas não salvou → tenta de novo
     }
   })
-  .catch(function(e){console.error('❌ Erro upload foto etiqueta:', e.message);});
+  .catch(function(e){
+    // RETRY: falha de rede ou Supabase engasgado perdia a foto pra sempre (o base64
+    // é descartado logo após bipar). Agora tenta até 4x com espera crescente.
+    console.error('❌ Erro upload foto '+key+' (tentativa '+_tentativa+'): '+e.message);
+    if(_tentativa < 4){
+      setTimeout(function(){ uploadScanPhoto(etiqueta, date, photo, _tentativa+1); }, _tentativa*2500);
+    } else {
+      console.error('❌ Foto '+key+' NÃO enviada após 4 tentativas — perdida');
+    }
+  });
 }
 
 function uploadLotePhotos(loteId, fotos){
@@ -287,9 +299,13 @@ function initApp(){
   setInterval(function(){
     if(!activeMkt){ // Só se não estiver bipando
       loadFromServer(function(){
-        // Atualiza histórico se estiver na aba
+        // Atualiza histórico se estiver na aba — MAS só se o usuário não tiver um
+        // card de lote aberto (senão o re-render colapsaria o card enquanto ele lê).
         if(document.getElementById('pageHist').style.display!=='none'){
-          renderHistorico();
+          var temCardAberto=false;
+          var expansiveis=document.querySelectorAll('#pageHist [id^="lote-pkgs-"]');
+          for(var i=0;i<expansiveis.length;i++){ if(expansiveis[i].style.display==='block'){ temCardAberto=true; break; } }
+          if(!temCardAberto) renderHistorico();
         }
       });
     }
