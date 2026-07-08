@@ -1,4 +1,12 @@
 // ═══ RENDER ═══
+// Bolinha colorida do marketplace (usada no card FLEX pra identificar a origem).
+// Cores fixas por marketplace; TikTok ganha borda branca pra aparecer no fundo escuro.
+function bolinhaMkt(mkt){
+  var m=MKT[mkt]; if(!m) return '';
+  var cor=m.dot||'#8E8E93';
+  var borda=m.ring?'border:2px solid #fff;':'border:1px solid rgba(255,255,255,.22);';
+  return '<span title="'+m.n+'" style="display:inline-block;width:13px;height:13px;border-radius:50%;background:'+cor+';'+borda+'vertical-align:middle;margin-right:6px;box-sizing:border-box"></span>';
+}
 function renderMktGrid(){
   var today=todayPkgs();
   var d=new Date();
@@ -249,8 +257,9 @@ function renderPkgList(){
     return '<div class="pkg-row '+(ativo?'scanned':'')+'" data-etiqueta="'+p.etiqueta+'">'+
       fotoHtml+
       '<div style="flex:1;min-width:0">'+
-      // Linha 1: número do pedido Bling (principal)
-      '<div class="pkg-num">'+p.numero+'</div>'+
+      // Linha 1: número do pedido Bling (principal). No card FLEX (que mistura vários
+      // marketplaces), mostra uma bolinha colorida da origem pra identificar de bater o olho.
+      '<div class="pkg-num">'+(activeMkt==='flex'?bolinhaMkt(p.mkt):'')+p.numero+'</div>'+
       // Linha 2: NF · marketplace · tracking (tudo visível)
       '<div class="pkg-sub">'+
         (p.nf?'<span style="color:var(--gr)">NF '+p.nf+'</span>':
