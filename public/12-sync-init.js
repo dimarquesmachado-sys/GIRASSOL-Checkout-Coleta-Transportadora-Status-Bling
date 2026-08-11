@@ -123,6 +123,8 @@ function loadFromServer(cb){
     var serverPkgs=d.packages||[];
     var serverScans=d.scans||[];
     var today=todayStr();
+    var _lim=new Date(); _lim.setDate(_lim.getDate()-45);
+    var limiteHistorico=_lim.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
 
     // Merge packages: server tem prioridade para campos que o cliente pode não ter
     if(serverPkgs.length>0){
@@ -148,11 +150,13 @@ function loadFromServer(cb){
             localMap[sp.blingId].colT=sp.colT;
             localMap[sp.blingId].obs=sp.obs;
           }
-        } else {
+        } else if(!sp.date || sp.date >= limiteHistorico){
           // Pacote do servidor que não está local — adiciona.
-          // CORRIGIDO (11/08): antes só adicionava os de HOJE. Um aparelho sem
-          // cache ficava só com os de hoje e, ao republicar, apagava o histórico
-          // do servidor. Agora incorpora tudo que veio antes de enviar de volta.
+          // CORRIGIDO (11/08): antes só adicionava os de HOJE, então um aparelho
+          // sem cache ficava só com os de hoje e, ao republicar, apagava o
+          // histórico do servidor. Agora incorpora a janela de 45 dias (mesma
+          // retenção dos scans) — sem crescer o localStorage indefinidamente,
+          // o que faria sv() estourar a cota e parar de salvar em silêncio.
           packages.push(sp);
         }
       });
@@ -306,7 +310,15 @@ function initApp(){
       console.warn('⚠ initApp: download do servidor falhou — NÃO enviando a base local agora');
     }
     renderMktGrid(); updateBadge();
-    setTimeout(pullFromBling,1200);
+    // Só busca no Bling se o download do servidor deu certo. Se falhou, a lista
+    // local pode estar incompleta — e o pull manda syncToServer(true), que passa
+    // por cima do freio e apagaria o histórico do servidor. O pull periódico
+    // (a cada 10 min) tenta de novo quando o servidor voltar.
+    if(okDownload){
+      setTimeout(pullFromBling,1200);
+    } else {
+      console.warn('⚠ initApp: pull do Bling adiado — servidor não respondeu ao download inicial');
+    }
     // 3. Restaura sessão de coleta se o app recarregou no meio de uma bipagem
     // (ex: funcionário esbarrou no celular). Precisa dos packages já carregados.
     if(typeof restaurarSessaoColeta==='function'){
