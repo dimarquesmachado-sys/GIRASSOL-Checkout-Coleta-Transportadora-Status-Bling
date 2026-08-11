@@ -120,17 +120,17 @@ app.get('/callback', async (req, res) => {
         O sistema vai renovar sozinho a partir de agora.<br><br>
         Pode fechar esta página.
       </div>
-      <details style="margin-top:24px;color:#8B8D9B">
-        <summary style="cursor:pointer;font-size:12px">Ver tokens (caso queira copiar manualmente)</summary>
-        <div class="lbl" style="margin-top:12px">BLING_ACCESS_TOKEN</div>
-        <div class="box">${accessToken}</div>
-        <div class="lbl" style="margin-top:12px">BLING_REFRESH_TOKEN</div>
-        <div class="box">${refreshToken}</div>
-      </details>
+      <!-- Os tokens NÃO são mais exibidos aqui (11/08). Esta rota é pública por
+           exigência do OAuth do Bling, então imprimir access/refresh token na tela
+           entregava a credencial da empresa a quem abrisse a URL, e ela ficava no
+           histórico do navegador. Os tokens já são salvos no disco automaticamente. -->
       </body></html>`);
   } catch (e) {
+    // Detalhe do erro só no log do servidor: a mensagem vem do provedor e pode
+    // conter dados sensíveis, além de virar HTML se ecoada na página.
     console.error('Erro callback:', e.message);
-    res.send(`<h2 style="color:red">Erro: ${e.message}</h2><p>O código pode ter expirado. Acesse o Link de Convite novamente.</p>`);
+    res.status(400).send('<h2 style="color:red">Não foi possível concluir a autorização</h2>' +
+      '<p>O código pode ter expirado. Acesse o Link de Convite novamente.</p>');
   }
 });
 
@@ -246,10 +246,51 @@ async function blingFetch(url, options = {}, retries = 3) {
   throw new Error('Máximo de tentativas atingido');
 }
 
+// ── Freio contra tentativas repetidas de login (11/08) ──────────────────────
+// Antes não havia limite: dava pra testar senha indefinidamente. Conta por
+// IP+usuário (não por IP puro) pra um funcionário errando a senha não travar o
+// login dos colegas, que saem do mesmo IP do galpão.
+const LOGIN_MAX = 10;                    // tentativas erradas...
+const LOGIN_JANELA = 10 * 60 * 1000;     // ...dentro de 10 min
+const LOGIN_BLOQUEIO = 3 * 60 * 1000;    // bloqueio de 3 min
+const tentativasLogin = new Map();
+function ipDe(req) {
+  const xf = req.headers['x-forwarded-for'];
+  return (xf ? String(xf).split(',')[0] : '').trim() || req.socket.remoteAddress || '?';
+}
+function limparTentativas() {
+  const agora = Date.now();
+  for (const [k, v] of tentativasLogin) if (agora > v.expira) tentativasLogin.delete(k);
+}
+setInterval(limparTentativas, 10 * 60 * 1000);
+
 app.post('/login', (req, res) => {
   const { usuario, senha } = req.body;
+  const chave = ipDe(req) + '|' + String(usuario || '').slice(0, 60);
+  const agora = Date.now();
+  const reg = tentativasLogin.get(chave);
+
+  if (reg && reg.bloqueadoAte && agora < reg.bloqueadoAte) {
+    const faltam = Math.ceil((reg.bloqueadoAte - agora) / 1000);
+    console.warn('⛔ login bloqueado (' + chave + ') — faltam ' + faltam + 's');
+    res.setHeader('Retry-After', String(faltam));
+    return res.status(429).json({ error: 'Muitas tentativas. Tente de novo em ' + Math.ceil(faltam / 60) + ' min.' });
+  }
+
   const found = parseUsers().find(u => u.nome === usuario && u.senha === senha);
-  if (!found) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  if (!found) {
+    const base = (reg && agora < reg.expira) ? reg : { n: 0, expira: agora + LOGIN_JANELA };
+    base.n++;
+    if (base.n >= LOGIN_MAX) {
+      base.bloqueadoAte = agora + LOGIN_BLOQUEIO;
+      base.n = 0;
+      console.warn('⛔ login BLOQUEADO por ' + (LOGIN_BLOQUEIO / 60000) + ' min — ' + chave);
+    }
+    tentativasLogin.set(chave, base);
+    return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  }
+
+  tentativasLogin.delete(chave); // acertou: zera o contador
   const token = generateToken(usuario);
   res.json({ token, usuario });
 });
@@ -262,37 +303,45 @@ app.post('/logout', (req, res) => {
 
 app.get('/me', requireAuth, (req, res) => res.json({ usuario: req.user }));
 
+
+// ── NF do pedido pelo VÍNCULO REAL (11/08) ──────────────────────────────────
+// ANTES: as rotas abaixo paginavam /nfe e escolhiam a primeira nota com id ATÉ
+// 2000 acima do id do pedido ("TOLERANCE"). Isso é um CHUTE: em volume alto a NF
+// de OUTRO cliente podia ser colada no pacote — e a NF vira um código aceito na
+// bipagem, além de exibir dado de outra pessoa. Impacto fiscal.
+// AGORA: lê o vínculo que o próprio Bling devolve no detalhe do pedido
+// (order.notaFiscal). Sem vínculo => NF fica vazia (pendente), nunca adivinhada.
+async function nfDoPedido(pedidoId) {
+  const r = await blingFetch(`${BLING_BASE}/pedidos/vendas/${pedidoId}`);
+  if (!r.ok) return null;
+  const d = await r.json().catch(() => ({}));
+  const ped = (d && d.data) || {};
+  const nf = ped.notaFiscal || ped.nfe || null;
+  if (!nf) return null;
+  let numero = nf.numero || '';
+  let chave  = nf.chaveAcesso || nf.chave || '';
+  // Detalhe às vezes traz só o id da nota: busca o restante por ID (vínculo exato).
+  if (nf.id && (!numero || !chave)) {
+    const r2 = await blingFetch(`${BLING_BASE}/nfe/${nf.id}`);
+    if (r2.ok) {
+      const d2 = await r2.json().catch(() => ({}));
+      const n2 = (d2 && d2.data) || {};
+      numero = numero || n2.numero || '';
+      chave  = chave  || n2.chaveAcesso || n2.chave || '';
+    }
+  }
+  if (!numero && !chave) return null;
+  return { numero: String(numero || ''), chave: String(chave || '').replace(/\s/g, '') };
+}
+
 // Rota especial: busca NF vinculada ao pedido testando parâmetros corretos do Bling v3
 // Busca NF correta para um pedido — pagina /nfe até achar ID próximo ao blingId do pedido
 app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
-  const { blingId } = req.params;
-  const pedidoId = parseInt(blingId);
-  const TOLERANCE = 2000; // NF criada até 2000 IDs depois do pedido
-  const MAX_PAGES = 10;
   try {
-    for (let pagina = 1; pagina <= MAX_PAGES; pagina++) {
-      await new Promise(r => setTimeout(r, pagina > 1 ? 400 : 0));
-      const url = `${BLING_BASE}/nfe?limite=100&pagina=${pagina}`;
-      const r = await blingFetch(url);
-      if (!r.ok) break;
-      const d = await r.json().catch(() => ({}));
-      const nfes = d.data || [];
-      if (nfes.length === 0) break;
-      // NFs vêm em ordem decrescente de ID — verifica se já passamos do range
-      const minId = Math.min(...nfes.map(n => n.id));
-      // Procura NF com ID próximo ao pedido (criada logo depois)
-      const candidatas = nfes
-        .filter(n => n.id > pedidoId && n.id <= pedidoId + TOLERANCE)
-        .sort((a, b) => a.id - b.id);
-      if (candidatas.length > 0) {
-        const nfe = candidatas[0];
-        return res.json({ numero: nfe.numero, chave: nfe.chaveAcesso || nfe.chave || '', id: nfe.id });
-      }
-      // Se o menor ID desta página já é menor que o pedidoId, não vai achar em páginas seguintes
-      if (minId < pedidoId - TOLERANCE) break;
-    }
-    res.json({ numero: '', chave: '' });
-  } catch(e) {
+    const nf = await nfDoPedido(parseInt(req.params.blingId));
+    if (!nf) return res.json({ numero: '', chave: '' });
+    res.json(nf);
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
@@ -300,51 +349,25 @@ app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
 // BATCH: busca NFs para múltiplos pedidos de uma vez só (muito mais rápido)
 app.post('/nfs-batch', requireAuth, async (req, res) => {
   const { pedidos } = req.body;
-  if (!Array.isArray(pedidos) || pedidos.length === 0) {
-    return res.json({ nfs: {} });
-  }
+  if (!Array.isArray(pedidos) || pedidos.length === 0) return res.json({ nfs: {} });
 
-  const TOLERANCE = 2000;
+  // Teto de segurança: evita que um payload grande vire centenas de chamadas ao Bling.
+  const ids = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0).slice(0, 80);
   const result = {};
-  const pedidoIds = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0);
-  if (pedidoIds.length === 0) return res.json({ nfs: {} });
-
-  const minPedido = Math.min(...pedidoIds);
-  const maxPedido = Math.max(...pedidoIds);
-
+  let semVinculo = 0;
   try {
-    let allNfes = [];
-    for (let pagina = 1; pagina <= 20; pagina++) {
-      if (pagina > 1) await new Promise(r => setTimeout(r, 300));
-      const url = `${BLING_BASE}/nfe?limite=100&pagina=${pagina}`;
-      const r = await blingFetch(url);
-      if (!r.ok) break;
-      const d = await r.json().catch(() => ({}));
-      const nfes = d.data || [];
-      if (nfes.length === 0) break;
-      allNfes = allNfes.concat(nfes);
-      const minId = Math.min(...nfes.map(n => n.id));
-      if (minId < minPedido - TOLERANCE) break;
-    }
-
-    console.log(`📋 NFs batch: ${allNfes.length} NFs, ${pedidoIds.length} pedidos`);
-
-    for (const pedidoId of pedidoIds) {
-      const candidatas = allNfes
-        .filter(n => n.id > pedidoId && n.id <= pedidoId + TOLERANCE)
-        .sort((a, b) => a.id - b.id);
-      if (candidatas.length > 0) {
-        const nfe = candidatas[0];
-        result[pedidoId] = {
-          numero: nfe.numero,
-          chave: nfe.chaveAcesso || nfe.chave || ''
-        };
+    for (const id of ids) {
+      try {
+        const nf = await nfDoPedido(id);
+        if (nf) result[id] = nf; else semVinculo++;
+      } catch (e) {
+        console.warn('nfs-batch: falha no pedido ' + id + ': ' + e.message);
       }
+      await sleep(120); // respeita o limite de requisições do Bling
     }
-
-    console.log(`✅ NFs encontradas: ${Object.keys(result).length}/${pedidoIds.length}`);
+    console.log(`✅ NFs por vínculo: ${Object.keys(result).length}/${ids.length} (sem NF ainda: ${semVinculo})`);
     res.json({ nfs: result });
-  } catch(e) {
+  } catch (e) {
     console.error('❌ nfs-batch erro:', e.message);
     res.status(500).json({ error: e.message, nfs: {} });
   }
