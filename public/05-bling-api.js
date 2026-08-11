@@ -719,9 +719,19 @@ function pullFromBling(){
       if(idsNovos[p.blingId]) return false; // já veio no newPkgs (foi tratado no merge)
       return p.date===today;
     });
-    // Remove todos os de hoje e substitui
-    packages=packages.filter(function(p){return p.date!==today;});
-    packages=newPkgs.concat(expedidosRecentes).concat(packages);
+    // Remove todos os de hoje e substitui.
+    // SÓ quando a busca foi COMPLETA (buscaOk). Se veio truncada (teto de páginas)
+    // ou com erro, os pedidos que não vieram continuam existindo no Bling — remover
+    // aqui os apagaria da tela e, no sync seguinte, do servidor.
+    if(buscaOk){
+      packages=packages.filter(function(p){return p.date!==today;});
+      packages=newPkgs.concat(expedidosRecentes).concat(packages);
+    } else {
+      // Busca incompleta: só acrescenta/atualiza o que veio, sem remover nada.
+      var idsRecebidos={}; newPkgs.forEach(function(p){idsRecebidos[p.blingId]=true;});
+      packages=newPkgs.concat(packages.filter(function(p){return !idsRecebidos[p.blingId];}));
+      console.warn('⚠ Busca incompleta: pedidos ausentes NÃO foram removidos');
+    }
     // Remove duplicatas por blingId (mantém o primeiro, que é o mais recente)
     var seen={};
     packages=packages.filter(function(p){
