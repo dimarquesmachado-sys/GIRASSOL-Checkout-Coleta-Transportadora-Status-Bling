@@ -20,8 +20,8 @@ function uploadScanPhoto(etiqueta, date, photo, _tentativa){
           break;
         }
       }
-    } else {
-      throw new Error('resposta sem url'); // servidor respondeu mas não salvou → tenta de novo
+    } else if(!(d&&d.ok)){
+      throw new Error('servidor não confirmou o salvamento'); // só repete se REALMENTE falhou
     }
   })
   .catch(function(e){
