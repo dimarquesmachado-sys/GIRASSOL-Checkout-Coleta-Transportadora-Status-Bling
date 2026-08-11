@@ -818,8 +818,12 @@ app.post('/sync/scans', requireAuth, (req, res) => {
 app.post('/photos/scan', requireAuth, async (req, res) => {
   const { key, photo } = req.body;
   if(!key || !photo) return res.status(400).json({ error: 'key e photo obrigatórios' });
-  await supabaseUpload(key, photo);
-  res.json({ ok: true });
+  // Devolve o RESULTADO REAL do upload (antes descartava e respondia ok sempre).
+  // O cliente espera a url; sem ela ele achava que falhou e reenviava a foto 4x,
+  // e no fim marcava como "perdida" mesmo quando o Supabase tinha salvado.
+  const r = await supabaseUpload(key, photo);
+  if (!r || !r.ok) return res.status(502).json({ ok: false, erro: 'falha ao salvar a foto no storage' });
+  res.json({ ok: true, url: r.url || null });
 });
 
 app.get('/photos/scan/:key', requireAuth, async (req, res) => {
@@ -834,10 +838,16 @@ app.get('/photos/scan/:key', requireAuth, async (req, res) => {
 app.post('/photos/lote', requireAuth, async (req, res) => {
   const { loteId, fotos } = req.body;
   if(!loteId || !Array.isArray(fotos)) return res.status(400).json({ error: 'loteId e fotos obrigatórios' });
+  // Confere cada upload e reporta o que falhou (antes respondia sucesso mesmo
+  // se NENHUMA foto tivesse sido salva).
+  let salvas = 0; const falhas = [];
   for(let idx = 0; idx < fotos.length; idx++) {
-    if(fotos[idx]) await supabaseUpload('lote_'+loteId+'_'+idx, fotos[idx]);
+    if(!fotos[idx]) continue;
+    const r = await supabaseUpload('lote_'+loteId+'_'+idx, fotos[idx]);
+    if (r && r.ok) salvas++; else falhas.push(idx);
   }
-  res.json({ ok: true, count: fotos.length });
+  if (falhas.length) return res.status(502).json({ ok: false, salvas, falhas, erro: 'falha ao salvar foto(s) do lote' });
+  res.json({ ok: true, count: salvas });
 });
 
 app.get('/photos/lote/:loteId/:idx', requireAuth, async (req, res) => {
