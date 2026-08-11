@@ -2,6 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,8 +13,23 @@ const CLIENT_SECRET  = process.env.BLING_CLIENT_SECRET || '';
 // Sem a env, gera um segredo ALEATÓRIO no boot em vez de usar um valor fixo — o
 // valor fixo estava no repositório público e permitia forjar um token de sessão.
 // Pior caso agora: as sessões caem num restart (e o log avisa), nunca alguém entra.
-const SESSION_SECRET = process.env.SESSION_SECRET || require('crypto').randomBytes(32).toString('hex');
-if (!process.env.SESSION_SECRET) console.warn('⚠ SESSION_SECRET não configurada — usando segredo aleatório (sessões caem a cada restart). Configure no Render.');
+// Segredo da sessão: usa a env; sem ela, gera UMA vez e guarda no disco. Assim
+// não volta a ser o valor fixo que estava no repositório público (dava pra forjar
+// sessão) nem muda a cada boot (o que derrubaria o login do galpão em todo deploy).
+function segredoSessao() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  const F = '/data/session-secret';
+  try { if (fs.existsSync(F)) { const v = fs.readFileSync(F, 'utf8').trim(); if (v) return v; } } catch (e) {}
+  const novo = crypto.randomBytes(32).toString('hex');
+  try {
+    fs.writeFileSync(F, novo);
+    console.warn('⚠ SESSION_SECRET não configurada — gerei um segredo e salvei em ' + F + '. Configure no Render.');
+  } catch (e) {
+    console.warn('⚠ SESSION_SECRET não configurada e não consegui gravar no disco — as sessões vão cair a cada restart.');
+  }
+  return novo;
+}
+const SESSION_SECRET = segredoSessao();
 if (!process.env.USERS) console.warn('⚠ USERS não configurada — o login usará o usuário padrão. Configure no Render.');
 // Chave p/ rotas de diagnóstico/admin (acessadas pelo navegador com ?k=CHAVE).
 // Sem a env ADMIN_KEY configurada, essas rotas ficam DESLIGADAS (404) — seguro por padrão.
@@ -142,7 +158,6 @@ app.get('/callback', async (req, res) => {
 // ═══ PERSISTÊNCIA DE TOKEN EM DISCO ═══
 // Salva tokens em /data (disco persistente do Render) para sobreviver a restarts/crashes.
 // NÃO usa a API do Render (que reiniciava o servidor e causava o loop de invalid_grant).
-const fs = require('fs');
 const TOKEN_FILE = '/data/bling-tokens.json';
 
 function saveTokensToDisk() {
@@ -493,11 +508,30 @@ function loadDespachoFila() {
       despachoFila   = Array.isArray(d.fila) ? d.fila : [];
       despachoFalhas = Array.isArray(d.falhas) ? d.falhas : [];
     }
-  } catch (e) { console.warn('⚠ Erro ao ler fila de despacho:', e.message); }
+  } catch (e) {
+    console.error('❌ Fila de despacho ilegível (' + e.message + ') — tentando o backup');
+    try {
+      const b = JSON.parse(fs.readFileSync(DESPACHO_FILE + '.bak', 'utf8')) || {};
+      despachoFila   = Array.isArray(b.fila) ? b.fila : [];
+      despachoFalhas = Array.isArray(b.falhas) ? b.falhas : [];
+      console.warn('♻ Fila recuperada do backup: ' + despachoFila.length + ' pendente(s)');
+    } catch (e2) { console.error('❌ Backup da fila também ilegível — começando vazia'); }
+  }
 }
+// Grava em arquivo temporário e renomeia: se o processo cair no meio, o arquivo
+// final continua íntegro (a versão anterior fica em .bak). Devolve true/false —
+// quem chama PRECISA saber se a fila ficou mesmo no disco.
 function saveDespachoFila() {
-  try { fs.writeFileSync(DESPACHO_FILE, JSON.stringify({ fila: despachoFila, falhas: despachoFalhas.slice(-200) })); }
-  catch (e) { console.warn('⚠ Erro ao salvar fila de despacho:', e.message); }
+  const tmp = DESPACHO_FILE + '.tmp';
+  try {
+    fs.writeFileSync(tmp, JSON.stringify({ fila: despachoFila, falhas: despachoFalhas }));
+    try { if (fs.existsSync(DESPACHO_FILE)) fs.copyFileSync(DESPACHO_FILE, DESPACHO_FILE + '.bak'); } catch (e) {}
+    fs.renameSync(tmp, DESPACHO_FILE);
+    return true;
+  } catch (e) {
+    console.error('❌ Erro ao salvar fila de despacho:', e.message);
+    return false;
+  }
 }
 
 async function processarFilaDespacho() {
@@ -521,6 +555,10 @@ async function processarFilaDespacho() {
 
       if (sucesso) {
         despachoFila = despachoFila.filter(x => x.id !== item.id);
+        // Se este pedido já tinha desistido antes, marca a desistência como
+        // resolvida — senão continua aparecendo na rota admin como se precisasse
+        // de intervenção.
+        despachoFalhas.forEach(f => { if (f.id === item.id && !f.resolvidoEm) f.resolvidoEm = new Date().toISOString(); });
         console.log('✅ DESPACHADO (fila): #' + item.id);
       } else {
         const alvo = despachoFila.find(x => x.id === item.id);
@@ -539,9 +577,18 @@ async function processarFilaDespacho() {
       saveDespachoFila();
       await sleep(700); // throttle entre PATCHs — respeita o limite ~3 req/s do Bling
     }
+    // Pedidos que entraram DURANTE esta rodada não estavam no snapshot: roda de
+    // novo já, em vez de deixá-los esperando os 5 min do timer.
+    const idsDoLote = new Set(lote.map(x => x.id));
+    const novos = despachoFila.filter(x => !idsDoLote.has(x.id));
+    if (novos.length) {
+      console.log('▶ ' + novos.length + ' despacho(s) entraram durante a rodada — processando em seguida');
+      setTimeout(() => { despachoRodando = false; processarFilaDespacho(); }, 100);
+      return; // libera a trava dentro do setTimeout
+    }
     if (despachoFila.length) console.log('⏳ Fila de despacho: ' + despachoFila.length + ' pendente(s) — nova tentativa em 5 min');
   } finally {
-    despachoRodando = false;
+    if (despachoRodando) despachoRodando = false;
   }
 }
 
@@ -551,8 +598,15 @@ app.post('/despachar', requireAuth, (req, res) => {
   const ids = [...new Set(blingIds.filter(Boolean).map(String))]; // sem duplicatas/vazios
   // GRAVA ANTES de responder: se o processo cair agora, a fila continua no disco.
   const naFila = new Set(despachoFila.map(x => x.id));
+  const antes = despachoFila.slice();
   ids.forEach(id => { if (!naFila.has(id)) despachoFila.push({ id, tentativas: 0, ts: Date.now() }); });
-  saveDespachoFila();
+  // Se não conseguiu gravar, NÃO confirma: o cliente precisa saber pra cair no
+  // fallback dele. Confirmar aqui faria o operador fechar o lote achando que está
+  // garantido, e um restart levaria os despachos embora.
+  if (!saveDespachoFila()) {
+    despachoFila = antes; // desfaz, pra não ficar só na memória achando que persistiu
+    return res.status(500).json({ ok: false, erro: 'não foi possível gravar a fila de despacho' });
+  }
   res.json({ ok: true, total: ids.length, naFila: despachoFila.length });
   processarFilaDespacho();
 });
@@ -560,7 +614,14 @@ app.post('/despachar', requireAuth, (req, res) => {
 // Consulta o que ainda não foi despachado (e o que desistiu)
 app.get('/admin/despacho-fila', (req, res) => {
   if (!adminOk(req)) return res.status(404).send('Not found');
-  res.json({ pendentes: despachoFila.length, fila: despachoFila, falhas: despachoFalhas.slice(-50) });
+  const naoResolvidas = despachoFalhas.filter(f => !f.resolvidoEm);
+  res.json({
+    pendentes: despachoFila.length,
+    fila: despachoFila,
+    desistencias_abertas: naoResolvidas.length,
+    falhas: naoResolvidas.slice(-100),
+    falhas_resolvidas: despachoFalhas.length - naoResolvidas.length
+  });
 });
 
 // Diagnóstico: busca pedido pelo NÚMERO e mostra o serviço de entrega de forma legível
