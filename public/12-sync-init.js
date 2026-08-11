@@ -76,12 +76,23 @@ function getPhotoFromServer(key, cb){
   .catch(function(){cb(null);});
 }
 
+// Só publica no servidor DEPOIS de um download bem-sucedido. Enquanto o app não
+// souber o que existe lá, publicar a base local pode apagar o trabalho dos outros
+// aparelhos (vale para o envio do startup E para o timer de 30s).
+var baseConfiavel = false;
+// Pacotes do servidor mais antigos que a janela: ficam SÓ em memória (não vão pro
+// localStorage, pra não estourar a cota), mas voltam no envio pra não sumirem do servidor.
+var packagesHistorico = [];
 function syncToServer(confirmadoPeloBling){
+  if(!baseConfiavel){
+    console.warn('⚠ syncToServer ignorado: ainda não houve download bem-sucedido do servidor');
+    return;
+  }
   // Envia TODOS os pacotes e TODOS os scans, não só os de hoje.
   // Isso permite o histórico enxergar dias anteriores, como ontem.
   // confirmadoPeloBling=true => a redução veio de uma busca BEM-SUCEDIDA no Bling
   // (fantasma removido de propósito); o servidor então não aplica o freio.
-  var pkgHoje = packages;
+  var pkgHoje = packagesHistorico.length ? packages.concat(packagesHistorico) : packages;
   var scanHoje = stripPhotos(scans);
 
   // Inclui estado ativo: quem está fazendo expedição de qual loja
@@ -125,6 +136,7 @@ function loadFromServer(cb){
     var today=todayStr();
     var _lim=new Date(); _lim.setDate(_lim.getDate()-45);
     var limiteHistorico=_lim.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+    var histMap={}; packagesHistorico.forEach(function(h){histMap[h.blingId]=true;});
 
     // Merge packages: server tem prioridade para campos que o cliente pode não ter
     if(serverPkgs.length>0){
@@ -150,7 +162,11 @@ function loadFromServer(cb){
             localMap[sp.blingId].colT=sp.colT;
             localMap[sp.blingId].obs=sp.obs;
           }
-        } else if(!sp.date || sp.date >= limiteHistorico){
+        } else if(sp.date && sp.date < limiteHistorico){
+          // Mais antigo que a janela: guarda só em memória (não persiste no
+          // localStorage) e devolve no próximo envio, pra não sumir do servidor.
+          if(!histMap[sp.blingId]){ histMap[sp.blingId]=true; packagesHistorico.push(sp); }
+        } else {
           // Pacote do servidor que não está local — adiciona.
           // CORRIGIDO (11/08): antes só adicionava os de HOJE, então um aparelho
           // sem cache ficava só com os de hoje e, ao republicar, apagava o
@@ -229,6 +245,7 @@ function loadFromServer(cb){
 
     // Atualiza indicador de quem está fazendo expedição
     if(d.activeUsers) renderActiveUsers(d.activeUsers);
+    baseConfiavel = true;  // a partir daqui é seguro publicar
     if(cb) cb(true);   // baixou com sucesso
   })
   .catch(function(){if(cb) cb(false);});   // falhou: quem chamou decide
