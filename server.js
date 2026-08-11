@@ -9,7 +9,13 @@ const BLING_BASE = 'https://api.bling.com.br/Api/v3';
 
 const CLIENT_ID      = process.env.BLING_CLIENT_ID || '';
 const CLIENT_SECRET  = process.env.BLING_CLIENT_SECRET || '';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'girassol-2024';
+// Se a env não estiver definida, gera um segredo ALEATÓRIO no boot em vez de usar
+// um valor fixo. O valor fixo antigo estava no repositório público — qualquer um
+// podia forjar um token de sessão válido. Com aleatório, o pior caso é as sessões
+// caírem num restart (e o log avisa), nunca alguém entrar sem senha.
+const SESSION_SECRET = process.env.SESSION_SECRET || require('crypto').randomBytes(32).toString('hex');
+if (!process.env.SESSION_SECRET) console.warn('⚠ SESSION_SECRET não configurada — usando segredo aleatório (sessões caem a cada restart). Configure no Render.');
+if (!process.env.USERS) console.warn('⚠ USERS não configurada — o login usará o usuário padrão. Configure no Render.');
 // Chave p/ rotas de diagnóstico/admin (acessadas pelo navegador com ?k=CHAVE).
 // Sem a env ADMIN_KEY configurada, essas rotas ficam DESLIGADAS (404) — seguro por padrão.
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
@@ -120,17 +126,17 @@ app.get('/callback', async (req, res) => {
         O sistema vai renovar sozinho a partir de agora.<br><br>
         Pode fechar esta página.
       </div>
-      <details style="margin-top:24px;color:#8B8D9B">
-        <summary style="cursor:pointer;font-size:12px">Ver tokens (caso queira copiar manualmente)</summary>
-        <div class="lbl" style="margin-top:12px">BLING_ACCESS_TOKEN</div>
-        <div class="box">${accessToken}</div>
-        <div class="lbl" style="margin-top:12px">BLING_REFRESH_TOKEN</div>
-        <div class="box">${refreshToken}</div>
-      </details>
+      <div style="margin-top:24px;color:#8B8D9B;font-size:12px">
+        Os tokens não são exibidos aqui por segurança — ficam apenas no disco do
+        servidor. Para conferir se estão ativos use <code>/info/count24?k=SUA_CHAVE</code>.
+      </div>
       </body></html>`);
   } catch (e) {
     console.error('Erro callback:', e.message);
-    res.send(`<h2 style="color:red">Erro: ${e.message}</h2><p>O código pode ter expirado. Acesse o Link de Convite novamente.</p>`);
+    // Não interpola a mensagem do provedor no HTML (podia refletir conteúdo externo).
+    res.status(400).send('<h2 style="color:red">Erro ao gerar os tokens</h2>' +
+      '<p>O código pode ter expirado. Acesse o Link de Convite novamente.</p>' +
+      '<p style="color:#888;font-size:12px">O detalhe do erro está no log do servidor.</p>');
   }
 });
 
@@ -246,10 +252,42 @@ async function blingFetch(url, options = {}, retries = 3) {
   throw new Error('Máximo de tentativas atingido');
 }
 
+// ── Freio contra tentativas repetidas de login (força bruta) ──────────────────
+// Conta as falhas por IP+usuário numa janela de 15 min. A partir de 5 falhas,
+// bloqueia por 15 min. Sucesso limpa o contador. Em memória: some no restart,
+// o que é aceitável — serve pra travar tentativa automatizada, não pra auditoria.
+const loginFails = new Map();
+const LOGIN_MAX = 5, LOGIN_JANELA = 15 * 60 * 1000;
+function loginKey(req, usuario) {
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?';
+  return ip + '|' + (usuario || '?');
+}
+setInterval(() => { // limpeza periódica pra não crescer sem fim
+  const agora = Date.now();
+  for (const [k, v] of loginFails) if (agora - v.ts > LOGIN_JANELA) loginFails.delete(k);
+}, 15 * 60 * 1000);
+
 app.post('/login', (req, res) => {
   const { usuario, senha } = req.body;
+  if (typeof usuario !== 'string' || typeof senha !== 'string' ||
+      usuario.length > 100 || senha.length > 200) {
+    return res.status(400).json({ error: 'Dados de login inválidos.' });
+  }
+  const chave = loginKey(req, usuario);
+  const reg = loginFails.get(chave);
+  if (reg && reg.n >= LOGIN_MAX && (Date.now() - reg.ts) < LOGIN_JANELA) {
+    const faltam = Math.ceil((LOGIN_JANELA - (Date.now() - reg.ts)) / 60000);
+    console.warn('⛔ Login bloqueado por tentativas repetidas: ' + chave);
+    return res.status(429).json({ error: 'Muitas tentativas. Tente de novo em ' + faltam + ' min.' });
+  }
   const found = parseUsers().find(u => u.nome === usuario && u.senha === senha);
-  if (!found) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  if (!found) {
+    const n = (reg && (Date.now() - reg.ts) < LOGIN_JANELA) ? reg.n + 1 : 1;
+    loginFails.set(chave, { n, ts: Date.now() });
+    console.warn('❌ Login falhou (' + n + '/' + LOGIN_MAX + '): ' + chave);
+    return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  }
+  loginFails.delete(chave);
   const token = generateToken(usuario);
   res.json({ token, usuario });
 });
