@@ -300,91 +300,71 @@ app.post('/logout', (req, res) => {
 
 app.get('/me', requireAuth, (req, res) => res.json({ usuario: req.user }));
 
+// ── NF vinculada ao pedido (11/08) ────────────────────────────────────────────
+// ANTES: a NF era escolhida por PROXIMIDADE de id (primeira NF com id até 2000
+// acima do id do pedido), sem conferir nada. Em volume alto isso colava a NF de
+// OUTRO cliente no pacote — e essa NF virava um código aceito na bipagem, além
+// de exibir dado fiscal de terceiro. Agora usamos o vínculo REAL: o próprio
+// pedido do Bling traz o campo notaFiscal. Sem vínculo => NF vazia (nunca chuta).
+async function nfDoPedido(blingId) {
+  try {
+    const r = await blingFetch(`${BLING_BASE}/pedidos/vendas/${blingId}`);
+    if (!r.ok) return null;
+    const d = await r.json().catch(() => ({}));
+    const ped = d.data || d || {};
+    const vinculo = ped.notaFiscal || ped.nfe || null;
+    if (!vinculo || !vinculo.id) return null;          // pedido ainda sem NF emitida
+    let numero = vinculo.numero || '';
+    let chave  = vinculo.chaveAcesso || vinculo.chave || '';
+    if (!chave) {                                      // busca a chave da DANFE
+      try {
+        const r2 = await blingFetch(`${BLING_BASE}/nfe/${vinculo.id}`);
+        if (r2.ok) {
+          const d2 = await r2.json().catch(() => ({}));
+          const nfe = d2.data || d2 || {};
+          numero = nfe.numero || numero;
+          chave  = nfe.chaveAcesso || nfe.chave || '';
+        }
+      } catch (e) { /* fica só com o número */ }
+    }
+    if (!numero && !chave) return null;
+    return { numero: String(numero || ''), chave: String(chave || ''), id: vinculo.id };
+  } catch (e) {
+    console.error('nfDoPedido ' + blingId + ': ' + e.message);
+    return null;
+  }
+}
+
 // Rota especial: busca NF vinculada ao pedido testando parâmetros corretos do Bling v3
 // Busca NF correta para um pedido — pagina /nfe até achar ID próximo ao blingId do pedido
 app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
-  const { blingId } = req.params;
-  const pedidoId = parseInt(blingId);
-  const TOLERANCE = 2000; // NF criada até 2000 IDs depois do pedido
-  const MAX_PAGES = 10;
-  try {
-    for (let pagina = 1; pagina <= MAX_PAGES; pagina++) {
-      await new Promise(r => setTimeout(r, pagina > 1 ? 400 : 0));
-      const url = `${BLING_BASE}/nfe?limite=100&pagina=${pagina}`;
-      const r = await blingFetch(url);
-      if (!r.ok) break;
-      const d = await r.json().catch(() => ({}));
-      const nfes = d.data || [];
-      if (nfes.length === 0) break;
-      // NFs vêm em ordem decrescente de ID — verifica se já passamos do range
-      const minId = Math.min(...nfes.map(n => n.id));
-      // Procura NF com ID próximo ao pedido (criada logo depois)
-      const candidatas = nfes
-        .filter(n => n.id > pedidoId && n.id <= pedidoId + TOLERANCE)
-        .sort((a, b) => a.id - b.id);
-      if (candidatas.length > 0) {
-        const nfe = candidatas[0];
-        return res.json({ numero: nfe.numero, chave: nfe.chaveAcesso || nfe.chave || '', id: nfe.id });
-      }
-      // Se o menor ID desta página já é menor que o pedidoId, não vai achar em páginas seguintes
-      if (minId < pedidoId - TOLERANCE) break;
-    }
-    res.json({ numero: '', chave: '' });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
+  const nf = await nfDoPedido(req.params.blingId);
+  if (!nf) return res.json({ numero: '', chave: '' });
+  res.json(nf);
 });
 
 // BATCH: busca NFs para múltiplos pedidos de uma vez só (muito mais rápido)
 app.post('/nfs-batch', requireAuth, async (req, res) => {
   const { pedidos } = req.body;
-  if (!Array.isArray(pedidos) || pedidos.length === 0) {
-    return res.json({ nfs: {} });
-  }
+  if (!Array.isArray(pedidos) || pedidos.length === 0) return res.json({ nfs: {} });
 
-  const TOLERANCE = 2000;
+  // Um pedido por vez, pelo vínculo real. Teto pra não estourar o rate limit do
+  // Bling numa chamada só — o que sobrar volta na próxima rodada do cliente.
+  const MAX_POR_LOTE = 60;
+  const ids = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0).slice(0, MAX_POR_LOTE);
   const result = {};
-  const pedidoIds = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0);
-  if (pedidoIds.length === 0) return res.json({ nfs: {} });
-
-  const minPedido = Math.min(...pedidoIds);
-  const maxPedido = Math.max(...pedidoIds);
-
   try {
-    let allNfes = [];
-    for (let pagina = 1; pagina <= 20; pagina++) {
-      if (pagina > 1) await new Promise(r => setTimeout(r, 300));
-      const url = `${BLING_BASE}/nfe?limite=100&pagina=${pagina}`;
-      const r = await blingFetch(url);
-      if (!r.ok) break;
-      const d = await r.json().catch(() => ({}));
-      const nfes = d.data || [];
-      if (nfes.length === 0) break;
-      allNfes = allNfes.concat(nfes);
-      const minId = Math.min(...nfes.map(n => n.id));
-      if (minId < minPedido - TOLERANCE) break;
+    for (let i = 0; i < ids.length; i++) {
+      if (i > 0) await sleep(150);
+      const nf = await nfDoPedido(ids[i]);
+      if (nf) result[ids[i]] = { numero: nf.numero, chave: nf.chave };
     }
-
-    console.log(`📋 NFs batch: ${allNfes.length} NFs, ${pedidoIds.length} pedidos`);
-
-    for (const pedidoId of pedidoIds) {
-      const candidatas = allNfes
-        .filter(n => n.id > pedidoId && n.id <= pedidoId + TOLERANCE)
-        .sort((a, b) => a.id - b.id);
-      if (candidatas.length > 0) {
-        const nfe = candidatas[0];
-        result[pedidoId] = {
-          numero: nfe.numero,
-          chave: nfe.chaveAcesso || nfe.chave || ''
-        };
-      }
-    }
-
-    console.log(`✅ NFs encontradas: ${Object.keys(result).length}/${pedidoIds.length}`);
+    console.log('✅ NFs (vínculo real): ' + Object.keys(result).length + '/' + ids.length +
+                (pedidos.length > ids.length ? ' — ' + (pedidos.length - ids.length) + ' ficaram p/ a próxima rodada' : ''));
     res.json({ nfs: result });
-  } catch(e) {
+  } catch (e) {
     console.error('❌ nfs-batch erro:', e.message);
-    res.status(500).json({ error: e.message, nfs: {} });
+    res.status(500).json({ error: e.message, nfs: result });
   }
 });
 
