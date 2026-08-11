@@ -1,4 +1,17 @@
 // ═══ SCAN ═══
+// ── Comparação numérica SEGURA (correção 11/08) ────────────────────────────
+// Antes usávamos parseInt() nos dois lados. Isso truncava código alfanumérico:
+// parseInt('2607096UKDGTQ0') = 2607096 — e QUALQUER outro pedido Shopee do mesmo
+// dia com o mesmo prefixo casava, marcando/despachando o PEDIDO ERRADO.
+// Agora só compara quando os DOIS lados são exclusivamente dígitos, e compara
+// como texto (sem parseInt) para não perder precisão em números de 16+ dígitos.
+function soDigitos(s){ return /^[0-9]+$/.test(String(s)); }
+function mesmoNumero(a,b){
+  a=String(a); b=String(b);
+  if(!soDigitos(a)||!soDigitos(b)) return false;
+  return a.replace(/^0+/,'')===b.replace(/^0+/,'');
+}
+
 function handleScan(rawCode,photo){
   if(!rawCode||!activeMkt) return;
   var code=rawCode.trim().replace(/\s/g,'');
@@ -50,7 +63,7 @@ function handleScan(rawCode,photo){
     if(String(p.numero)===c) return true;
     if(String(p.blingId)===c) return true;
     // Número do pedido como string com e sem zeros
-    if(String(p.numero)===c||String(parseInt(p.numero,10))===c) return true;
+    if(String(p.numero)===c||mesmoNumero(p.numero,c)) return true;
     if(p.numeracao){
       var pnum=String(p.numeracao).toUpperCase().replace(/\s/g,'');
       if(pnum===c) return true;                                   // exato
@@ -58,14 +71,14 @@ function handleScan(rawCode,photo){
       if(c.length>=8&&pnum.indexOf(c)!==-1) return true;         // contém
       if(c.length>=8&&c.indexOf(pnum)!==-1) return true;         // código contém numeracao
       // Ignora zeros à esquerda
-      if(parseInt(pnum,10)===parseInt(c,10)) return true;
+      if(mesmoNumero(pnum,c)) return true;
     }
     if(p.numLoja){
       var ploja=String(p.numLoja).replace(/\s/g,'').toUpperCase();
       if(ploja===c) return true;
       if(c.length>=8&&ploja.endsWith(c)) return true;
       if(c.length>=8&&ploja.indexOf(c)!==-1) return true;
-      if(parseInt(ploja,10)===parseInt(c,10)) return true;
+      if(mesmoNumero(ploja,c)) return true;
     }
     // Chave DANFE completa (44 dígitos) — câmera TikTok lê o código de barras da NF
     if(p.nfChave&&p.nfChave===c) return true;
@@ -80,7 +93,7 @@ function handleScan(rawCode,photo){
       for(var ci=0;ci<p.codigosBip.length;ci++){
         var cb=String(p.codigosBip[ci]);
         if(cb===c) return true;
-        if(parseInt(cb,10)===parseInt(c,10)) return true;
+        if(mesmoNumero(cb,c)) return true;
       }
     }
     return false;
