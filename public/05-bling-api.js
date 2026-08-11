@@ -718,7 +718,9 @@ function pullFromBling(){
       return true;
     });
     sv('expv5_pkgs',packages);
-    syncToServer(); // sincroniza packages para outros dispositivos (desktop)
+    // buscaOk=true => o Bling confirmou a lista; se pedidos sumiram foi remoção
+    // legítima de fantasma. Marca confirmado p/ o servidor não aplicar o freio.
+    syncToServer(buscaOk === true); // sincroniza packages para outros dispositivos (desktop)
     toast(newPkgs.length+' pedidos carregados','ok');
     renderMktGrid(); updateBadge();
     // Detecta FLEX em todos os ML e Shopee pendentes
