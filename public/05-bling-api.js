@@ -521,6 +521,7 @@ function pullFromBling(){
   var d30=new Date(); d30.setDate(d30.getDate()-30);
   var dateFrom30=d30.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
   var all=[]; var page=1;
+  var MAX_PAGINAS=12; // 1200 pedidos (era 4 = 400, e ainda assim confirmava a lista)
   function fetchPage(){
     apiFetch('/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial='+dateFrom30+'&pagina='+page+'&limite=100')
     .then(function(r){
@@ -529,7 +530,16 @@ function pullFromBling(){
         var orders=d.data||[];
         if(orders.length===0){finishFetch(all,true);return;} // HTTP 200 + vazio: Bling confirmou que não há Verificado
         all=all.concat(orders);
-        if(orders.length===100&&page<4){page++;setTimeout(fetchPage,1000);}
+        if(orders.length===100&&page<MAX_PAGINAS){page++;setTimeout(fetchPage,1000);}
+        else if(orders.length===100){
+          // Bateu o teto de páginas com a última página CHEIA: provavelmente há
+          // mais pedidos. Entrega o que veio, mas com buscaOk=false — assim NÃO
+          // remove os ausentes nem manda confirmado:true (senão os pedidos além
+          // do teto sumiriam da tela e do servidor).
+          console.warn('⚠ Busca no Bling parou no teto de '+MAX_PAGINAS+' páginas ('+all.length+' pedidos) — lista pode estar incompleta, não vou remover ausentes');
+          flash('Muitos pedidos: lista pode estar incompleta','warn');
+          finishFetch(all,false);
+        }
         else finishFetch(all,true);
       });
     })
