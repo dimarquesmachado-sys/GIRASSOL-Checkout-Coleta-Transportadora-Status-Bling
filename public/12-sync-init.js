@@ -76,9 +76,11 @@ function getPhotoFromServer(key, cb){
   .catch(function(){cb(null);});
 }
 
-function syncToServer(){
+function syncToServer(confirmadoPeloBling){
   // Envia TODOS os pacotes e TODOS os scans, não só os de hoje.
   // Isso permite o histórico enxergar dias anteriores, como ontem.
+  // confirmadoPeloBling=true => a redução veio de uma busca BEM-SUCEDIDA no Bling
+  // (fantasma removido de propósito); o servidor então não aplica o freio.
   var pkgHoje = packages;
   var scanHoje = stripPhotos(scans);
 
@@ -89,7 +91,7 @@ function syncToServer(){
 
   apiFetch('/sync/packages', {
     method: 'POST',
-    body: JSON.stringify({ packages: pkgHoje })
+    body: JSON.stringify({ packages: pkgHoje, confirmado: !!confirmadoPeloBling })
   }).catch(function(){});
 
   apiFetch('/sync/scans', {
@@ -146,8 +148,11 @@ function loadFromServer(cb){
             localMap[sp.blingId].colT=sp.colT;
             localMap[sp.blingId].obs=sp.obs;
           }
-        } else if(sp.date===today){
-          // Pacote do servidor que não está local — adiciona
+        } else {
+          // Pacote do servidor que não está local — adiciona.
+          // CORRIGIDO (11/08): antes só adicionava os de HOJE. Um aparelho sem
+          // cache ficava só com os de hoje e, ao republicar, apagava o histórico
+          // do servidor. Agora incorpora tudo que veio antes de enviar de volta.
           packages.push(sp);
         }
       });
@@ -220,9 +225,9 @@ function loadFromServer(cb){
 
     // Atualiza indicador de quem está fazendo expedição
     if(d.activeUsers) renderActiveUsers(d.activeUsers);
-    if(cb) cb();
+    if(cb) cb(true);   // baixou com sucesso
   })
-  .catch(function(){if(cb) cb();});
+  .catch(function(){if(cb) cb(false);});   // falhou: quem chamou decide
 }
 
 function renderActiveUsers(activeUsers){
@@ -291,10 +296,14 @@ function initApp(){
   //    Antes o app enviava a lista local antes de baixar: um celular guardado há
   //    dias publicava sua base antiga por cima do que os outros já tinham feito.
   //    Agora ele só envia DEPOIS de saber o que existe no servidor.
-  loadFromServer(function(){
-    if(packages.length>0||scans.length>0){
+  loadFromServer(function(okDownload){
+    // Só publica a base local se o download REALMENTE aconteceu. Se o GET falhou,
+    // enviar agora publicaria uma lista possivelmente incompleta sobre o servidor.
+    if(okDownload && (packages.length>0||scans.length>0)){
       syncToServer();
       console.log('📤 initApp: enviando '+packages.length+' pacotes e '+scans.length+' scans ao servidor (após merge)');
+    } else if(!okDownload){
+      console.warn('⚠ initApp: download do servidor falhou — NÃO enviando a base local agora');
     }
     renderMktGrid(); updateBadge();
     setTimeout(pullFromBling,1200);
