@@ -20,8 +20,8 @@ function uploadScanPhoto(etiqueta, date, photo, _tentativa){
           break;
         }
       }
-    } else {
-      throw new Error('resposta sem url'); // servidor respondeu mas não salvou → tenta de novo
+    } else if(!(d&&d.ok)){
+      throw new Error('servidor não confirmou o salvamento'); // só repete se REALMENTE falhou
     }
   })
   .catch(function(e){
@@ -36,16 +36,33 @@ function uploadScanPhoto(etiqueta, date, photo, _tentativa){
   });
 }
 
-function uploadLotePhotos(loteId, fotos){
+function uploadLotePhotos(loteId, fotos, _tentativa){
   if(!loteId||!fotos||!fotos.length){
     console.warn('uploadLotePhotos: sem fotos para enviar', loteId, fotos&&fotos.length);
     return;
   }
-  console.log('📤 Enviando '+fotos.length+' foto(s) do veículo para servidor... loteId='+loteId);
+  _tentativa = _tentativa || 1;
+  if(_tentativa===1) console.log('📤 Enviando '+fotos.length+' foto(s) do veículo para servidor... loteId='+loteId);
   apiFetch('/photos/lote',{method:'POST',body:JSON.stringify({loteId:loteId,fotos:fotos})})
-  .then(function(r){return r.json();})
-  .then(function(d){console.log('✅ Fotos veículo enviadas:', JSON.stringify(d));})
-  .catch(function(e){console.error('❌ Erro upload fotos veículo:', e.message);});
+  .then(function(r){
+    // O servidor responde 502 quando alguma foto não foi salva. Antes o cliente
+    // ignorava o status e logava sucesso — a falha passava batida e o base64 era
+    // descartado. Agora trata como erro e repete (mesma política da foto de etiqueta).
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  })
+  .then(function(d){
+    if(!(d&&d.ok)) throw new Error('servidor não confirmou'+(d&&d.falhas?' (fotos '+d.falhas.join(',')+')':''));
+    console.log('✅ Fotos veículo enviadas:', JSON.stringify(d));
+  })
+  .catch(function(e){
+    console.error('❌ Erro upload fotos veículo loteId='+loteId+' (tentativa '+_tentativa+'): '+e.message);
+    if(_tentativa < 4){
+      setTimeout(function(){ uploadLotePhotos(loteId, fotos, _tentativa+1); }, _tentativa*2500);
+    } else {
+      console.error('❌ Fotos do veículo do lote '+loteId+' NÃO enviadas após 4 tentativas');
+    }
+  });
 }
 
 function getPhotoFromServer(key, cb){
