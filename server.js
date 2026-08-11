@@ -464,25 +464,94 @@ app.get('/info/pedido/:id', async (req, res) => {
 // em VERIFICADO. Aqui o servidor garante o despacho independente do app.
 // blingFetch já cuida de renovação de token, rate-limit 429 e retry.
 const DESPACHADO_ID = 743515;
-async function despacharEmBackground(blingIds) {
-  let ok = 0, fail = 0;
-  for (let i = 0; i < blingIds.length; i++) {
-    const id = blingIds[i];
-    try {
-      const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + id + '/situacoes/' + DESPACHADO_ID, { method: 'PATCH' });
-      if (r.ok) { ok++; console.log('✅ DESPACHADO (servidor): #' + id); }
-      else { fail++; const t = await r.text(); console.warn('⚠ Falha despacho #' + id + ': ' + r.status + ' ' + t.substring(0, 150)); }
-    } catch (e) { fail++; console.error('❌ Erro despacho #' + id + ':', e.message); }
-    await sleep(700); // throttle entre PATCHs — respeita o limite ~3 req/s do Bling
-  }
-  console.log('🏁 Despacho concluído: ' + ok + ' ok, ' + fail + ' falha(s) de ' + blingIds.length);
+// ── FILA DURÁVEL DE DESPACHO (11/08) ─────────────────────────────────────────
+// ANTES: /despachar respondia "ok" e rodava um laço só na memória do processo.
+// Um deploy, restart ou crash no meio derrubava o que faltava — o operador via o
+// lote finalizado com sucesso e os pedidos continuavam em Verificado no Bling.
+// AGORA: os IDs são gravados em disco ANTES da resposta, processados um a um e
+// removidos só quando o Bling confirma. O que falhar é retentado sozinho a cada
+// 5 min, e o que sobra é retomado no boot.
+const DESPACHO_FILE = '/data/despacho-fila.json';
+let despachoFila = [];      // [{id, tentativas, ultimoErro, ts}]
+let despachoFalhas = [];    // desistências, guardadas p/ consulta
+let despachoRodando = false;
+
+function loadDespachoFila() {
+  try {
+    if (fs.existsSync(DESPACHO_FILE)) {
+      const d = JSON.parse(fs.readFileSync(DESPACHO_FILE, 'utf8')) || {};
+      despachoFila   = Array.isArray(d.fila) ? d.fila : [];
+      despachoFalhas = Array.isArray(d.falhas) ? d.falhas : [];
+    }
+  } catch (e) { console.warn('⚠ Erro ao ler fila de despacho:', e.message); }
 }
+function saveDespachoFila() {
+  try { fs.writeFileSync(DESPACHO_FILE, JSON.stringify({ fila: despachoFila, falhas: despachoFalhas.slice(-200) })); }
+  catch (e) { console.warn('⚠ Erro ao salvar fila de despacho:', e.message); }
+}
+
+const DESPACHO_MAX_TENT = 8;
+async function processarFilaDespacho() {
+  if (despachoRodando || despachoFila.length === 0) return;
+  despachoRodando = true;
+  try {
+    const lote = despachoFila.slice(); // snapshot: uma passada por rodada
+    for (const item of lote) {
+      if (!despachoFila.some(x => x.id === item.id)) continue; // saiu no meio
+      let sucesso = false, erro = '';
+      try {
+        const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + item.id + '/situacoes/' + DESPACHADO_ID, { method: 'PATCH' });
+        if (r.ok) sucesso = true;
+        else {
+          const t = await r.text();
+          erro = r.status + ' ' + t.substring(0, 150);
+          // "A venda possui a mesma situação" = já está despachado: resolvido.
+          if (r.status === 400 && /mesma situa/i.test(t)) { sucesso = true; erro = ''; }
+        }
+      } catch (e) { erro = e.message; }
+
+      if (sucesso) {
+        despachoFila = despachoFila.filter(x => x.id !== item.id);
+        console.log('✅ DESPACHADO (fila): #' + item.id);
+      } else {
+        const alvo = despachoFila.find(x => x.id === item.id);
+        if (alvo) {
+          alvo.tentativas = (alvo.tentativas || 0) + 1;
+          alvo.ultimoErro = erro;
+          if (alvo.tentativas >= DESPACHO_MAX_TENT) {
+            despachoFila = despachoFila.filter(x => x.id !== item.id);
+            despachoFalhas.push({ id: item.id, tentativas: alvo.tentativas, ultimoErro: erro, em: new Date().toISOString() });
+            console.error('⛔ Despacho do #' + item.id + ' desistiu após ' + alvo.tentativas + ' tentativas: ' + erro);
+          } else {
+            console.warn('⚠ Falha despacho #' + item.id + ' (tentativa ' + alvo.tentativas + '/' + DESPACHO_MAX_TENT + '): ' + erro);
+          }
+        }
+      }
+      saveDespachoFila();
+      await sleep(700); // throttle — respeita o limite ~3 req/s do Bling
+    }
+    if (despachoFila.length) console.log('⏳ Fila de despacho: ' + despachoFila.length + ' pendente(s) — nova tentativa em 5 min');
+  } finally {
+    despachoRodando = false;
+  }
+}
+
 app.post('/despachar', requireAuth, (req, res) => {
   const { blingIds } = req.body;
   if (!Array.isArray(blingIds) || blingIds.length === 0) return res.status(400).json({ error: 'blingIds obrigatório' });
   const ids = [...new Set(blingIds.filter(Boolean).map(String))]; // sem duplicatas/vazios
-  res.json({ ok: true, total: ids.length }); // responde já; o despacho roda em background
-  despacharEmBackground(ids);
+  // GRAVA ANTES de responder: se o processo cair agora, a fila continua no disco.
+  const naFila = new Set(despachoFila.map(x => x.id));
+  ids.forEach(id => { if (!naFila.has(id)) despachoFila.push({ id, tentativas: 0, ts: Date.now() }); });
+  saveDespachoFila();
+  res.json({ ok: true, total: ids.length, naFila: despachoFila.length });
+  processarFilaDespacho();
+});
+
+// Consulta o que ainda não foi despachado (e o que desistiu)
+app.get('/admin/despacho-fila', (req, res) => {
+  if (!adminOk(req)) return res.status(404).send('Not found');
+  res.json({ pendentes: despachoFila.length, fila: despachoFila, falhas: despachoFalhas.slice(-50) });
 });
 
 // Diagnóstico: busca pedido pelo NÚMERO e mostra o serviço de entrega de forma legível
@@ -897,6 +966,15 @@ loadSharedFromDisk();   // lê packages e scans do disco
 limparScansAntigos();   // remove scans antigos (evita OOM)
 // Limpa scans antigos a cada 6 horas
 setInterval(limparScansAntigos, 6 * 60 * 60 * 1000);
+
+// Fila de despacho: retoma o que ficou pendente de um restart/deploy e retenta
+// periodicamente o que falhou.
+loadDespachoFila();
+if (despachoFila.length) {
+  console.log('♻ Retomando ' + despachoFila.length + ' despacho(s) pendente(s) do disco');
+  setTimeout(processarFilaDespacho, 5000);
+}
+setInterval(processarFilaDespacho, 5 * 60 * 1000);
 
 // ── BACKUP dos dados operacionais (protegido por ?k=ADMIN_KEY) ──────────────
 // Baixa um JSON com packages + scans compartilhados (o conteúdo do disco /data).
