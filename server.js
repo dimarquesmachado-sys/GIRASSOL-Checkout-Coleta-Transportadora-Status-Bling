@@ -120,17 +120,17 @@ app.get('/callback', async (req, res) => {
         O sistema vai renovar sozinho a partir de agora.<br><br>
         Pode fechar esta página.
       </div>
-      <details style="margin-top:24px;color:#8B8D9B">
-        <summary style="cursor:pointer;font-size:12px">Ver tokens (caso queira copiar manualmente)</summary>
-        <div class="lbl" style="margin-top:12px">BLING_ACCESS_TOKEN</div>
-        <div class="box">${accessToken}</div>
-        <div class="lbl" style="margin-top:12px">BLING_REFRESH_TOKEN</div>
-        <div class="box">${refreshToken}</div>
-      </details>
+      <!-- Os tokens NÃO são mais exibidos aqui (11/08). Esta rota é pública por
+           exigência do OAuth do Bling, então imprimir access/refresh token na tela
+           entregava a credencial da empresa a quem abrisse a URL, e ela ficava no
+           histórico do navegador. Os tokens já são salvos no disco automaticamente. -->
       </body></html>`);
   } catch (e) {
+    // Detalhe do erro só no log do servidor: a mensagem vem do provedor e pode
+    // conter dados sensíveis, além de virar HTML se ecoada na página.
     console.error('Erro callback:', e.message);
-    res.send(`<h2 style="color:red">Erro: ${e.message}</h2><p>O código pode ter expirado. Acesse o Link de Convite novamente.</p>`);
+    res.status(400).send('<h2 style="color:red">Não foi possível concluir a autorização</h2>' +
+      '<p>O código pode ter expirado. Acesse o Link de Convite novamente.</p>');
   }
 });
 
@@ -246,10 +246,51 @@ async function blingFetch(url, options = {}, retries = 3) {
   throw new Error('Máximo de tentativas atingido');
 }
 
+// ── Freio contra tentativas repetidas de login (11/08) ──────────────────────
+// Antes não havia limite: dava pra testar senha indefinidamente. Conta por
+// IP+usuário (não por IP puro) pra um funcionário errando a senha não travar o
+// login dos colegas, que saem do mesmo IP do galpão.
+const LOGIN_MAX = 10;                    // tentativas erradas...
+const LOGIN_JANELA = 10 * 60 * 1000;     // ...dentro de 10 min
+const LOGIN_BLOQUEIO = 3 * 60 * 1000;    // bloqueio de 3 min
+const tentativasLogin = new Map();
+function ipDe(req) {
+  const xf = req.headers['x-forwarded-for'];
+  return (xf ? String(xf).split(',')[0] : '').trim() || req.socket.remoteAddress || '?';
+}
+function limparTentativas() {
+  const agora = Date.now();
+  for (const [k, v] of tentativasLogin) if (agora > v.expira) tentativasLogin.delete(k);
+}
+setInterval(limparTentativas, 10 * 60 * 1000);
+
 app.post('/login', (req, res) => {
   const { usuario, senha } = req.body;
+  const chave = ipDe(req) + '|' + String(usuario || '').slice(0, 60);
+  const agora = Date.now();
+  const reg = tentativasLogin.get(chave);
+
+  if (reg && reg.bloqueadoAte && agora < reg.bloqueadoAte) {
+    const faltam = Math.ceil((reg.bloqueadoAte - agora) / 1000);
+    console.warn('⛔ login bloqueado (' + chave + ') — faltam ' + faltam + 's');
+    res.setHeader('Retry-After', String(faltam));
+    return res.status(429).json({ error: 'Muitas tentativas. Tente de novo em ' + Math.ceil(faltam / 60) + ' min.' });
+  }
+
   const found = parseUsers().find(u => u.nome === usuario && u.senha === senha);
-  if (!found) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  if (!found) {
+    const base = (reg && agora < reg.expira) ? reg : { n: 0, expira: agora + LOGIN_JANELA };
+    base.n++;
+    if (base.n >= LOGIN_MAX) {
+      base.bloqueadoAte = agora + LOGIN_BLOQUEIO;
+      base.n = 0;
+      console.warn('⛔ login BLOQUEADO por ' + (LOGIN_BLOQUEIO / 60000) + ' min — ' + chave);
+    }
+    tentativasLogin.set(chave, base);
+    return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  }
+
+  tentativasLogin.delete(chave); // acertou: zera o contador
   const token = generateToken(usuario);
   res.json({ token, usuario });
 });
