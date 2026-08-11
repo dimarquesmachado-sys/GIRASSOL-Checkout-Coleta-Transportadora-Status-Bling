@@ -521,6 +521,7 @@ function pullFromBling(){
   var d30=new Date(); d30.setDate(d30.getDate()-30);
   var dateFrom30=d30.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
   var all=[]; var page=1;
+  var MAX_PAGINAS=12; // 1200 pedidos (era 4 = 400, e ainda assim confirmava a lista)
   function fetchPage(){
     apiFetch('/bling/pedidos/vendas?idSituacao=24&dataEmissaoInicial='+dateFrom30+'&pagina='+page+'&limite=100')
     .then(function(r){
@@ -529,7 +530,16 @@ function pullFromBling(){
         var orders=d.data||[];
         if(orders.length===0){finishFetch(all,true);return;} // HTTP 200 + vazio: Bling confirmou que não há Verificado
         all=all.concat(orders);
-        if(orders.length===100&&page<4){page++;setTimeout(fetchPage,1000);}
+        if(orders.length===100&&page<MAX_PAGINAS){page++;setTimeout(fetchPage,1000);}
+        else if(orders.length===100){
+          // Bateu o teto de páginas com a última página CHEIA: provavelmente há
+          // mais pedidos. Entrega o que veio, mas com buscaOk=false — assim NÃO
+          // remove os ausentes nem manda confirmado:true (senão os pedidos além
+          // do teto sumiriam da tela e do servidor).
+          console.warn('⚠ Busca no Bling parou no teto de '+MAX_PAGINAS+' páginas ('+all.length+' pedidos) — lista pode estar incompleta, não vou remover ausentes');
+          flash('Muitos pedidos: lista pode estar incompleta','warn');
+          finishFetch(all,false);
+        }
         else finishFetch(all,true);
       });
     })
@@ -547,7 +557,9 @@ function pullFromBling(){
         packages=packages.filter(function(p){return !(p.status==='pendente'&&p.date===todayStr());});
         if(packages.length!==antesF){
           sv('expv5_pkgs',packages);
-          syncToServer();
+          // Também é remoção CONFIRMADA pelo Bling (buscaOk já é true aqui):
+          // avisa o servidor pra não aplicar o freio anti-apagamento.
+          syncToServer(true);
           console.log('🧹 '+(antesF-packages.length)+' pendente(s) fantasma removido(s) — não estavam mais em Verificado no Bling');
         }
       }
@@ -707,9 +719,19 @@ function pullFromBling(){
       if(idsNovos[p.blingId]) return false; // já veio no newPkgs (foi tratado no merge)
       return p.date===today;
     });
-    // Remove todos os de hoje e substitui
-    packages=packages.filter(function(p){return p.date!==today;});
-    packages=newPkgs.concat(expedidosRecentes).concat(packages);
+    // Remove todos os de hoje e substitui.
+    // SÓ quando a busca foi COMPLETA (buscaOk). Se veio truncada (teto de páginas)
+    // ou com erro, os pedidos que não vieram continuam existindo no Bling — remover
+    // aqui os apagaria da tela e, no sync seguinte, do servidor.
+    if(buscaOk){
+      packages=packages.filter(function(p){return p.date!==today;});
+      packages=newPkgs.concat(expedidosRecentes).concat(packages);
+    } else {
+      // Busca incompleta: só acrescenta/atualiza o que veio, sem remover nada.
+      var idsRecebidos={}; newPkgs.forEach(function(p){idsRecebidos[p.blingId]=true;});
+      packages=newPkgs.concat(packages.filter(function(p){return !idsRecebidos[p.blingId];}));
+      console.warn('⚠ Busca incompleta: pedidos ausentes NÃO foram removidos');
+    }
     // Remove duplicatas por blingId (mantém o primeiro, que é o mais recente)
     var seen={};
     packages=packages.filter(function(p){
@@ -718,7 +740,9 @@ function pullFromBling(){
       return true;
     });
     sv('expv5_pkgs',packages);
-    syncToServer(); // sincroniza packages para outros dispositivos (desktop)
+    // buscaOk=true => o Bling confirmou a lista; se pedidos sumiram foi remoção
+    // legítima de fantasma. Marca confirmado p/ o servidor não aplicar o freio.
+    syncToServer(buscaOk === true); // sincroniza packages para outros dispositivos (desktop)
     toast(newPkgs.length+' pedidos carregados','ok');
     renderMktGrid(); updateBadge();
     // Detecta FLEX em todos os ML e Shopee pendentes

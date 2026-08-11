@@ -767,8 +767,23 @@ app.post('/sync/active', requireAuth, (req, res) => {
 });
 
 app.post('/sync/packages', requireAuth, (req, res) => {
-  const { packages } = req.body;
+  const { packages, confirmado } = req.body;
   if(Array.isArray(packages)){
+    // FREIO ANTI-APAGAMENTO (11/08): esta rota substitui a lista INTEIRA do
+    // servidor pela do aparelho. Um celular com lista incompleta (guardado há
+    // dias, localStorage truncado, ou busca no Bling que veio parcial) apagava
+    // pedidos que os outros celulares tinham registrado.
+    // Redução normal do dia a dia continua passando; só recusa uma queda brusca.
+    // confirmado=true: a redução veio de uma busca BEM-SUCEDIDA no Bling (o cliente
+    // removeu fantasmas de propósito). Nesse caso o freio não se aplica, senão os
+    // fantasmas voltariam do servidor e poderiam ser expedidos indevidamente.
+    const atual = sharedPackages.length;
+    if (!confirmado && atual >= 20 && packages.length < Math.floor(atual * 0.5)) {
+      console.warn('⚠ /sync/packages RECUSADO: aparelho enviou ' + packages.length +
+                   ' pacote(s) contra ' + atual + ' no servidor (usuário: ' + (req.user || '?') + ')');
+      return res.status(409).json({ ok: false, recusado: true,
+        motivo: 'envio muito menor que o estado atual do servidor', atual, recebido: packages.length });
+    }
     sharedPackages = packages;
     saveSharedToDisk();
   }

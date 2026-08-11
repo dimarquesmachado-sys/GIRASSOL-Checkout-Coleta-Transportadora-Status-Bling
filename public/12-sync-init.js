@@ -76,10 +76,23 @@ function getPhotoFromServer(key, cb){
   .catch(function(){cb(null);});
 }
 
-function syncToServer(){
+// Só publica no servidor DEPOIS de um download bem-sucedido. Enquanto o app não
+// souber o que existe lá, publicar a base local pode apagar o trabalho dos outros
+// aparelhos (vale para o envio do startup E para o timer de 30s).
+var baseConfiavel = false;
+// Pacotes do servidor mais antigos que a janela: ficam SÓ em memória (não vão pro
+// localStorage, pra não estourar a cota), mas voltam no envio pra não sumirem do servidor.
+var packagesHistorico = [];
+function syncToServer(confirmadoPeloBling){
+  if(!baseConfiavel){
+    console.warn('⚠ syncToServer ignorado: ainda não houve download bem-sucedido do servidor');
+    return;
+  }
   // Envia TODOS os pacotes e TODOS os scans, não só os de hoje.
   // Isso permite o histórico enxergar dias anteriores, como ontem.
-  var pkgHoje = packages;
+  // confirmadoPeloBling=true => a redução veio de uma busca BEM-SUCEDIDA no Bling
+  // (fantasma removido de propósito); o servidor então não aplica o freio.
+  var pkgHoje = packagesHistorico.length ? packages.concat(packagesHistorico) : packages;
   var scanHoje = stripPhotos(scans);
 
   // Inclui estado ativo: quem está fazendo expedição de qual loja
@@ -89,7 +102,7 @@ function syncToServer(){
 
   apiFetch('/sync/packages', {
     method: 'POST',
-    body: JSON.stringify({ packages: pkgHoje })
+    body: JSON.stringify({ packages: pkgHoje, confirmado: !!confirmadoPeloBling })
   }).catch(function(){});
 
   apiFetch('/sync/scans', {
@@ -121,6 +134,9 @@ function loadFromServer(cb){
     var serverPkgs=d.packages||[];
     var serverScans=d.scans||[];
     var today=todayStr();
+    var _lim=new Date(); _lim.setDate(_lim.getDate()-45);
+    var limiteHistorico=_lim.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+    var histMap={}; packagesHistorico.forEach(function(h){histMap[h.blingId]=true;});
 
     // Merge packages: server tem prioridade para campos que o cliente pode não ter
     if(serverPkgs.length>0){
@@ -146,8 +162,17 @@ function loadFromServer(cb){
             localMap[sp.blingId].colT=sp.colT;
             localMap[sp.blingId].obs=sp.obs;
           }
-        } else if(sp.date===today){
-          // Pacote do servidor que não está local — adiciona
+        } else if(sp.date && sp.date < limiteHistorico){
+          // Mais antigo que a janela: guarda só em memória (não persiste no
+          // localStorage) e devolve no próximo envio, pra não sumir do servidor.
+          if(!histMap[sp.blingId]){ histMap[sp.blingId]=true; packagesHistorico.push(sp); }
+        } else {
+          // Pacote do servidor que não está local — adiciona.
+          // CORRIGIDO (11/08): antes só adicionava os de HOJE, então um aparelho
+          // sem cache ficava só com os de hoje e, ao republicar, apagava o
+          // histórico do servidor. Agora incorpora a janela de 45 dias (mesma
+          // retenção dos scans) — sem crescer o localStorage indefinidamente,
+          // o que faria sv() estourar a cota e parar de salvar em silêncio.
           packages.push(sp);
         }
       });
@@ -220,9 +245,10 @@ function loadFromServer(cb){
 
     // Atualiza indicador de quem está fazendo expedição
     if(d.activeUsers) renderActiveUsers(d.activeUsers);
-    if(cb) cb();
+    baseConfiavel = true;  // a partir daqui é seguro publicar
+    if(cb) cb(true);   // baixou com sucesso
   })
-  .catch(function(){if(cb) cb();});
+  .catch(function(){if(cb) cb(false);});   // falhou: quem chamou decide
 }
 
 function renderActiveUsers(activeUsers){
@@ -287,15 +313,29 @@ function initApp(){
   if(cleaned){sv('expv5_pkgs',packages); console.log('🧹 localStorage limpo');}
   document.getElementById('userChip').textContent='👤 '+currentUser;
   renderMktGrid(); updateBadge();
-  // 1. Envia dados locais para o servidor (para outros dispositivos verem)
-  if(packages.length>0||scans.length>0){
-    syncToServer();
-    console.log('📤 initApp: enviando '+packages.length+' pacotes e '+scans.length+' scans ao servidor');
-  }
-  // 2. Busca dados do servidor e faz merge
-  loadFromServer(function(){
+  // 1. BAIXA o servidor PRIMEIRO e faz o merge (ordem corrigida em 11/08).
+  //    Antes o app enviava a lista local antes de baixar: um celular guardado há
+  //    dias publicava sua base antiga por cima do que os outros já tinham feito.
+  //    Agora ele só envia DEPOIS de saber o que existe no servidor.
+  loadFromServer(function(okDownload){
+    // Só publica a base local se o download REALMENTE aconteceu. Se o GET falhou,
+    // enviar agora publicaria uma lista possivelmente incompleta sobre o servidor.
+    if(okDownload && (packages.length>0||scans.length>0)){
+      syncToServer();
+      console.log('📤 initApp: enviando '+packages.length+' pacotes e '+scans.length+' scans ao servidor (após merge)');
+    } else if(!okDownload){
+      console.warn('⚠ initApp: download do servidor falhou — NÃO enviando a base local agora');
+    }
     renderMktGrid(); updateBadge();
-    setTimeout(pullFromBling,1200);
+    // Só busca no Bling se o download do servidor deu certo. Se falhou, a lista
+    // local pode estar incompleta — e o pull manda syncToServer(true), que passa
+    // por cima do freio e apagaria o histórico do servidor. O pull periódico
+    // (a cada 10 min) tenta de novo quando o servidor voltar.
+    if(okDownload){
+      setTimeout(pullFromBling,1200);
+    } else {
+      console.warn('⚠ initApp: pull do Bling adiado — servidor não respondeu ao download inicial');
+    }
     // 3. Restaura sessão de coleta se o app recarregou no meio de uma bipagem
     // (ex: funcionário esbarrou no celular). Precisa dos packages já carregados.
     if(typeof restaurarSessaoColeta==='function'){
