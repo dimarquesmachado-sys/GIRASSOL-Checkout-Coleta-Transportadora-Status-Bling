@@ -547,7 +547,9 @@ function pullFromBling(){
         packages=packages.filter(function(p){return !(p.status==='pendente'&&p.date===todayStr());});
         if(packages.length!==antesF){
           sv('expv5_pkgs',packages);
-          syncToServer();
+          // Também é remoção CONFIRMADA pelo Bling (buscaOk já é true aqui):
+          // avisa o servidor pra não aplicar o freio anti-apagamento.
+          syncToServer(true);
           console.log('🧹 '+(antesF-packages.length)+' pendente(s) fantasma removido(s) — não estavam mais em Verificado no Bling');
         }
       }
