@@ -287,13 +287,15 @@ function initApp(){
   if(cleaned){sv('expv5_pkgs',packages); console.log('🧹 localStorage limpo');}
   document.getElementById('userChip').textContent='👤 '+currentUser;
   renderMktGrid(); updateBadge();
-  // 1. Envia dados locais para o servidor (para outros dispositivos verem)
-  if(packages.length>0||scans.length>0){
-    syncToServer();
-    console.log('📤 initApp: enviando '+packages.length+' pacotes e '+scans.length+' scans ao servidor');
-  }
-  // 2. Busca dados do servidor e faz merge
+  // 1. BAIXA o servidor PRIMEIRO e faz o merge (ordem corrigida em 11/08).
+  //    Antes o app enviava a lista local antes de baixar: um celular guardado há
+  //    dias publicava sua base antiga por cima do que os outros já tinham feito.
+  //    Agora ele só envia DEPOIS de saber o que existe no servidor.
   loadFromServer(function(){
+    if(packages.length>0||scans.length>0){
+      syncToServer();
+      console.log('📤 initApp: enviando '+packages.length+' pacotes e '+scans.length+' scans ao servidor (após merge)');
+    }
     renderMktGrid(); updateBadge();
     setTimeout(pullFromBling,1200);
     // 3. Restaura sessão de coleta se o app recarregou no meio de uma bipagem
