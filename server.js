@@ -1000,26 +1000,59 @@ app.post('/sync/active', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── MERGE DE PEDIDOS (12/08) ──────────────────────────────────────────────────
+// ANTES: o servidor guardava a lista do último celular que sincronizasse. Dois
+// estoquistas bipando junto = o trabalho de um sobrescrevia o do outro (o clássico
+// "marquei coletado e voltou pra pendente").
+// AGORA: junta pedido a pedido. Ausência NUNCA apaga — remoção só acontece quando
+// o celular manda a lista explícita de fantasmas confirmados pelo Bling.
+const RANK_STATUS = { pendente: 0, problema: 1, coletado: 2 };
+function mesclarPacote(atual, novo) {
+  const r = Object.assign({}, atual);
+  // Campo preenchido nunca é apagado por vazio (NF, tracking, destinatário...)
+  Object.keys(novo).forEach(k => {
+    const v = novo[k];
+    const vazio = (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0));
+    if (!vazio) r[k] = v;
+  });
+  // Status: quem tem coleta mais RECENTE vence (colTs em ms). Assim uma correção
+  // posterior ("problema" depois de "coletado") também é respeitada.
+  const tA = atual.colTs || 0, tB = novo.colTs || 0;
+  if (tA || tB) {
+    const vencedor = tB >= tA ? novo : atual;
+    r.status = vencedor.status; r.colT = vencedor.colT; r.colTs = vencedor.colTs;
+    if (vencedor.obs) r.obs = vencedor.obs;
+  } else {
+    // Sem timestamp dos dois lados: mantém o estado mais avançado
+    r.status = (RANK_STATUS[novo.status] || 0) >= (RANK_STATUS[atual.status] || 0) ? novo.status : atual.status;
+  }
+  return r;
+}
+
 app.post('/sync/packages', requireAuth, (req, res) => {
-  const { packages, confirmado } = req.body;
-  if(Array.isArray(packages)){
-    // FREIO ANTI-APAGAMENTO (11/08): esta rota substitui a lista INTEIRA do
-    // servidor pela do aparelho. Um celular com lista incompleta (guardado há
-    // dias, localStorage truncado, ou busca no Bling que veio parcial) apagava
-    // pedidos que os outros celulares tinham registrado.
-    // Redução normal do dia a dia continua passando; só recusa uma queda brusca.
-    // confirmado=true: a redução veio de uma busca BEM-SUCEDIDA no Bling (o cliente
-    // removeu fantasmas de propósito). Nesse caso o freio não se aplica, senão os
-    // fantasmas voltariam do servidor e poderiam ser expedidos indevidamente.
-    const atual = sharedPackages.length;
-    if (!confirmado && atual >= 20 && packages.length < Math.floor(atual * 0.5)) {
-      console.warn('⚠ /sync/packages RECUSADO: aparelho enviou ' + packages.length +
-                   ' pacote(s) contra ' + atual + ' no servidor (usuário: ' + (req.user || '?') + ')');
-      return res.status(409).json({ ok: false, recusado: true,
-        motivo: 'envio muito menor que o estado atual do servidor', atual, recebido: packages.length });
+  const { packages, removidos, confirmado } = req.body;
+  if (Array.isArray(packages)) {
+    const idx = new Map();
+    sharedPackages.forEach(p => { if (p && p.blingId != null) idx.set(String(p.blingId), p); });
+    let novos = 0, atualizados = 0;
+    packages.forEach(p => {
+      if (!p || p.blingId == null) return;
+      const k = String(p.blingId);
+      if (idx.has(k)) { idx.set(k, mesclarPacote(idx.get(k), p)); atualizados++; }
+      else { idx.set(k, p); novos++; }
+    });
+    // Remoção EXPLÍCITA: só o que o celular confirmou que saiu do Bling.
+    let removidosN = 0;
+    if (Array.isArray(removidos) && removidos.length && confirmado) {
+      removidos.forEach(id => { if (idx.delete(String(id))) removidosN++; });
     }
-    sharedPackages = packages;
+    sharedPackages = Array.from(idx.values());
     saveSharedToDisk();
+    if (novos || removidosN) {
+      console.log('🔀 sync/packages: +' + novos + ' novo(s), ' + atualizados + ' mesclado(s), -' +
+                  removidosN + ' removido(s) | total ' + sharedPackages.length + ' (por ' + (req.user || '?') + ')');
+    }
+    return res.json({ ok: true, total: sharedPackages.length, novos, atualizados, removidos: removidosN });
   }
   res.json({ ok: true });
 });
