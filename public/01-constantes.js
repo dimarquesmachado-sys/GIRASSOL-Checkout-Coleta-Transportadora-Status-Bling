@@ -15,4 +15,9 @@ var MKT = {
 var LOJA_MAP = {'203146903':'ml','203583169':'shopee','203967708':'amazon','203262016':'magalu','205523707':'tiktok'};
 var MKT_ORDER = ['ml','shopee','amazon','magalu','madeira','tiktok','melhorenvio','velozz','lalamove','outro'];
 var ALWAYS_SHOW = ['melhorenvio','velozz','lalamove'];
-var FLEX_KEYWORDS = ['mercado envios flex','entrega local','vapt','shopee entrega direta'];
+// 'entrega direta' (12/08): a Shopee manda o serviço como
+// "LogisticaShopee_Entrega Direta_203583169" — com UNDERLINE entre "Shopee" e
+// "Entrega", então 'shopee entrega direta' nunca casava e os FLEX da Shopee
+// caíam no card normal. 'entrega direta' cobre os dois formatos e não pega
+// serviço comum (Shopee Xpress, Correios, Loggi, Amazon seguem normais).
+var FLEX_KEYWORDS = ['mercado envios flex','entrega local','vapt','shopee entrega direta','entrega direta'];
