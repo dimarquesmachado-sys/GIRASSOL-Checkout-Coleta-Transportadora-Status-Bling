@@ -98,10 +98,29 @@ function handleScan(rawCode,photo){
     }
     return false;
   }
-  var pkg=null, wrongPkg=null, already=null;
+  // AMBIGUIDADE (12/08): o casamento aceita código PARCIAL de propósito (a câmera
+  // às vezes lê pedaço da etiqueta). O problema era o "primeiro que casar vence":
+  // se o código batia em DOIS pedidos, o app escolhia um pela ordem da lista e
+  // podia despachar o errado. Agora: junta TODOS os candidatos; com mais de um,
+  // bloqueia e pede conferência em vez de adivinhar.
+  var candidatos=[];
   for(var i=0;i<packages.length;i++){
     var p=packages[i];
     if(!match(p)||p.date!==today) continue;
+    candidatos.push(p);
+  }
+  // Só é ambíguo se os candidatos forem pedidos DIFERENTES de verdade
+  var idsCand={}, distintos=0;
+  candidatos.forEach(function(p){ var k=String(p.blingId||p.etiqueta); if(!idsCand[k]){idsCand[k]=true;distintos++;} });
+  if(distintos>1){
+    var nums=candidatos.map(function(p){return p.numero;}).slice(0,4).join(', ');
+    console.warn('⛔ Código ambíguo "'+c+'" casou com '+distintos+' pedidos: '+nums);
+    showFb('⛔ Código ambíguo — casou com '+distintos+' pedidos ('+nums+'). Confira a etiqueta.','err');
+    beepError(); return;
+  }
+  var pkg=null, wrongPkg=null, already=null;
+  for(var i=0;i<candidatos.length;i++){
+    var p=candidatos[i];
     if(p.status==='coletado'){already=p;break;}
     // Quando mkt normal, exclui urgentes (FLEX só é bipado pelo card FLEX)
     var mktMatch=activeMkt==='flex'?p.urgente:(p.mkt===activeMkt&&!p.urgente);
