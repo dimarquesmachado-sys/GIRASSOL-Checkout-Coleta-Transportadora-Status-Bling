@@ -80,6 +80,9 @@ function getPhotoFromServer(key, cb){
 // souber o que existe lá, publicar a base local pode apagar o trabalho dos outros
 // aparelhos (vale para o envio do startup E para o timer de 30s).
 var baseConfiavel = false;
+// Pedidos que o Bling confirmou que saíram (fantasmas). O servidor só remove o
+// que estiver nesta lista — ausência na lista enviada não apaga mais nada.
+var pkgsRemovidos = [];
 // Pacotes do servidor mais antigos que a janela: ficam SÓ em memória (não vão pro
 // localStorage, pra não estourar a cota), mas voltam no envio pra não sumirem do servidor.
 var packagesHistorico = [];
@@ -90,8 +93,8 @@ function syncToServer(confirmadoPeloBling){
   }
   // Envia TODOS os pacotes e TODOS os scans, não só os de hoje.
   // Isso permite o histórico enxergar dias anteriores, como ontem.
-  // confirmadoPeloBling=true => a redução veio de uma busca BEM-SUCEDIDA no Bling
-  // (fantasma removido de propósito); o servidor então não aplica o freio.
+  // confirmadoPeloBling=true => a busca no Bling foi BEM-SUCEDIDA, então a lista
+  // de fantasmas (pkgsRemovidos) é confiável e o servidor pode aplicar as remoções.
   var pkgHoje = packagesHistorico.length ? packages.concat(packagesHistorico) : packages;
   var scanHoje = stripPhotos(scans);
 
@@ -100,9 +103,20 @@ function syncToServer(confirmadoPeloBling){
     ? { user: currentUser, mkt: activeMkt, ts: Date.now() }
     : null;
 
+  var removidosEnviados = confirmadoPeloBling ? pkgsRemovidos.slice(0, 500) : [];
   apiFetch('/sync/packages', {
     method: 'POST',
-    body: JSON.stringify({ packages: pkgHoje, confirmado: !!confirmadoPeloBling })
+    body: JSON.stringify({
+      packages: pkgHoje,
+      confirmado: !!confirmadoPeloBling,
+      removidos: removidosEnviados
+    })
+  }).then(function(r){
+    // Só tira da lista o que o servidor confirmou ter recebido. Se a rede falhar,
+    // os fantasmas continuam pendentes e vão junto no próximo envio.
+    if(r && r.ok && removidosEnviados.length){
+      pkgsRemovidos = pkgsRemovidos.filter(function(id){ return removidosEnviados.indexOf(id) === -1; });
+    }
   }).catch(function(){});
 
   apiFetch('/sync/scans', {
