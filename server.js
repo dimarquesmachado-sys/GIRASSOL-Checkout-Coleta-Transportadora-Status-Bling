@@ -861,6 +861,7 @@ let sharedPackages = [];
 let sharedScans    = [];
 
 const PACKAGES_FILE = '/data/shared-packages.json';
+const REMOVIDOS_FILE = '/data/pacotes-removidos.json';
 const SCANS_FILE    = '/data/shared-scans.json';
 
 function loadSharedFromDisk() {
@@ -877,6 +878,22 @@ function loadSharedFromDisk() {
     }
   } catch(e) { console.warn('⚠ Erro ao ler scans do disco:', e.message); }
 }
+
+// Lápides dos pedidos removidos: { blingId: timestamp }. Sem isso, o celular que
+// ainda tem o fantasma o recadastra no sync seguinte e ele volta pra bipagem.
+let pacotesRemovidos = {};
+const REMOVIDO_TTL = 7 * 24 * 60 * 60 * 1000; // 7 dias
+function loadRemovidos() {
+  try { if (fs.existsSync(REMOVIDOS_FILE)) pacotesRemovidos = JSON.parse(fs.readFileSync(REMOVIDOS_FILE, 'utf8')) || {}; }
+  catch (e) { console.warn('⚠ Erro ao ler removidos:', e.message); }
+  const lim = Date.now() - REMOVIDO_TTL;
+  Object.keys(pacotesRemovidos).forEach(k => { if (pacotesRemovidos[k] < lim) delete pacotesRemovidos[k]; });
+}
+function saveRemovidos() {
+  try { fs.writeFileSync(REMOVIDOS_FILE, JSON.stringify(pacotesRemovidos)); }
+  catch (e) { console.warn('⚠ Erro ao salvar removidos:', e.message); }
+}
+loadRemovidos();
 
 function saveSharedToDisk() {
   try { fs.writeFileSync(PACKAGES_FILE, JSON.stringify(sharedPackages)); }
@@ -1008,6 +1025,12 @@ app.post('/sync/active', requireAuth, (req, res) => {
 // o celular manda a lista explícita de fantasmas confirmados pelo Bling.
 const RANK_STATUS = { pendente: 0, problema: 1, coletado: 2 };
 function mesclarPacote(atual, novo) {
+  // DIA diferente = novo ciclo do pedido (ex: voltou pro Verificado hoje depois de
+  // ter sido coletado ontem). Quem tem a data mais recente vence por inteiro —
+  // senão o colTs da coleta antiga segurava o pedido como "coletado" pra sempre.
+  if (novo.date && atual.date && novo.date !== atual.date) {
+    return novo.date > atual.date ? novo : atual;
+  }
   const r = Object.assign({}, atual);
   // Campo preenchido nunca é apagado por vazio (NF, tracking, destinatário...)
   Object.keys(novo).forEach(k => {
@@ -1021,7 +1044,9 @@ function mesclarPacote(atual, novo) {
   if (tA || tB) {
     const vencedor = tB >= tA ? novo : atual;
     r.status = vencedor.status; r.colT = vencedor.colT; r.colTs = vencedor.colTs;
-    if (vencedor.obs) r.obs = vencedor.obs;
+    // A observação pertence ao evento: vem do MESMO vencedor, senão o status novo
+    // ficaria colado na justificativa de um problema antigo.
+    r.obs = vencedor.obs || '';
   } else {
     // Sem timestamp dos dois lados: mantém o estado mais avançado
     r.status = (RANK_STATUS[novo.status] || 0) >= (RANK_STATUS[atual.status] || 0) ? novo.status : atual.status;
@@ -1035,24 +1060,45 @@ app.post('/sync/packages', requireAuth, (req, res) => {
     const idx = new Map();
     sharedPackages.forEach(p => { if (p && p.blingId != null) idx.set(String(p.blingId), p); });
     let novos = 0, atualizados = 0;
+    let bloqueados = 0, ressuscitados = 0;
     packages.forEach(p => {
       if (!p || p.blingId == null) return;
       const k = String(p.blingId);
+      if (pacotesRemovidos[k]) {
+        // Já foi removido. Só volta se uma busca CONFIRMADA no Bling o trouxe de
+        // novo; um celular desatualizado não ressuscita fantasma.
+        if (!confirmado) { bloqueados++; return; }
+        delete pacotesRemovidos[k]; ressuscitados++;
+      }
       if (idx.has(k)) { idx.set(k, mesclarPacote(idx.get(k), p)); atualizados++; }
       else { idx.set(k, p); novos++; }
     });
     // Remoção EXPLÍCITA: só o que o celular confirmou que saiu do Bling.
-    let removidosN = 0;
-    if (Array.isArray(removidos) && removidos.length && confirmado) {
-      removidos.forEach(id => { if (idx.delete(String(id))) removidosN++; });
+    // Remoções chegam em TODO envio (só entram na lista após um pull confirmado).
+    let removidosN = 0, removidosIgnorados = 0;
+    if (Array.isArray(removidos) && removidos.length) {
+      removidos.forEach(id => {
+        const k = String(id);
+        const atual = idx.get(k);
+        if (!atual) { pacotesRemovidos[k] = Date.now(); return; }
+        // Se outro celular já coletou esse pedido, NÃO apaga: o aparelho que pediu
+        // a remoção simplesmente não sabia da coleta.
+        if (atual.status && atual.status !== 'pendente') { removidosIgnorados++; return; }
+        idx.delete(k); pacotesRemovidos[k] = Date.now(); removidosN++;
+      });
     }
+    if (removidosN || ressuscitados) saveRemovidos();
     sharedPackages = Array.from(idx.values());
     saveSharedToDisk();
-    if (novos || removidosN) {
+    if (novos || removidosN || bloqueados || removidosIgnorados) {
       console.log('🔀 sync/packages: +' + novos + ' novo(s), ' + atualizados + ' mesclado(s), -' +
-                  removidosN + ' removido(s) | total ' + sharedPackages.length + ' (por ' + (req.user || '?') + ')');
+                  removidosN + ' removido(s)' +
+                  (bloqueados ? ', ' + bloqueados + ' fantasma(s) bloqueado(s)' : '') +
+                  (removidosIgnorados ? ', ' + removidosIgnorados + ' remoção(ões) ignorada(s) (já coletado)' : '') +
+                  ' | total ' + sharedPackages.length + ' (por ' + (req.user || '?') + ')');
     }
-    return res.json({ ok: true, total: sharedPackages.length, novos, atualizados, removidos: removidosN });
+    return res.json({ ok: true, total: sharedPackages.length, novos, atualizados,
+                      removidos: removidosN, ignorados: removidosIgnorados, bloqueados });
   }
   res.json({ ok: true });
 });
