@@ -30,7 +30,7 @@ function segredoSessao() {
   return novo;
 }
 const SESSION_SECRET = segredoSessao();
-if (!process.env.USERS) console.warn('⚠ USERS não configurada — o login usará o usuário padrão. Configure no Render.');
+if (!process.env.USERS) console.error('⛔ USERS não configurada — NINGUÉM consegue logar (login responde 503). Configure a variável no Render.');
 // Chave p/ rotas de diagnóstico/admin (acessadas pelo navegador com ?k=CHAVE).
 // Sem a env ADMIN_KEY configurada, essas rotas ficam DESLIGADAS (404) — seguro por padrão.
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
@@ -78,6 +78,12 @@ function verifyToken(tok) {
 }
 
 function requireAuth(req, res, next) {
+  // Sem USERS configurada não existe usuário válido — nem para tokens que já
+  // estavam no navegador. Senão, remover a env de um serviço em uso não fecharia
+  // o acesso de quem já estava logado.
+  if (parseUsers().length === 0) {
+    return res.status(503).json({ error: 'Login indisponível: usuários não configurados.' });
+  }
   const user = verifyToken(req.headers['x-session-token']);
   if (!user) return res.status(401).json({ error: 'Sessão expirada.' });
   req.user = user;
@@ -457,17 +463,23 @@ app.get('/bling-nf/:blingId', async (req, res) => {
 // qualquer caminho: uma sessão de estoquista (ou token roubado) podia alterar ou
 // APAGAR recursos no Bling muito além da expedição. O app só precisa de leitura
 // de pedidos e do PATCH que muda a situação — o resto está bloqueado.
-const SITUACOES_PERMITIDAS = [String(DESPACHADO_ID), '24', '9'];
 function proxyBlingPermitido(metodo, caminho) {
-  const p = (caminho || '').split('?')[0];
+  let p = (caminho || '').split('?')[0];
+  // Normaliza ANTES de validar: sem isso, /pedidos/vendas/../../produtos passava
+  // no teste de prefixo e o node-fetch resolvia para /produtos ao montar a URL.
+  try { p = decodeURIComponent(p); } catch (e) { return false; }
+  if (p.indexOf('..') !== -1 || p.indexOf('//') !== -1 || p.indexOf('\\') !== -1) return false;
   if (metodo === 'GET') {
-    // leitura de pedidos, notas e situações — o que as telas usam
-    return /^\/(pedidos\/vendas|nfe|situacoes|contatos)(\/|$)/.test(p);
+    // O front só lê pedidos por aqui (listagem e detalhe). NF, contatos e demais
+    // recursos ficam de fora: não são usados e exporiam dado fiscal/de cliente.
+    return /^\/pedidos\/vendas(\/\d+)?$/.test(p);
   }
   if (metodo === 'PATCH') {
-    // exatamente o formato /pedidos/vendas/{id}/situacoes/{idSituacao}
+    // Exatamente o despacho: /pedidos/vendas/{id}/situacoes/{DESPACHADO_ID}.
+    // DESPACHADO_ID é lido aqui dentro (em tempo de chamada) — no topo do arquivo
+    // ele ainda não existe e o processo nem subia.
     const m = p.match(/^\/pedidos\/vendas\/(\d+)\/situacoes\/(\d+)$/);
-    return !!m && SITUACOES_PERMITIDAS.indexOf(m[2]) !== -1;
+    return !!m && m[2] === String(DESPACHADO_ID);
   }
   return false; // POST, PUT, DELETE e o resto: nunca pelo proxy
 }
