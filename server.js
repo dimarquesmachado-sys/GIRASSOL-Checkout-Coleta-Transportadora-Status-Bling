@@ -200,6 +200,7 @@ async function refreshAccessToken() {
     const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
     const r = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
       method: 'POST',
+      timeout: 30000, // sem timeout, uma conexão pendurada aqui travaria a fila de despacho inteira
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': `Basic ${credentials}`,
@@ -558,7 +559,9 @@ async function processarFilaDespacho() {
           // "A venda possui a mesma situação" = já está despachado: resolvido.
           if (r.status === 400 && /mesma situa/i.test(t)) { sucesso = true; erro = ''; }
           // 429/5xx/408 são temporários — não contam para a desistência.
-          else if (r.status === 429 || r.status === 408 || r.status >= 500) transitorio = true;
+          // 401 = token/renovação falhou agora, mas a credencial pode voltar depois;
+          // 429/408/5xx = instabilidade. Nenhum deles é motivo pra desistir do pedido.
+          else if (r.status === 401 || r.status === 429 || r.status === 408 || r.status >= 500) transitorio = true;
         }
       } catch (e) { erro = e.message; transitorio = true; } // rede/timeout = temporário
 
@@ -572,19 +575,20 @@ async function processarFilaDespacho() {
       } else {
         const alvo = despachoFila.find(x => x.id === item.id);
         if (alvo) {
-          alvo.tentativas = (alvo.tentativas || 0) + 1;
+          alvo.tentativas = (alvo.tentativas || 0) + 1;   // total, só p/ visibilidade
+          if (!transitorio) alvo.tentativasPerm = (alvo.tentativasPerm || 0) + 1;
           alvo.ultimoErro = erro;
           alvo.transitorio = transitorio;
           // Só desiste de erro PERMANENTE (ex: pedido inexistente). Bling fora do
           // ar, 429 ou timeout ficam na fila e continuam sendo tentados a cada
           // 5 min — desistir aí deixaria o pedido em Verificado sem ninguém saber.
-          if (!transitorio && alvo.tentativas >= DESPACHO_MAX_TENT) {
+          if (!transitorio && alvo.tentativasPerm >= DESPACHO_MAX_TENT) {
             despachoFila = despachoFila.filter(x => x.id !== item.id);
-            despachoFalhas.push({ id: item.id, tentativas: alvo.tentativas, ultimoErro: erro, em: new Date().toISOString() });
-            console.error('⛔ Despacho do #' + item.id + ' desistiu após ' + alvo.tentativas + ' tentativas (erro permanente): ' + erro);
+            despachoFalhas.push({ id: item.id, tentativas: alvo.tentativas, tentativasPerm: alvo.tentativasPerm, ultimoErro: erro, em: new Date().toISOString() });
+            console.error('⛔ Despacho do #' + item.id + ' desistiu após ' + alvo.tentativasPerm + ' falha(s) permanente(s): ' + erro);
           } else {
             console.warn('⚠ Falha despacho #' + item.id + ' (tentativa ' + alvo.tentativas +
-                         (transitorio ? ', temporária — segue na fila' : '/' + DESPACHO_MAX_TENT) + '): ' + erro);
+                         (transitorio ? ', temporária — segue na fila' : '; permanentes ' + alvo.tentativasPerm + '/' + DESPACHO_MAX_TENT) + '): ' + erro);
           }
         }
       }
@@ -1069,8 +1073,13 @@ app.get('/admin/backup', (req, res) => {
     geradoEm: new Date().toISOString(),
     totalPackages: sharedPackages.length,
     totalScans: sharedScans.length,
+    // A fila de despacho também vive só em /data — sem ela no backup, perder o
+    // volume significaria perder os pedidos ainda não despachados.
+    totalDespachoPendente: despachoFila.length,
     packages: sharedPackages,
-    scans: sharedScans
+    scans: sharedScans,
+    despachoFila: despachoFila,
+    despachoFalhas: despachoFalhas
   });
 });
 
