@@ -82,7 +82,7 @@ function getPhotoFromServer(key, cb){
 var baseConfiavel = false;
 // Pedidos que o Bling confirmou que saíram (fantasmas). O servidor só remove o
 // que estiver nesta lista — ausência na lista enviada não apaga mais nada.
-var pkgsRemovidos = [];
+var pkgsRemovidos = ld('expv5_pkgs_removidos',[]);   // sobrevive ao recarregar a página
 // Pacotes do servidor mais antigos que a janela: ficam SÓ em memória (não vão pro
 // localStorage, pra não estourar a cota), mas voltam no envio pra não sumirem do servidor.
 var packagesHistorico = [];
@@ -103,7 +103,9 @@ function syncToServer(confirmadoPeloBling){
     ? { user: currentUser, mkt: activeMkt, ts: Date.now() }
     : null;
 
-  var removidosEnviados = confirmadoPeloBling ? pkgsRemovidos.slice(0, 500) : [];
+  // Vão em TODO envio, não só no que vem do pull: se o POST daquele momento falhar,
+  // os timers de 30s continuavam mandando lista vazia e a remoção se perdia.
+  var removidosEnviados = pkgsRemovidos.slice(0, 500);
   apiFetch('/sync/packages', {
     method: 'POST',
     body: JSON.stringify({
@@ -116,6 +118,7 @@ function syncToServer(confirmadoPeloBling){
     // os fantasmas continuam pendentes e vão junto no próximo envio.
     if(r && r.ok && removidosEnviados.length){
       pkgsRemovidos = pkgsRemovidos.filter(function(id){ return removidosEnviados.indexOf(id) === -1; });
+      sv('expv5_pkgs_removidos', pkgsRemovidos);
     }
   }).catch(function(){});
 
