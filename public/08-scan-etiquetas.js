@@ -114,7 +114,7 @@ function handleScan(rawCode,photo){
   candidatos.forEach(function(p){ var k=String(p.blingId||p.etiqueta); if(!idsCand[k]){idsCand[k]=true;distintos++;} });
   if(distintos>1){
     var nums=candidatos.map(function(p){return p.numero;}).slice(0,4).join(', ');
-    console.warn('⛔ Código ambíguo "'+c+'" casou com '+distintos+' pedidos: '+nums);
+    console.warn('⛔ Código ambíguo "'+code+'" casou com '+distintos+' pedidos: '+nums);
     showFb('⛔ Código ambíguo — casou com '+distintos+' pedidos ('+nums+'). Confira a etiqueta.','err');
     beepError(); return;
   }
