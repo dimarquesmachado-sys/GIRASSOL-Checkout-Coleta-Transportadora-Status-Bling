@@ -515,6 +515,10 @@ function loadDespachoFila() {
       despachoFila   = Array.isArray(b.fila) ? b.fila : [];
       despachoFalhas = Array.isArray(b.falhas) ? b.falhas : [];
       console.warn('♻ Fila recuperada do backup: ' + despachoFila.length + ' pendente(s)');
+      // Regrava o arquivo principal AGORA, direto, sem copiar o corrompido por
+      // cima do .bak — senão a primeira gravação normal destruiria o backup bom.
+      try { fs.writeFileSync(DESPACHO_FILE, JSON.stringify({ fila: despachoFila, falhas: despachoFalhas })); }
+      catch (e3) { console.error('❌ Não consegui regravar a fila principal:', e3.message); }
     } catch (e2) { console.error('❌ Backup da fila também ilegível — começando vazia'); }
   }
 }
@@ -537,21 +541,26 @@ function saveDespachoFila() {
 async function processarFilaDespacho() {
   if (despachoRodando || despachoFila.length === 0) return;
   despachoRodando = true;
+  let reprocessar = false;
   try {
     const lote = despachoFila.slice(); // snapshot: uma passada por rodada
     for (const item of lote) {
       if (!despachoFila.some(x => x.id === item.id)) continue; // já saiu da fila
-      let sucesso = false, erro = '';
+      let sucesso = false, erro = '', transitorio = false;
       try {
-        const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + item.id + '/situacoes/' + DESPACHADO_ID, { method: 'PATCH' });
+        // timeout explícito: sem ele uma conexão pendurada (node-fetch 2 não tem
+        // timeout padrão) travaria a fila inteira para sempre.
+        const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + item.id + '/situacoes/' + DESPACHADO_ID, { method: 'PATCH', timeout: 30000 });
         if (r.ok) sucesso = true;
         else {
           const t = await r.text();
           erro = r.status + ' ' + t.substring(0, 150);
           // "A venda possui a mesma situação" = já está despachado: resolvido.
           if (r.status === 400 && /mesma situa/i.test(t)) { sucesso = true; erro = ''; }
+          // 429/5xx/408 são temporários — não contam para a desistência.
+          else if (r.status === 429 || r.status === 408 || r.status >= 500) transitorio = true;
         }
-      } catch (e) { erro = e.message; }
+      } catch (e) { erro = e.message; transitorio = true; } // rede/timeout = temporário
 
       if (sucesso) {
         despachoFila = despachoFila.filter(x => x.id !== item.id);
@@ -565,12 +574,17 @@ async function processarFilaDespacho() {
         if (alvo) {
           alvo.tentativas = (alvo.tentativas || 0) + 1;
           alvo.ultimoErro = erro;
-          if (alvo.tentativas >= DESPACHO_MAX_TENT) {
+          alvo.transitorio = transitorio;
+          // Só desiste de erro PERMANENTE (ex: pedido inexistente). Bling fora do
+          // ar, 429 ou timeout ficam na fila e continuam sendo tentados a cada
+          // 5 min — desistir aí deixaria o pedido em Verificado sem ninguém saber.
+          if (!transitorio && alvo.tentativas >= DESPACHO_MAX_TENT) {
             despachoFila = despachoFila.filter(x => x.id !== item.id);
             despachoFalhas.push({ id: item.id, tentativas: alvo.tentativas, ultimoErro: erro, em: new Date().toISOString() });
-            console.error('⛔ Despacho do #' + item.id + ' desistiu após ' + alvo.tentativas + ' tentativas: ' + erro);
+            console.error('⛔ Despacho do #' + item.id + ' desistiu após ' + alvo.tentativas + ' tentativas (erro permanente): ' + erro);
           } else {
-            console.warn('⚠ Falha despacho #' + item.id + ' (tentativa ' + alvo.tentativas + '/' + DESPACHO_MAX_TENT + '): ' + erro);
+            console.warn('⚠ Falha despacho #' + item.id + ' (tentativa ' + alvo.tentativas +
+                         (transitorio ? ', temporária — segue na fila' : '/' + DESPACHO_MAX_TENT) + '): ' + erro);
           }
         }
       }
@@ -580,16 +594,15 @@ async function processarFilaDespacho() {
     // Pedidos que entraram DURANTE esta rodada não estavam no snapshot: roda de
     // novo já, em vez de deixá-los esperando os 5 min do timer.
     const idsDoLote = new Set(lote.map(x => x.id));
-    const novos = despachoFila.filter(x => !idsDoLote.has(x.id));
-    if (novos.length) {
-      console.log('▶ ' + novos.length + ' despacho(s) entraram durante a rodada — processando em seguida');
-      setTimeout(() => { despachoRodando = false; processarFilaDespacho(); }, 100);
-      return; // libera a trava dentro do setTimeout
-    }
-    if (despachoFila.length) console.log('⏳ Fila de despacho: ' + despachoFila.length + ' pendente(s) — nova tentativa em 5 min');
+    reprocessar = despachoFila.some(x => !idsDoLote.has(x.id));
+    if (reprocessar) console.log('▶ Novos despachos entraram durante a rodada — processando em seguida');
+    else if (despachoFila.length) console.log('⏳ Fila de despacho: ' + despachoFila.length + ' pendente(s) — nova tentativa em 5 min');
   } finally {
-    if (despachoRodando) despachoRodando = false;
+    // A trava é liberada UMA vez, aqui. Agendar o reprocessamento depois evita
+    // liberar uma trava que já pertence a outra rodada.
+    despachoRodando = false;
   }
+  if (reprocessar) setTimeout(processarFilaDespacho, 100);
 }
 
 app.post('/despachar', requireAuth, (req, res) => {
