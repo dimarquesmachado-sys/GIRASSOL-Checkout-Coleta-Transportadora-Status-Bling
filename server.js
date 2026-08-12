@@ -30,7 +30,7 @@ function segredoSessao() {
   return novo;
 }
 const SESSION_SECRET = segredoSessao();
-if (!process.env.USERS) console.warn('⚠ USERS não configurada — o login usará o usuário padrão. Configure no Render.');
+if (!process.env.USERS) console.error('⛔ USERS não configurada — NINGUÉM consegue logar (login responde 503). Configure a variável no Render.');
 // Chave p/ rotas de diagnóstico/admin (acessadas pelo navegador com ?k=CHAVE).
 // Sem a env ADMIN_KEY configurada, essas rotas ficam DESLIGADAS (404) — seguro por padrão.
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
@@ -41,12 +41,17 @@ let refreshToken = process.env.BLING_REFRESH_TOKEN || '';
 let tokenExpires = accessToken ? Date.now() + 50 * 60 * 1000 : 0;
 
 function parseUsers() {
-  const raw = process.env.USERS || 'admin:girassol123';
-  return raw.split(',').map(u => {
-    const [nome, senha] = u.trim().split(':');
-    return { nome: nome?.trim(), senha: senha?.trim() };
+  // FALHA FECHADA (12/08): antes, sem a env USERS o sistema caía numa senha fixa
+  // que está no repositório público — um restore ou serviço novo mal configurado
+  // abriria o app inteiro. Agora, sem USERS, simplesmente não existe usuário.
+  const raw = process.env.USERS || '';
+  if (!raw.trim()) return [];
+  return raw.split(',').map(p => {
+    const [nome, senha] = p.split(':');
+    return { nome: (nome || '').trim(), senha: (senha || '').trim() };
   }).filter(u => u.nome && u.senha);
 }
+
 
 // ── Sessões STATELESS (token assinado) ──────────────────────────────────────
 // O token carrega o usuário + validade + assinatura HMAC. O servidor valida pela
@@ -73,6 +78,12 @@ function verifyToken(tok) {
 }
 
 function requireAuth(req, res, next) {
+  // Sem USERS configurada não existe usuário válido — nem para tokens que já
+  // estavam no navegador. Senão, remover a env de um serviço em uso não fecharia
+  // o acesso de quem já estava logado.
+  if (parseUsers().length === 0) {
+    return res.status(503).json({ error: 'Login indisponível: usuários não configurados.' });
+  }
   const user = verifyToken(req.headers['x-session-token']);
   if (!user) return res.status(401).json({ error: 'Sessão expirada.' });
   req.user = user;
@@ -285,6 +296,20 @@ function limparTentativas() {
 }
 setInterval(limparTentativas, 10 * 60 * 1000);
 
+// Saúde do serviço — usada por monitor externo (keepalive) e por você.
+// Não expõe segredo nenhum: só diz se as peças essenciais estão de pé.
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    em: new Date().toISOString(),
+    bling_autorizado: !!accessToken,
+    usuarios_configurados: parseUsers().length,
+    pacotes: sharedPackages.length,
+    scans: sharedScans.length,
+    despacho_pendente: despachoFila.length
+  });
+});
+
 app.post('/login', (req, res) => {
   const { usuario, senha } = req.body;
   const chave = ipDe(req) + '|' + String(usuario || '').slice(0, 60);
@@ -298,7 +323,12 @@ app.post('/login', (req, res) => {
     return res.status(429).json({ error: 'Muitas tentativas. Tente de novo em ' + Math.ceil(faltam / 60) + ' min.' });
   }
 
-  const found = parseUsers().find(u => u.nome === usuario && u.senha === senha);
+  const usuarios = parseUsers();
+  if (usuarios.length === 0) {
+    console.error('⛔ LOGIN INDISPONÍVEL: variável USERS não configurada no Render.');
+    return res.status(503).json({ error: 'Login indisponível: usuários não configurados. Avise o administrador.' });
+  }
+  const found = usuarios.find(u => u.nome === usuario && u.senha === senha);
   if (!found) {
     const base = (reg && agora < reg.expira) ? reg : { n: 0, expira: agora + LOGIN_JANELA };
     base.n++;
@@ -429,7 +459,37 @@ app.get('/bling-nf/:blingId', async (req, res) => {
   res.json(results);
 });
 
+// Proxy do Bling — ALLOWLIST (12/08). Antes encaminhava qualquer método e
+// qualquer caminho: uma sessão de estoquista (ou token roubado) podia alterar ou
+// APAGAR recursos no Bling muito além da expedição. O app só precisa de leitura
+// de pedidos e do PATCH que muda a situação — o resto está bloqueado.
+function proxyBlingPermitido(metodo, caminho) {
+  let p = (caminho || '').split('?')[0];
+  // Normaliza ANTES de validar: sem isso, /pedidos/vendas/../../produtos passava
+  // no teste de prefixo e o node-fetch resolvia para /produtos ao montar a URL.
+  try { p = decodeURIComponent(p); } catch (e) { return false; }
+  if (p.indexOf('..') !== -1 || p.indexOf('//') !== -1 || p.indexOf('\\') !== -1) return false;
+  if (metodo === 'GET') {
+    // O front só lê pedidos por aqui (listagem e detalhe). NF, contatos e demais
+    // recursos ficam de fora: não são usados e exporiam dado fiscal/de cliente.
+    return /^\/pedidos\/vendas(\/\d+)?$/.test(p);
+  }
+  if (metodo === 'PATCH') {
+    // Exatamente o despacho: /pedidos/vendas/{id}/situacoes/{DESPACHADO_ID}.
+    // DESPACHADO_ID é lido aqui dentro (em tempo de chamada) — no topo do arquivo
+    // ele ainda não existe e o processo nem subia.
+    const m = p.match(/^\/pedidos\/vendas\/(\d+)\/situacoes\/(\d+)$/);
+    return !!m && m[2] === String(DESPACHADO_ID);
+  }
+  return false; // POST, PUT, DELETE e o resto: nunca pelo proxy
+}
+
 app.all('/bling/*', requireAuth, async (req, res) => {
+  const caminhoBling = req.originalUrl.replace(/^\/bling/, '');
+  if (!proxyBlingPermitido(req.method, caminhoBling)) {
+    console.warn('⛔ Proxy Bling bloqueado: ' + req.method + ' ' + caminhoBling + ' (usuário: ' + (req.user || '?') + ')');
+    return res.status(403).json({ error: 'operação não permitida por este caminho' });
+  }
   if (!accessToken) {
     const ok = await refreshAccessToken();
     if (!ok) return res.status(500).json({
