@@ -724,8 +724,17 @@ function pullFromBling(){
     // ou com erro, os pedidos que não vieram continuam existindo no Bling — remover
     // aqui os apagaria da tela e, no sync seguinte, do servidor.
     if(buscaOk){
+      // Guarda quais pedidos de HOJE existiam antes, pra saber quais o Bling
+      // confirmou que sumiram (fantasmas). Sem essa lista o servidor não teria
+      // como remover nada — lá a ausência não apaga mais nada por conta própria.
+      var idsAntes={}; packages.forEach(function(p){ if(p.date===today) idsAntes[p.blingId]=true; });
       packages=packages.filter(function(p){return p.date!==today;});
       packages=newPkgs.concat(expedidosRecentes).concat(packages);
+      var idsDepois={}; packages.forEach(function(p){ idsDepois[p.blingId]=true; });
+      Object.keys(idsAntes).forEach(function(id){
+        if(!idsDepois[id] && pkgsRemovidos.indexOf(id)===-1) pkgsRemovidos.push(id);
+      });
+      if(pkgsRemovidos.length) console.log('👻 '+pkgsRemovidos.length+' pedido(s) saíram do Bling — serão removidos do servidor');
     } else {
       // Busca incompleta: só acrescenta/atualiza o que veio, sem remover nada.
       var idsRecebidos={}; newPkgs.forEach(function(p){idsRecebidos[p.blingId]=true;});
