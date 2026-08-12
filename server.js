@@ -2,6 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,7 +10,27 @@ const BLING_BASE = 'https://api.bling.com.br/Api/v3';
 
 const CLIENT_ID      = process.env.BLING_CLIENT_ID || '';
 const CLIENT_SECRET  = process.env.BLING_CLIENT_SECRET || '';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'girassol-2024';
+// Sem a env, gera um segredo ALEATÓRIO no boot em vez de usar um valor fixo — o
+// valor fixo estava no repositório público e permitia forjar um token de sessão.
+// Pior caso agora: as sessões caem num restart (e o log avisa), nunca alguém entra.
+// Segredo da sessão: usa a env; sem ela, gera UMA vez e guarda no disco. Assim
+// não volta a ser o valor fixo que estava no repositório público (dava pra forjar
+// sessão) nem muda a cada boot (o que derrubaria o login do galpão em todo deploy).
+function segredoSessao() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  const F = '/data/session-secret';
+  try { if (fs.existsSync(F)) { const v = fs.readFileSync(F, 'utf8').trim(); if (v) return v; } } catch (e) {}
+  const novo = crypto.randomBytes(32).toString('hex');
+  try {
+    fs.writeFileSync(F, novo);
+    console.warn('⚠ SESSION_SECRET não configurada — gerei um segredo e salvei em ' + F + '. Configure no Render.');
+  } catch (e) {
+    console.warn('⚠ SESSION_SECRET não configurada e não consegui gravar no disco — as sessões vão cair a cada restart.');
+  }
+  return novo;
+}
+const SESSION_SECRET = segredoSessao();
+if (!process.env.USERS) console.warn('⚠ USERS não configurada — o login usará o usuário padrão. Configure no Render.');
 // Chave p/ rotas de diagnóstico/admin (acessadas pelo navegador com ?k=CHAVE).
 // Sem a env ADMIN_KEY configurada, essas rotas ficam DESLIGADAS (404) — seguro por padrão.
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
@@ -137,7 +158,6 @@ app.get('/callback', async (req, res) => {
 // ═══ PERSISTÊNCIA DE TOKEN EM DISCO ═══
 // Salva tokens em /data (disco persistente do Render) para sobreviver a restarts/crashes.
 // NÃO usa a API do Render (que reiniciava o servidor e causava o loop de invalid_grant).
-const fs = require('fs');
 const TOKEN_FILE = '/data/bling-tokens.json';
 
 function saveTokensToDisk() {
@@ -180,6 +200,7 @@ async function refreshAccessToken() {
     const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
     const r = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
       method: 'POST',
+      timeout: 30000, // sem timeout, uma conexão pendurada aqui travaria a fila de despacho inteira
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': `Basic ${credentials}`,
@@ -469,25 +490,155 @@ app.get('/info/pedido/:id', async (req, res) => {
 // em VERIFICADO. Aqui o servidor garante o despacho independente do app.
 // blingFetch já cuida de renovação de token, rate-limit 429 e retry.
 const DESPACHADO_ID = 743515;
-async function despacharEmBackground(blingIds) {
-  let ok = 0, fail = 0;
-  for (let i = 0; i < blingIds.length; i++) {
-    const id = blingIds[i];
+// ── FILA DURÁVEL DE DESPACHO (11/08) ─────────────────────────────────────────
+// ANTES: /despachar respondia "ok" e rodava um laço só na MEMÓRIA do processo.
+// Deploy, restart ou crash no meio levava embora o que faltava: o operador via o
+// lote finalizado com sucesso e os pedidos seguiam em Verificado no Bling, sem
+// aviso nenhum. AGORA os IDs vão pro disco ANTES da resposta, saem da fila só
+// quando o Bling confirma, são retomados no boot e retentados a cada 5 min.
+const DESPACHO_FILE = '/data/despacho-fila.json';
+let despachoFila = [];      // [{id, tentativas, ultimoErro, ts}]
+let despachoFalhas = [];    // desistências, guardadas p/ consulta
+let despachoRodando = false;
+const DESPACHO_MAX_TENT = 8;
+
+function loadDespachoFila() {
+  try {
+    if (fs.existsSync(DESPACHO_FILE)) {
+      const d = JSON.parse(fs.readFileSync(DESPACHO_FILE, 'utf8')) || {};
+      despachoFila   = Array.isArray(d.fila) ? d.fila : [];
+      despachoFalhas = Array.isArray(d.falhas) ? d.falhas : [];
+    }
+  } catch (e) {
+    console.error('❌ Fila de despacho ilegível (' + e.message + ') — tentando o backup');
     try {
-      const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + id + '/situacoes/' + DESPACHADO_ID, { method: 'PATCH' });
-      if (r.ok) { ok++; console.log('✅ DESPACHADO (servidor): #' + id); }
-      else { fail++; const t = await r.text(); console.warn('⚠ Falha despacho #' + id + ': ' + r.status + ' ' + t.substring(0, 150)); }
-    } catch (e) { fail++; console.error('❌ Erro despacho #' + id + ':', e.message); }
-    await sleep(700); // throttle entre PATCHs — respeita o limite ~3 req/s do Bling
+      const b = JSON.parse(fs.readFileSync(DESPACHO_FILE + '.bak', 'utf8')) || {};
+      despachoFila   = Array.isArray(b.fila) ? b.fila : [];
+      despachoFalhas = Array.isArray(b.falhas) ? b.falhas : [];
+      console.warn('♻ Fila recuperada do backup: ' + despachoFila.length + ' pendente(s)');
+      // Regrava o arquivo principal AGORA, direto, sem copiar o corrompido por
+      // cima do .bak — senão a primeira gravação normal destruiria o backup bom.
+      try { fs.writeFileSync(DESPACHO_FILE, JSON.stringify({ fila: despachoFila, falhas: despachoFalhas })); }
+      catch (e3) { console.error('❌ Não consegui regravar a fila principal:', e3.message); }
+    } catch (e2) { console.error('❌ Backup da fila também ilegível — começando vazia'); }
   }
-  console.log('🏁 Despacho concluído: ' + ok + ' ok, ' + fail + ' falha(s) de ' + blingIds.length);
 }
+// Grava em arquivo temporário e renomeia: se o processo cair no meio, o arquivo
+// final continua íntegro (a versão anterior fica em .bak). Devolve true/false —
+// quem chama PRECISA saber se a fila ficou mesmo no disco.
+function saveDespachoFila() {
+  const tmp = DESPACHO_FILE + '.tmp';
+  try {
+    fs.writeFileSync(tmp, JSON.stringify({ fila: despachoFila, falhas: despachoFalhas }));
+    try { if (fs.existsSync(DESPACHO_FILE)) fs.copyFileSync(DESPACHO_FILE, DESPACHO_FILE + '.bak'); } catch (e) {}
+    fs.renameSync(tmp, DESPACHO_FILE);
+    return true;
+  } catch (e) {
+    console.error('❌ Erro ao salvar fila de despacho:', e.message);
+    return false;
+  }
+}
+
+async function processarFilaDespacho() {
+  if (despachoRodando || despachoFila.length === 0) return;
+  despachoRodando = true;
+  let reprocessar = false;
+  try {
+    const lote = despachoFila.slice(); // snapshot: uma passada por rodada
+    for (const item of lote) {
+      if (!despachoFila.some(x => x.id === item.id)) continue; // já saiu da fila
+      let sucesso = false, erro = '', transitorio = false;
+      try {
+        // timeout explícito: sem ele uma conexão pendurada (node-fetch 2 não tem
+        // timeout padrão) travaria a fila inteira para sempre.
+        const r = await blingFetch(BLING_BASE + '/pedidos/vendas/' + item.id + '/situacoes/' + DESPACHADO_ID, { method: 'PATCH', timeout: 30000 });
+        if (r.ok) sucesso = true;
+        else {
+          const t = await r.text();
+          erro = r.status + ' ' + t.substring(0, 150);
+          // "A venda possui a mesma situação" = já está despachado: resolvido.
+          if (r.status === 400 && /mesma situa/i.test(t)) { sucesso = true; erro = ''; }
+          // 429/5xx/408 são temporários — não contam para a desistência.
+          // 401 = token/renovação falhou agora, mas a credencial pode voltar depois;
+          // 429/408/5xx = instabilidade. Nenhum deles é motivo pra desistir do pedido.
+          else if (r.status === 401 || r.status === 429 || r.status === 408 || r.status >= 500) transitorio = true;
+        }
+      } catch (e) { erro = e.message; transitorio = true; } // rede/timeout = temporário
+
+      if (sucesso) {
+        despachoFila = despachoFila.filter(x => x.id !== item.id);
+        // Se este pedido já tinha desistido antes, marca a desistência como
+        // resolvida — senão continua aparecendo na rota admin como se precisasse
+        // de intervenção.
+        despachoFalhas.forEach(f => { if (f.id === item.id && !f.resolvidoEm) f.resolvidoEm = new Date().toISOString(); });
+        console.log('✅ DESPACHADO (fila): #' + item.id);
+      } else {
+        const alvo = despachoFila.find(x => x.id === item.id);
+        if (alvo) {
+          alvo.tentativas = (alvo.tentativas || 0) + 1;   // total, só p/ visibilidade
+          if (!transitorio) alvo.tentativasPerm = (alvo.tentativasPerm || 0) + 1;
+          alvo.ultimoErro = erro;
+          alvo.transitorio = transitorio;
+          // Só desiste de erro PERMANENTE (ex: pedido inexistente). Bling fora do
+          // ar, 429 ou timeout ficam na fila e continuam sendo tentados a cada
+          // 5 min — desistir aí deixaria o pedido em Verificado sem ninguém saber.
+          if (!transitorio && alvo.tentativasPerm >= DESPACHO_MAX_TENT) {
+            despachoFila = despachoFila.filter(x => x.id !== item.id);
+            despachoFalhas.push({ id: item.id, tentativas: alvo.tentativas, tentativasPerm: alvo.tentativasPerm, ultimoErro: erro, em: new Date().toISOString() });
+            console.error('⛔ Despacho do #' + item.id + ' desistiu após ' + alvo.tentativasPerm + ' falha(s) permanente(s): ' + erro);
+          } else {
+            console.warn('⚠ Falha despacho #' + item.id + ' (tentativa ' + alvo.tentativas +
+                         (transitorio ? ', temporária — segue na fila' : '; permanentes ' + alvo.tentativasPerm + '/' + DESPACHO_MAX_TENT) + '): ' + erro);
+          }
+        }
+      }
+      saveDespachoFila();
+      await sleep(700); // throttle entre PATCHs — respeita o limite ~3 req/s do Bling
+    }
+    // Pedidos que entraram DURANTE esta rodada não estavam no snapshot: roda de
+    // novo já, em vez de deixá-los esperando os 5 min do timer.
+    const idsDoLote = new Set(lote.map(x => x.id));
+    reprocessar = despachoFila.some(x => !idsDoLote.has(x.id));
+    if (reprocessar) console.log('▶ Novos despachos entraram durante a rodada — processando em seguida');
+    else if (despachoFila.length) console.log('⏳ Fila de despacho: ' + despachoFila.length + ' pendente(s) — nova tentativa em 5 min');
+  } finally {
+    // A trava é liberada UMA vez, aqui. Agendar o reprocessamento depois evita
+    // liberar uma trava que já pertence a outra rodada.
+    despachoRodando = false;
+  }
+  if (reprocessar) setTimeout(processarFilaDespacho, 100);
+}
+
 app.post('/despachar', requireAuth, (req, res) => {
   const { blingIds } = req.body;
   if (!Array.isArray(blingIds) || blingIds.length === 0) return res.status(400).json({ error: 'blingIds obrigatório' });
   const ids = [...new Set(blingIds.filter(Boolean).map(String))]; // sem duplicatas/vazios
-  res.json({ ok: true, total: ids.length }); // responde já; o despacho roda em background
-  despacharEmBackground(ids);
+  // GRAVA ANTES de responder: se o processo cair agora, a fila continua no disco.
+  const naFila = new Set(despachoFila.map(x => x.id));
+  const antes = despachoFila.slice();
+  ids.forEach(id => { if (!naFila.has(id)) despachoFila.push({ id, tentativas: 0, ts: Date.now() }); });
+  // Se não conseguiu gravar, NÃO confirma: o cliente precisa saber pra cair no
+  // fallback dele. Confirmar aqui faria o operador fechar o lote achando que está
+  // garantido, e um restart levaria os despachos embora.
+  if (!saveDespachoFila()) {
+    despachoFila = antes; // desfaz, pra não ficar só na memória achando que persistiu
+    return res.status(500).json({ ok: false, erro: 'não foi possível gravar a fila de despacho' });
+  }
+  res.json({ ok: true, total: ids.length, naFila: despachoFila.length });
+  processarFilaDespacho();
+});
+
+// Consulta o que ainda não foi despachado (e o que desistiu)
+app.get('/admin/despacho-fila', (req, res) => {
+  if (!adminOk(req)) return res.status(404).send('Not found');
+  const naoResolvidas = despachoFalhas.filter(f => !f.resolvidoEm);
+  res.json({
+    pendentes: despachoFila.length,
+    fila: despachoFila,
+    desistencias_abertas: naoResolvidas.length,
+    falhas: naoResolvidas.slice(-100),
+    falhas_resolvidas: despachoFalhas.length - naoResolvidas.length
+  });
 });
 
 // Diagnóstico: busca pedido pelo NÚMERO e mostra o serviço de entrega de forma legível
@@ -903,6 +1054,14 @@ limparScansAntigos();   // remove scans antigos (evita OOM)
 // Limpa scans antigos a cada 6 horas
 setInterval(limparScansAntigos, 6 * 60 * 60 * 1000);
 
+// Fila de despacho: retoma o que sobrou de um restart/deploy e retenta o que falhou
+loadDespachoFila();
+if (despachoFila.length) {
+  console.log('♻ Retomando ' + despachoFila.length + ' despacho(s) pendente(s) do disco');
+  setTimeout(processarFilaDespacho, 5000);
+}
+setInterval(processarFilaDespacho, 5 * 60 * 1000);
+
 // ── BACKUP dos dados operacionais (protegido por ?k=ADMIN_KEY) ──────────────
 // Baixa um JSON com packages + scans compartilhados (o conteúdo do disco /data).
 // NÃO inclui os tokens do Bling (segredo — recuperáveis via re-autorização OAuth).
@@ -914,8 +1073,13 @@ app.get('/admin/backup', (req, res) => {
     geradoEm: new Date().toISOString(),
     totalPackages: sharedPackages.length,
     totalScans: sharedScans.length,
+    // A fila de despacho também vive só em /data — sem ela no backup, perder o
+    // volume significaria perder os pedidos ainda não despachados.
+    totalDespachoPendente: despachoFila.length,
     packages: sharedPackages,
-    scans: sharedScans
+    scans: sharedScans,
+    despachoFila: despachoFila,
+    despachoFalhas: despachoFalhas
   });
 });
 
