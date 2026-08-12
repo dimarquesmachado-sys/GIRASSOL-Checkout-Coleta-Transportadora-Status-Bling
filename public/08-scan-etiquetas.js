@@ -373,7 +373,7 @@ function restaurarSessaoColeta(){
 
   var agora=Date.now();
   var candidatoMkt=null, candidatoUltimo=0, candidatoDeadline=0;
-  var descartados=0, mktsExpirados=[];
+  var preservados=0, mktsExpirados=[];
 
   Object.keys(porMkt).forEach(function(m){
     var lst=porMkt[m];
@@ -384,12 +384,12 @@ function restaurarSessaoColeta(){
     var ult=Math.max.apply(null,tsL);
     var dl=ult+25*60*1000;
     if(agora>dl){
-      // Ficou 25 min sem bipar → coleta abandonada → descarta SÓ os bipes deste card
-      lst.forEach(function(s){
-        registrarRemocaoScan(s); // p/ o servidor remover no merge
-        var ix=scans.indexOf(s);
-        if(ix!==-1){ scans.splice(ix,1); descartados++; }
-      });
+      // Ficou 25 min sem bipar → a coleta NÃO é restaurada como ativa.
+      // MAS os bipes são PRESERVADOS (12/08). Antes eles eram apagados daqui E do
+      // servidor: se o estoquista parava no meio (almoço, pane, celular travado),
+      // o trabalho já feito sumia. Agora ficam no dia como "bipados sem lote",
+      // visíveis no histórico, e a pessoa decide o que fazer com eles.
+      preservados += lst.length;
       mktsExpirados.push(m);
     } else {
       // Card ainda válido — candidato a restaurar (escolhe o de bipe mais recente)
@@ -399,11 +399,9 @@ function restaurarSessaoColeta(){
     }
   });
 
-  if(descartados>0){
-    svScans();
-    if(typeof syncToServer==='function') syncToServer();
-    if(typeof toast==='function') toast('⏰ '+descartados+' bipe(s) de coleta(s) antiga(s) expirou(aram) (25 min)','warn');
-    console.log('⏰ Expirados e descartados: '+descartados+' bipes de ['+mktsExpirados.join(', ')+']');
+  if(preservados>0){
+    if(typeof toast==='function') toast('⏰ '+preservados+' bipe(s) de coleta parada há +25 min — guardados como "bipados sem lote"','warn');
+    console.log('⏰ Coleta(s) expirada(s) ['+mktsExpirados.join(', ')+'] — '+preservados+' bipe(s) PRESERVADOS (não apagados)');
   }
 
   if(!candidatoMkt){ limparSessaoColeta(); return false; }
