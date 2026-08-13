@@ -98,9 +98,15 @@ var SYNC_DIAS = 3;
   }catch(e){}
 })();
 var baseConfiavel = false;
-// Chaves de bipes que o servidor confirmou ter recebido — é o que permite
-// distinguir "antigo e já salvo" de "antigo e ainda não enviado".
-var scansConfirmados = ld('expv5_scans_confirmados',[]);
+// Bipe que o servidor já tem recebe a marca `_sv` no próprio registro.
+// (Antes era uma LISTA separada de chaves, que era truncada ao passar de 8.000 —
+// as chaves descartadas voltavam a contar como pendentes e o histórico inteiro
+// era reenviado de novo, em ciclo. A marca no registro não trunca nunca.)
+function marcarSincronizados(lista){
+  var mudou=false;
+  lista.forEach(function(x){ if(x && !x._sv){ x._sv=1; mudou=true; } });
+  if(mudou) svScans();
+}
 // Pedidos que o Bling confirmou que saíram (fantasmas). O servidor só remove o
 // que estiver nesta lista — ausência na lista enviada não apaga mais nada.
 var pkgsRemovidos = ld('expv5_pkgs_removidos',[]);   // sobrevive ao recarregar
@@ -137,12 +143,11 @@ function syncToServer(confirmadoPeloBling){
   // excluídos de todos os envios só por causa da data.
   var scanPend = scans.filter(function(x){
     if(!x.date || x.date >= limiteEnvio) return true;
-    return scansConfirmados.indexOf(scanKeyOf(x)) === -1;   // antigo e ainda não confirmado
+    return !x._sv;                      // antigo e ainda não confirmado pelo servidor
   });
   var antigosPend = scanPend.length - scans.filter(function(x){ return !x.date || x.date >= limiteEnvio; }).length;
   if(antigosPend > 0) console.log('📤 reenviando '+antigosPend+' bipe(s) antigo(s) ainda não confirmado(s) pelo servidor');
   var scanHoje = stripPhotos(scanPend);
-  var chavesEnviadas = scanPend.map(function(x){ return scanKeyOf(x); });
 
   // Inclui estado ativo: quem está fazendo expedição de qual loja
   var activeState = activeMkt
@@ -167,14 +172,7 @@ function syncToServer(confirmadoPeloBling){
     body: JSON.stringify({ scans: scanHoje, removedKeys: removedScanKeys })
   }).then(function(r){
     if(!(r && r.ok)) return;
-    // Só agora sabemos que o servidor tem esses bipes: registra pra não reenviar
-    // sempre, e pra saber quais ainda faltam se a rede cair.
-    var novo = false;
-    chavesEnviadas.forEach(function(k){ if(scansConfirmados.indexOf(k)===-1){ scansConfirmados.push(k); novo=true; } });
-    if(novo){
-      if(scansConfirmados.length > 8000) scansConfirmados = scansConfirmados.slice(-6000);
-      sv('expv5_scans_confirmados', scansConfirmados);
-    }
+    marcarSincronizados(scanPend);   // o servidor confirmou: não reenviar mais
   }).catch(function(){});
 
   if(activeState){
@@ -264,6 +262,10 @@ function loadFromServer(cb, completo){
         return true;
       });
       if(novos.length>0){
+        // Veio DO servidor, logo o servidor já tem: nasce marcado. Sem isso, abrir
+        // Histórico/Dia trazia milhares de bipes antigos que o app devolveria no
+        // envio seguinte — justamente a carga pesada que estamos eliminando.
+        novos.forEach(function(x){ x._sv=1; });
         scans=scans.concat(novos);
         console.log('📥 '+novos.length+' scans novos do servidor (incluindo lotes)');
       }
