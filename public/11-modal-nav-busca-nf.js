@@ -135,6 +135,12 @@ function detectNF(pkgsSemNF, onDone){
   // chamadas ao Bling e deixando o app lento pra todo mundo.
   if(nfBuscaEmAndamento){ console.log('🧾 detectNF já em andamento — ignorando'); if(onDone) onDone(); return; }
   nfBuscaEmAndamento = true;
+  // Rede de segurança: se a requisição ficar pendurada, a trava é solta sozinha —
+  // senão esta aba pararia de buscar NF até o operador recarregar a página.
+  var nfDestravar = setTimeout(function(){
+    if(nfBuscaEmAndamento){ nfBuscaEmAndamento = false; console.warn('🧾 detectNF passou de 90s — trava liberada'); }
+  }, 90000);
+  function nfFim(){ clearTimeout(nfDestravar); nfBuscaEmAndamento = false; }
   console.log('🧾 detectNF batch para '+pkgsSemNF.length+' pedidos sem NF');
   
   var pedidos = pkgsSemNF.map(function(p){ return { blingId: p.blingId, numero: p.numero }; });
@@ -160,7 +166,7 @@ function detectNF(pkgsSemNF, onDone){
       }
     });
     
-    nfBuscaEmAndamento = false;
+    nfFim();
     sv('expv5_pkgs', packages);
     syncToServer();
     renderMktGrid();
@@ -168,7 +174,7 @@ function detectNF(pkgsSemNF, onDone){
     if(onDone) onDone();
   })
   .catch(function(e){
-    nfBuscaEmAndamento = false;
+    nfFim();
     console.error('❌ detectNF batch erro:', e.message);
     if(onDone) onDone();
   });
