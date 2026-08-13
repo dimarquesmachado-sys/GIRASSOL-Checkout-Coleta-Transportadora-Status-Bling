@@ -77,10 +77,12 @@ function showPage(page){
   if(page==='historico'){
     // Busca dados atualizados do servidor antes de renderizar
     console.log('📂 Carregando histórico do servidor...');
+    // completo=true: só AQUI o histórico inteiro é baixado (antes vinha em todo
+    // ciclo de 30s, junto com milhares de registros que a tela nem usava).
     loadFromServer(function(){
       console.log('✅ Histórico carregado');
       renderHistorico();
-    });
+    }, true);
   }
   if(page==='romaneio'){
     // Auto-refresh: se passaram mais de 2 minutos desde a última busca, atualiza
