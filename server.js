@@ -1082,7 +1082,10 @@ const activeUsers = new Map(); // user → {user, mkt, ts}
 app.get('/sync/data', requireAuth, (req, res) => {
   const now = Date.now();
   const active = [...activeUsers.values()].filter(u => now - u.ts < 1800000);
-  res.json({ packages: sharedPackages, scans: sharedScans, activeUsers: active });
+  // Devolve também as lápides: sem isso, o celular com cache antigo continuava
+  // mostrando (e podendo bipar) um pedido que já foi removido no servidor.
+  res.json({ packages: sharedPackages, scans: sharedScans, activeUsers: active,
+    removidos: Object.keys(pacotesRemovidos) });
 });
 
 app.post('/sync/active', requireAuth, (req, res) => {
@@ -1107,17 +1110,25 @@ function mesclarPacote(atual, novo, confirmado) {
   // a busca: o app promove localmente a data de pendentes antigos para hoje, e
   // sem essa trava um celular desatualizado substituiria o registro coletado de
   // ontem por uma cópia de hoje sem colTs, corrompendo o histórico.
+  const ehVazio = (v) => (v === undefined || v === null || v === '' || v === '—' ||
+                          (Array.isArray(v) && v.length === 0));
   if (novo.date && atual.date && novo.date !== atual.date) {
     if (!confirmado) return atual;
-    return novo.date > atual.date ? novo : atual;
+    if (novo.date < atual.date) return atual;
+    // Novo ciclo: o estado (status/colTs) é o do ciclo novo, mas os campos de
+    // identificação que vierem vazios herdam o valor já conhecido — a resposta
+    // resumida do Bling costuma vir sem NF, tracking ou número da loja.
+    const nc = Object.assign({}, novo);
+    Object.keys(atual).forEach(k => {
+      if (['status','colT','colTs','obs','date'].indexOf(k) !== -1) return;
+      if (ehVazio(nc[k]) && !ehVazio(atual[k])) nc[k] = atual[k];
+    });
+    return nc;
   }
   const r = Object.assign({}, atual);
-  // Campo preenchido nunca é apagado por vazio (NF, tracking, destinatário...)
-  Object.keys(novo).forEach(k => {
-    const v = novo[k];
-    const vazio = (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0));
-    if (!vazio) r[k] = v;
-  });
+  // Campo preenchido nunca é apagado por vazio (NF, tracking, destinatário...).
+  // '—' é o marcador de "sem contato" do pull e conta como vazio.
+  Object.keys(novo).forEach(k => { if (!ehVazio(novo[k])) r[k] = novo[k]; });
   // FLEX: `false` não é vazio, então um celular desatualizado desmarcaria o
   // urgente e o pedido sumiria do card FLEX. Só rebaixa com busca confirmada.
   if (atual.urgente === true && novo.urgente !== true && !confirmado) r.urgente = true;
@@ -1141,17 +1152,17 @@ app.post('/sync/packages', requireAuth, (req, res) => {
     const idx = new Map();
     sharedPackages.forEach(p => { if (p && p.blingId != null) idx.set(String(p.blingId), p); });
 
-    // Pedido que veio na carga. Só vale como "voltou de verdade" quando a busca
-    // foi CONFIRMADA pelo Bling — senão um celular atrasado, que ainda tem o
-    // fantasma na lista dele, ressuscitaria o pedido removido.
-    const naCarga = new Set();
-    packages.forEach(p => { if (p && p.blingId != null) naCarga.add(String(p.blingId)); });
-    const voltouDeVerdade = (k) => !!confirmado && naCarga.has(k);
+    // "Voltou de verdade" = o ID veio na RESPOSTA DO BLING desta busca (idsBling),
+    // não apenas na carga do celular. A carga inclui cache local e histórico, então
+    // usá-la deixaria um aparelho antigo ressuscitar o fantasma.
+    const doBling = new Set(Array.isArray(req.body.idsBling) ? req.body.idsBling.map(String) : []);
+    const voltouDeVerdade = (k) => !!confirmado && doBling.has(k);
 
     let novos = 0, atualizados = 0, bloqueados = 0;
     packages.forEach(p => {
       if (!p || p.blingId == null) return;
       const k = String(p.blingId);
+      if (pacotesRemovidos[k] && (Date.now() - pacotesRemovidos[k]) > REMOVIDO_TTL) delete pacotesRemovidos[k];
       if (pacotesRemovidos[k]) {
         if (!voltouDeVerdade(k)) { bloqueados++; return; }   // celular atrasado: não ressuscita
         delete pacotesRemovidos[k];                          // Bling confirmou: pedido voltou
@@ -1167,7 +1178,7 @@ app.post('/sync/packages', requireAuth, (req, res) => {
     if (confirmado && Array.isArray(removidos)) {
       removidos.forEach(id => {
         const k = String(id);
-        if (naCarga.has(k)) return;          // veio de volta no mesmo envio: não remove
+        if (doBling.has(k)) return;          // o Bling devolveu o pedido: não remove
         if (idx.delete(k)) removidosOk++;
         pacotesRemovidos[k] = Date.now();
       });
