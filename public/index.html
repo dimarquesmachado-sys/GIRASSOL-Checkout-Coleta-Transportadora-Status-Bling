@@ -37,7 +37,7 @@
 <!-- APP -->
 <div class="app" id="appWrap">
   <header>
-    <div class="hdr-left"><div class="hdr-title">Expedição <span style="font-size:10px;opacity:.5;font-weight:normal">v16/07-b</span></div></div>
+    <div class="hdr-left"><div class="hdr-title">Expedição <span style="font-size:10px;opacity:.5;font-weight:normal">v16/07-d</span></div></div>
     <div class="hdr-right">
       <span class="user-pill" id="userChip"></span>
       <button class="logout-btn" onclick="doLogout()">Sair</button>
@@ -286,7 +286,23 @@
   </div>
   <canvas id="cameraCanvas" style="display:none"></canvas>
 </div>
-<script src="vendor/zxing-0.21.3.min.js"></script>
+<!-- Leitor de código (ZXing). Carrega do CDN com hash de integridade: se os
+     bytes não baterem, o navegador RECUSA e cai na cópia local do repositório.
+     Servir 336 KB pelo próprio Render deixava a câmera lenta no Safari. -->
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"
+        integrity="sha384-BzBxP10ZE72aitqj5UMmUsbKFliP/DZqA8Wq+BNNhlIJDGoEd1tpkMYXOg9+n6sB"
+        crossorigin="anonymous"></script>
+<script>
+// Rede de segurança: o onerror da tag não dispara se o script CARREGA mas não
+// expõe a API (versão trocada, avaliação falhou). Aqui conferimos o que importa
+// de verdade — se o leitor está utilizável — e, se não estiver, carregamos a
+// cópia local de forma SÍNCRONA, antes da câmera ser usada.
+(function(){
+  if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) return;
+  console.warn('ZXing indisponível pelo CDN — usando a cópia local');
+  document.write('<script src="vendor/zxing-0.21.3.min.js"><\/script>');
+})();
+</script>
 <script src="01-constantes.js"></script>
 <script src="02-state.js"></script>
 <script src="03-storage-helpers-som.js"></script>

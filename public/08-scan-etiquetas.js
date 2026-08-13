@@ -98,34 +98,38 @@ function handleScan(rawCode,photo){
     }
     return false;
   }
-  // AMBIGUIDADE (12/08): o casamento aceita código PARCIAL de propósito (a câmera
-  // às vezes lê pedaço da etiqueta). O problema era o "primeiro que casar vence":
-  // se o código batia em DOIS pedidos, o app escolhia um pela ordem da lista e
-  // podia despachar o errado. Agora: junta TODOS os candidatos; com mais de um,
-  // bloqueia e pede conferência em vez de adivinhar.
-  var candidatos=[];
+  // 13/08: o laço volta a PARAR no primeiro pedido que serve — varrer a lista
+  // inteira a cada leitura (a câmera lê várias vezes por segundo) travou o app
+  // no galpão. A proteção contra código ambíguo continua existindo, mas só é
+  // paga QUANDO ALGO CASA (uma vez por bipe), não a cada quadro da câmera.
+  var pkg=null, wrongPkg=null, already=null;
   for(var i=0;i<packages.length;i++){
     var p=packages[i];
     if(!match(p)||p.date!==today) continue;
-    candidatos.push(p);
-  }
-  // Só é ambíguo se os candidatos forem pedidos DIFERENTES de verdade
-  var idsCand={}, distintos=0;
-  candidatos.forEach(function(p){ var k=String(p.blingId||p.etiqueta); if(!idsCand[k]){idsCand[k]=true;distintos++;} });
-  if(distintos>1){
-    var nums=candidatos.map(function(p){return p.numero;}).slice(0,4).join(', ');
-    console.warn('⛔ Código ambíguo "'+code+'" casou com '+distintos+' pedidos: '+nums);
-    showFb('⛔ Código ambíguo — casou com '+distintos+' pedidos ('+nums+'). Confira a etiqueta.','err');
-    beepError(); return;
-  }
-  var pkg=null, wrongPkg=null, already=null;
-  for(var i=0;i<candidatos.length;i++){
-    var p=candidatos[i];
     if(p.status==='coletado'){already=p;break;}
     // Quando mkt normal, exclui urgentes (FLEX só é bipado pelo card FLEX)
     var mktMatch=activeMkt==='flex'?p.urgente:(p.mkt===activeMkt&&!p.urgente);
     if(mktMatch){if(p.status==='pendente'){pkg=p;break;}}
     else if(activeMkt!=='flex'&&p.mkt!==activeMkt&&p.status==='pendente'){wrongPkg=p;}
+  }
+  // AMBIGUIDADE — só entra aqui se ALGO casou (1x por bipe, não por quadro).
+  // Se o mesmo código serve a dois pedidos diferentes do dia, a ordem da lista
+  // decidiria qual sai despachado: bloqueia e manda conferir a etiqueta.
+  var escolhido = pkg || already || wrongPkg;
+  if(escolhido){
+    var vistos={}, distintos=0, nums=[];
+    for(var j=0;j<packages.length;j++){
+      var q=packages[j];
+      if(q.date!==today||!match(q)) continue;
+      var kq=String(q.blingId||q.etiqueta);
+      if(!vistos[kq]){ vistos[kq]=true; distintos++; if(nums.length<4) nums.push(q.numero); }
+      if(distintos>1) break;   // já basta pra saber que é ambíguo
+    }
+    if(distintos>1){
+      console.warn('⛔ Código ambíguo "'+code+'" casou com mais de um pedido: '+nums.join(', '));
+      showFb('⛔ Código ambíguo — casou com '+distintos+' pedidos ('+nums.join(', ')+'). Confira a etiqueta.','err');
+      beepError(); return;
+    }
   }
 
   // inSession: verifica pela etiqueta canônica
