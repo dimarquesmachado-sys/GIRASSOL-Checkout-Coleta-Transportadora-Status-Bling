@@ -362,9 +362,11 @@ app.get('/me', requireAuth, (req, res) => res.json({ usuario: req.user }));
 // bipagem, além de exibir dado de outra pessoa. Impacto fiscal.
 // AGORA: lê o vínculo que o próprio Bling devolve no detalhe do pedido
 // (order.notaFiscal). Sem vínculo => NF fica vazia (pendente), nunca adivinhada.
+// Retorna {numero,chave} | null (Bling CONFIRMOU que não há NF) | {erro:true}
+// (falha do Bling — não é o mesmo que "sem NF", e não deve virar cooldown).
 async function nfDoPedido(pedidoId) {
   const r = await blingFetch(`${BLING_BASE}/pedidos/vendas/${pedidoId}`);
-  if (!r.ok) return null;
+  if (!r.ok) return { erro: true };
   const d = await r.json().catch(() => ({}));
   const ped = (d && d.data) || {};
   const nf = ped.notaFiscal || ped.nfe || null;
@@ -390,7 +392,7 @@ async function nfDoPedido(pedidoId) {
 app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
   try {
     const nf = await nfDoPedido(parseInt(req.params.blingId));
-    if (!nf) return res.json({ numero: '', chave: '' });
+    if (!nf || nf.erro) return res.json({ numero: '', chave: '' });
     res.json(nf);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -398,29 +400,101 @@ app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
 });
 
 // BATCH: busca NFs para múltiplos pedidos de uma vez só (muito mais rápido)
+// ── Cache da NF por pedido (12/08) ────────────────────────────────────────────
+// A busca de NF faz 1-2 chamadas ao Bling POR PEDIDO. Sem cache, os mesmos
+// pedidos eram reconsultados a cada pull (10 em 10 min): ~45s de chamadas
+// seguidas com 60 pedidos, saturando o limite do Bling e deixando bipar/
+// despachar/buscar lentos pra todo mundo.
+const nfCache = new Map();        // blingId -> {numero, chave, ts}
+const nfSemNota = new Map();      // blingId -> ts da última confirmação "sem NF"
+const NF_COOLDOWN = 12 * 60 * 1000;      // sem NF: só repergunta depois disso
+const NF_TTL = 4 * 60 * 60 * 1000;       // NF em cache vale 4h (nota pode ser cancelada/substituída)
+const NF_CACHE_MAX = 5000;
+// Orçamento GLOBAL de consultas: vale para o servidor inteiro, não por requisição.
+// Sem isso, dois celulares/abas puxando ao mesmo tempo dobravam as consultas.
+const NF_JANELA = 60 * 1000, NF_MAX_JANELA = 25;
+let nfJanelaInicio = 0, nfJanelaUsadas = 0;
+function nfPodeConsultar() {
+  const agora = Date.now();
+  if (agora - nfJanelaInicio > NF_JANELA) { nfJanelaInicio = agora; nfJanelaUsadas = 0; }
+  if (nfJanelaUsadas >= NF_MAX_JANELA) return false;
+  nfJanelaUsadas++; return true;
+}
+// Serializa: uma busca de NF por vez no servidor, mesmo com vários aparelhos.
+let nfFila = Promise.resolve();
+function nfSerializar(fn) {
+  const p = nfFila.then(fn, fn);
+  nfFila = p.then(() => {}, () => {});
+  return p;
+}
+function nfGuardar(mapa, chave, valor) {
+  if (mapa.size >= NF_CACHE_MAX) mapa.delete(mapa.keys().next().value);
+  mapa.set(chave, valor);
+}
+
 app.post('/nfs-batch', requireAuth, async (req, res) => {
   const { pedidos } = req.body;
   if (!Array.isArray(pedidos) || pedidos.length === 0) return res.json({ nfs: {} });
 
-  // Teto de segurança: evita que um payload grande vire centenas de chamadas ao Bling.
-  const ids = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0).slice(0, 80);
+  const ids = pedidos.map(p => parseInt(p.blingId)).filter(id => id > 0).map(String);
   const result = {};
-  let semVinculo = 0;
+  const agora = Date.now();
+  let doCache = 0, consultas = 0, semNota = 0, esperando = 0, semOrcamento = 0;
+
+  // O que já está em cache sai de graça (não gasta consulta nem orçamento).
+  const aConsultar = [];
+  for (const k of ids) {
+    const c = nfCache.get(k);
+    if (c && (agora - c.ts) < NF_TTL) { result[k] = { numero: c.numero, chave: c.chave }; doCache++; continue; }
+    if (c) nfCache.delete(k);                       // venceu: reconsulta
+    const visto = nfSemNota.get(k);
+    if (visto && (agora - visto) < NF_COOLDOWN) { esperando++; continue; }
+    aConsultar.push(k);
+  }
+  // RODÍZIO: quem NUNCA foi consultado vai primeiro. Sem isso, com muitos pedidos
+  // sem NF os do fim da lista nunca chegavam a ser consultados.
+  aConsultar.sort((a, b) => (nfSemNota.has(a) ? 1 : 0) - (nfSemNota.has(b) ? 1 : 0));
+
   try {
-    for (const id of ids) {
-      try {
-        const nf = await nfDoPedido(id);
-        if (nf) result[id] = nf; else semVinculo++;
-      } catch (e) {
-        console.warn('nfs-batch: falha no pedido ' + id + ': ' + e.message);
+    await nfSerializar(async () => {
+      for (const k of aConsultar) {
+        if (nfCache.has(k)) { const c = nfCache.get(k); result[k] = { numero: c.numero, chave: c.chave }; doCache++; continue; }
+        if (!nfPodeConsultar()) { semOrcamento++; continue; }
+        consultas++;
+        let nf = null;
+        try {
+          nf = await nfDoPedido(parseInt(k));
+        } catch (e) {
+          // Falha isolada não pode abortar o lote inteiro: sem este try/catch,
+          // um erro num pedido deixava todos os seguintes sem consulta justamente
+          // durante uma instabilidade do Bling.
+          console.warn('nfs-batch: falha no pedido ' + k + ': ' + e.message);
+          await sleep(120);
+          continue;
+        }
+        if (nf && nf.erro) {
+          // Falha do Bling: NÃO marca cooldown — tenta de novo na próxima rodada.
+        } else if (nf && nf.numero) {
+          nfGuardar(nfCache, k, { numero: nf.numero, chave: nf.chave, ts: Date.now() });
+          result[k] = { numero: nf.numero, chave: nf.chave };
+        } else if (nf) {
+          // Veio parcial (sem número): o cliente não usa, então não vira cache
+          // positivo — entra no cooldown e é tentado de novo depois.
+          nfGuardar(nfSemNota, k, Date.now());
+        } else {
+          nfGuardar(nfSemNota, k, Date.now());   // Bling confirmou: ainda sem NF
+          semNota++;
+        }
+        await sleep(120); // respeita o limite de requisições do Bling
       }
-      await sleep(120); // respeita o limite de requisições do Bling
-    }
-    console.log(`✅ NFs por vínculo: ${Object.keys(result).length}/${ids.length} (sem NF ainda: ${semVinculo})`);
+    });
+    console.log('✅ NFs: ' + Object.keys(result).length + '/' + ids.length +
+                ' (cache: ' + doCache + ' | consultas: ' + consultas + ' | sem NF: ' + semNota +
+                ' | cooldown: ' + esperando + ' | fora do orçamento: ' + semOrcamento + ')');
     res.json({ nfs: result });
   } catch (e) {
     console.error('❌ nfs-batch erro:', e.message);
-    res.status(500).json({ error: e.message, nfs: {} });
+    res.status(500).json({ error: e.message, nfs: result });
   }
 });
 
