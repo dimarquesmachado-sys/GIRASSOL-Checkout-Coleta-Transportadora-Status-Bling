@@ -79,24 +79,47 @@ function getPhotoFromServer(key, cb){
 // Só publica no servidor DEPOIS de um download bem-sucedido. Enquanto o app não
 // souber o que existe lá, publicar a base local pode apagar o trabalho dos outros
 // aparelhos (vale para o envio do startup E para o timer de 30s).
+// Janela de pacotes que o celular guarda e envia. O servidor mantém o histórico
+// completo (ele mescla e nunca apaga por ausência), então o aparelho não precisa
+// carregar nem devolver tudo — era o que inchava cada sincronização.
+var SYNC_DIAS = 3;
+// Poda o que já está salvo no aparelho. Sem isso, quem está com milhares de
+// pacotes no cache continuaria carregando (e enviando) tudo.
+(function(){
+  try{
+    var l=new Date(); l.setDate(l.getDate()-SYNC_DIAS);
+    var lim=l.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+    var antes=packages.length;
+    packages=packages.filter(function(p){ return !p.date || p.date >= lim; });
+    if(packages.length!==antes){
+      sv('expv5_pkgs',packages);
+      console.log('🧹 cache podado: '+antes+' → '+packages.length+' pacotes (janela de '+SYNC_DIAS+' dias)');
+    }
+  }catch(e){}
+})();
 var baseConfiavel = false;
 // Pedidos que o Bling confirmou que saíram (fantasmas). O servidor só remove o
 // que estiver nesta lista — ausência na lista enviada não apaga mais nada.
 var pkgsRemovidos = ld('expv5_pkgs_removidos',[]);   // sobrevive ao recarregar
 var ultimosIdsBling = [];   // IDs que a última busca no Bling devolveu
-// Pacotes do servidor mais antigos que a janela: ficam SÓ em memória (não vão pro
-// localStorage, pra não estourar a cota), mas voltam no envio pra não sumirem do servidor.
+// (obsoleto desde o merge por pedido no servidor — mantido vazio só para não
+// quebrar referências antigas; nada mais o preenche nem o envia)
 var packagesHistorico = [];
 function syncToServer(confirmadoPeloBling){
   if(!baseConfiavel){
     console.warn('⚠ syncToServer ignorado: ainda não houve download bem-sucedido do servidor');
     return;
   }
-  // Envia TODOS os pacotes e TODOS os scans, não só os de hoje.
-  // Isso permite o histórico enxergar dias anteriores, como ontem.
-  // confirmadoPeloBling=true => a redução veio de uma busca BEM-SUCEDIDA no Bling
-  // (fantasma removido de propósito); o servidor então não aplica o freio.
-  var pkgHoje = packagesHistorico.length ? packages.concat(packagesHistorico) : packages;
+  // ENVIA SÓ OS PACOTES RECENTES (13/08). Antes ia a lista inteira + o histórico
+  // devolvido — chegou a 6.656 pacotes POR SINCRONIZAÇÃO, a cada 30s, em cada
+  // celular: era o que estava deixando o galpão lento e travando.
+  // Devolver histórico só fazia sentido quando o servidor SUBSTITUÍA a lista.
+  // Desde o merge por pedido ele nunca apaga o que não veio, então mandar os
+  // dias antigos de volta é peso puro, sem função.
+  var _lim=new Date(); _lim.setDate(_lim.getDate()-SYNC_DIAS);
+  var limiteEnvio=_lim.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  var pkgHoje = packages.filter(function(p){ return !p.date || p.date >= limiteEnvio; });
+  if(packages.length - pkgHoje.length > 50) console.log('📤 enviando '+pkgHoje.length+' de '+packages.length+' pacotes (só os últimos '+SYNC_DIAS+' dias)');
   // Vai em TODO envio, não só no do pull: se aquele POST falhar, os timers de 30s
   // continuariam mandando sem a lista e a remoção se perderia.
   // A lista de fantasmas SÓ vai quando a busca foi confirmada — o servidor ignora
@@ -151,9 +174,8 @@ function loadFromServer(cb){
     var serverPkgs=d.packages||[];
     var serverScans=d.scans||[];
     var today=todayStr();
-    var _lim=new Date(); _lim.setDate(_lim.getDate()-45);
+    var _lim=new Date(); _lim.setDate(_lim.getDate()-SYNC_DIAS);
     var limiteHistorico=_lim.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
-    var histMap={}; packagesHistorico.forEach(function(h){histMap[h.blingId]=true;});
 
     // Merge packages: server tem prioridade para campos que o cliente pode não ter
     if(serverPkgs.length>0){
@@ -180,9 +202,10 @@ function loadFromServer(cb){
             localMap[sp.blingId].obs=sp.obs;
           }
         } else if(sp.date && sp.date < limiteHistorico){
-          // Mais antigo que a janela: guarda só em memória (não persiste no
-          // localStorage) e devolve no próximo envio, pra não sumir do servidor.
-          if(!histMap[sp.blingId]){ histMap[sp.blingId]=true; packagesHistorico.push(sp); }
+          // Mais antigo que a janela: IGNORA. O servidor guarda o histórico e não
+          // apaga o que não veio (merge por pedido), então o celular não precisa
+          // carregar nem devolver dias antigos — era isso que inchava cada
+          // sincronização (chegou a 6.656 pacotes por envio).
         } else {
           // Pacote do servidor que não está local — adiciona.
           // CORRIGIDO (11/08): antes só adicionava os de HOJE, então um aparelho
