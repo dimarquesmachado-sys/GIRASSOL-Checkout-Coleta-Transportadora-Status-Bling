@@ -461,7 +461,17 @@ app.post('/nfs-batch', requireAuth, async (req, res) => {
         if (nfCache.has(k)) { const c = nfCache.get(k); result[k] = { numero: c.numero, chave: c.chave }; doCache++; continue; }
         if (!nfPodeConsultar()) { semOrcamento++; continue; }
         consultas++;
-        const nf = await nfDoPedido(parseInt(k));
+        let nf = null;
+        try {
+          nf = await nfDoPedido(parseInt(k));
+        } catch (e) {
+          // Falha isolada não pode abortar o lote inteiro: sem este try/catch,
+          // um erro num pedido deixava todos os seguintes sem consulta justamente
+          // durante uma instabilidade do Bling.
+          console.warn('nfs-batch: falha no pedido ' + k + ': ' + e.message);
+          await sleep(120);
+          continue;
+        }
         if (nf && nf.erro) {
           // Falha do Bling: NÃO marca cooldown — tenta de novo na próxima rodada.
         } else if (nf && nf.numero) {
