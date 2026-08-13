@@ -954,6 +954,9 @@ let sharedScans    = [];
 const PACKAGES_FILE = '/data/shared-packages.json';
 const SCANS_FILE    = '/data/shared-scans.json';
 const REMOVIDOS_FILE = '/data/pacotes-removidos.json';
+// Janela de dados "quentes" trafegada nos ciclos de sincronização. O histórico
+// inteiro continua no servidor e é servido sob demanda (?full=1).
+const SYNC_JANELA_DIAS = 7;
 
 // ── LÁPIDES DE PEDIDOS REMOVIDOS ─────────────────────────────────────────────
 // { blingId: timestamp }. Como a AUSÊNCIA numa lista não apaga mais nada, é esta
@@ -1006,10 +1009,12 @@ function gravarSeguro(arquivo, dados, rotulo) {
     return false;
   }
 }
-function saveSharedToDisk() {
-  gravarSeguro(PACKAGES_FILE, sharedPackages, 'packages');
-  gravarSeguro(SCANS_FILE, sharedScans, 'scans');
-}
+// Grava SÓ o conjunto que mudou. Antes toda sincronização reserializava os dois
+// arrays inteiros (e writeFileSync trava o processo enquanto escreve), então um
+// POST de pacotes também regravava os 10 mil bipes, e vice-versa.
+function savePackagesToDisk() { gravarSeguro(PACKAGES_FILE, sharedPackages, 'packages'); }
+function saveScansToDisk()    { gravarSeguro(SCANS_FILE, sharedScans, 'scans'); }
+function saveSharedToDisk() { savePackagesToDisk(); saveScansToDisk(); }
 // Lê o arquivo e, se estiver corrompido, cai no .bak antes de desistir.
 function lerComBackup(arquivo, rotulo) {
   try {
@@ -1053,7 +1058,7 @@ function limparScansAntigos() {
   });
   if(sharedScans.length < antes){
     console.log('🧹 Removidos '+(antes-sharedScans.length)+' scans com mais de '+LIMITE_DIAS+' dias');
-    saveSharedToDisk();
+    saveScansToDisk();
   }
 }
 
@@ -1144,8 +1149,23 @@ app.get('/sync/data', requireAuth, (req, res) => {
   const active = [...activeUsers.values()].filter(u => now - u.ts < 1800000);
   // Devolve também as lápides: sem isso, o celular com cache antigo continuava
   // mostrando (e podendo bipar) um pedido que já foi removido no servidor.
-  res.json({ packages: sharedPackages, scans: sharedScans, activeUsers: active,
-    removidos: Object.keys(pacotesRemovidos) });
+  // JANELA LEVE por padrão (13/08). Antes devolvia TUDO — 6.656 pacotes e 10.230
+  // bipes — a cada 30s, por aparelho. O histórico completo só vai quando a tela de
+  // Histórico pede (?full=1), uma vez, em vez de em todo ciclo de sincronização.
+  if (req.query.full === '1') {
+    return res.json({ packages: sharedPackages, scans: sharedScans, activeUsers: active,
+      removidos: Object.keys(pacotesRemovidos), completo: true });
+  }
+  const lim = new Date(Date.now() - SYNC_JANELA_DIAS * 86400000)
+                .toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const recente = (x) => !x || !x.date || x.date >= lim;
+  res.json({
+    packages: sharedPackages.filter(recente),
+    scans: sharedScans.filter(recente),
+    activeUsers: active,
+    removidos: Object.keys(pacotesRemovidos),
+    completo: false
+  });
 });
 
 app.post('/sync/active', requireAuth, (req, res) => {
@@ -1246,7 +1266,7 @@ app.post('/sync/packages', requireAuth, (req, res) => {
     }
 
     sharedPackages = Array.from(idx.values());
-    saveSharedToDisk();
+    savePackagesToDisk();   // só os pacotes mudaram
     if (novos || removidosOk || bloqueados) {
       console.log('🔄 sync/packages: +' + novos + ' novos, ' + atualizados + ' atualizados, ' +
                   removidosOk + ' removidos, ' + bloqueados + ' bloqueados (lápide) — total ' + sharedPackages.length);
@@ -1290,7 +1310,7 @@ app.post('/sync/scans', requireAuth, (req, res) => {
       else if((s.ts||0) > (cur.ts||0)) winners.set(k2, s);
     });
     sharedScans = all.filter(s => s.tipo==='lote' || winners.get(s.etiqueta+'_'+s.date)===s);
-    saveSharedToDisk();
+    saveScansToDisk();      // só os scans mudaram
   }
   res.json({ ok: true });
 });
