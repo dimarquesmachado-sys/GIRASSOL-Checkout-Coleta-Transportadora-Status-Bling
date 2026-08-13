@@ -554,6 +554,12 @@ function pullFromBling(){
       // que o initApp ressuscita pra hoje todo dia. Coletados/problema são preservados.
       if(buscaOk && colSession.length===0){
         var antesF=packages.length;
+        // Registra os IDs ANTES de filtrar: como a ausência não apaga mais nada no
+        // servidor, sem essa lista os fantasmas voltariam no próximo download.
+        packages.forEach(function(p){
+          if(p.status==='pendente'&&p.date===todayStr()&&pkgsRemovidos.indexOf(p.blingId)===-1) pkgsRemovidos.push(p.blingId);
+        });
+        sv('expv5_pkgs_removidos', pkgsRemovidos);
         packages=packages.filter(function(p){return !(p.status==='pendente'&&p.date===todayStr());});
         if(packages.length!==antesF){
           sv('expv5_pkgs',packages);
@@ -724,8 +730,22 @@ function pullFromBling(){
     // ou com erro, os pedidos que não vieram continuam existindo no Bling — remover
     // aqui os apagaria da tela e, no sync seguinte, do servidor.
     if(buscaOk){
+      // Quais pedidos de HOJE existiam antes, pra saber quais o Bling confirmou
+      // que sumiram. NUNCA marca como fantasma um pedido que está na COLETA EM
+      // ANDAMENTO (colSession): o estoquista já bipou e ainda não fechou o lote —
+      // removê-lo apagaria a bipagem em curso e impediria finalizar.
+      var naColeta={}; (typeof colSession!=='undefined'?colSession:[]).forEach(function(et){ naColeta[et]=true; });
+      var idsAntes={}; packages.forEach(function(p){ if(p.date===today && !naColeta[p.etiqueta]) idsAntes[p.blingId]=true; });
       packages=packages.filter(function(p){return p.date!==today;});
       packages=newPkgs.concat(expedidosRecentes).concat(packages);
+      var idsDepois={}; packages.forEach(function(p){ idsDepois[p.blingId]=true; });
+      Object.keys(idsAntes).forEach(function(id){
+        if(!idsDepois[id] && pkgsRemovidos.indexOf(id)===-1) pkgsRemovidos.push(id);
+      });
+      if(pkgsRemovidos.length){
+        sv('expv5_pkgs_removidos', pkgsRemovidos);
+        console.log('👻 '+pkgsRemovidos.length+' pedido(s) saíram do Bling — serão removidos do servidor');
+      }
     } else {
       // Busca incompleta: só acrescenta/atualiza o que veio, sem remover nada.
       var idsRecebidos={}; newPkgs.forEach(function(p){idsRecebidos[p.blingId]=true;});
