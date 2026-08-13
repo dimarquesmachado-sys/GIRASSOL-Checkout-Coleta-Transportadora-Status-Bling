@@ -249,7 +249,8 @@ function buscarPedido(){
   // de novo, ANTES de cair no Bling (que só procura por número).
   if(typeof histCompletoCarregado!=='undefined' && !histCompletoCarregado && typeof loadFromServer==='function'){
     toast('🔍 Buscando no histórico...','warn');
-    loadFromServer(function(){
+    loadFromServer(function(ok){
+      if(!ok){ toast('Não consegui carregar o histórico agora','err'); return; }
       histCompletoCarregado = true;
       buscarPedido();          // repete a busca já com o histórico completo
     }, true);
