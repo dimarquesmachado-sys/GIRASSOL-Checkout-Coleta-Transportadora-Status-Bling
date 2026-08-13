@@ -80,6 +80,9 @@ function getPhotoFromServer(key, cb){
 // souber o que existe lá, publicar a base local pode apagar o trabalho dos outros
 // aparelhos (vale para o envio do startup E para o timer de 30s).
 var baseConfiavel = false;
+// Pedidos que o Bling confirmou que saíram (fantasmas). O servidor só remove o
+// que estiver nesta lista — ausência na lista enviada não apaga mais nada.
+var pkgsRemovidos = ld('expv5_pkgs_removidos',[]);   // sobrevive ao recarregar
 // Pacotes do servidor mais antigos que a janela: ficam SÓ em memória (não vão pro
 // localStorage, pra não estourar a cota), mas voltam no envio pra não sumirem do servidor.
 var packagesHistorico = [];
@@ -93,6 +96,9 @@ function syncToServer(confirmadoPeloBling){
   // confirmadoPeloBling=true => a redução veio de uma busca BEM-SUCEDIDA no Bling
   // (fantasma removido de propósito); o servidor então não aplica o freio.
   var pkgHoje = packagesHistorico.length ? packages.concat(packagesHistorico) : packages;
+  // Vai em TODO envio, não só no do pull: se aquele POST falhar, os timers de 30s
+  // continuariam mandando sem a lista e a remoção se perderia.
+  var removidosEnviados = pkgsRemovidos.slice(0, 500);
   var scanHoje = stripPhotos(scans);
 
   // Inclui estado ativo: quem está fazendo expedição de qual loja
@@ -102,7 +108,14 @@ function syncToServer(confirmadoPeloBling){
 
   apiFetch('/sync/packages', {
     method: 'POST',
-    body: JSON.stringify({ packages: pkgHoje, confirmado: !!confirmadoPeloBling })
+    body: JSON.stringify({ packages: pkgHoje, confirmado: !!confirmadoPeloBling, removidos: removidosEnviados })
+  }).then(function(r){
+    // Só tira da lista o que o servidor confirmou ter recebido. Se a rede falhar,
+    // os fantasmas continuam pendentes e vão junto no próximo envio.
+    if(r && r.ok && removidosEnviados.length){
+      pkgsRemovidos = pkgsRemovidos.filter(function(id){ return removidosEnviados.indexOf(id) === -1; });
+      sv('expv5_pkgs_removidos', pkgsRemovidos);
+    }
   }).catch(function(){});
 
   apiFetch('/sync/scans', {
