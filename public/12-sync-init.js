@@ -98,6 +98,9 @@ var SYNC_DIAS = 3;
   }catch(e){}
 })();
 var baseConfiavel = false;
+// Chaves de bipes que o servidor confirmou ter recebido — é o que permite
+// distinguir "antigo e já salvo" de "antigo e ainda não enviado".
+var scansConfirmados = ld('expv5_scans_confirmados',[]);
 // Pedidos que o Bling confirmou que saíram (fantasmas). O servidor só remove o
 // que estiver nesta lista — ausência na lista enviada não apaga mais nada.
 var pkgsRemovidos = ld('expv5_pkgs_removidos',[]);   // sobrevive ao recarregar
@@ -125,7 +128,21 @@ function syncToServer(confirmadoPeloBling){
   // A lista de fantasmas SÓ vai quando a busca foi confirmada — o servidor ignora
   // sem confirmação, e mandar assim fazia a fila local ser limpa à toa.
   var removidosEnviados = confirmadoPeloBling ? pkgsRemovidos.slice(0, 500) : [];
-  var scanHoje = stripPhotos(scans);
+  // Envia só os bipes recentes — o servidor mescla e nunca apaga o que não veio,
+  // então mandar os 10 mil de todo o histórico a cada 30s era peso puro (mesma
+  // causa do incidente de 13/08, que eu tinha corrigido só do lado dos pedidos).
+  // Envia os bipes recentes E qualquer bipe antigo que o servidor ainda NÃO
+  // confirmou ter recebido. Sem a segunda parte, um aparelho que ficasse offline
+  // por mais de SYNC_DIAS perderia esses registros para sempre — eles seriam
+  // excluídos de todos os envios só por causa da data.
+  var scanPend = scans.filter(function(x){
+    if(!x.date || x.date >= limiteEnvio) return true;
+    return scansConfirmados.indexOf(scanKeyOf(x)) === -1;   // antigo e ainda não confirmado
+  });
+  var antigosPend = scanPend.length - scans.filter(function(x){ return !x.date || x.date >= limiteEnvio; }).length;
+  if(antigosPend > 0) console.log('📤 reenviando '+antigosPend+' bipe(s) antigo(s) ainda não confirmado(s) pelo servidor');
+  var scanHoje = stripPhotos(scanPend);
+  var chavesEnviadas = scanPend.map(function(x){ return scanKeyOf(x); });
 
   // Inclui estado ativo: quem está fazendo expedição de qual loja
   var activeState = activeMkt
@@ -148,6 +165,16 @@ function syncToServer(confirmadoPeloBling){
   apiFetch('/sync/scans', {
     method: 'POST',
     body: JSON.stringify({ scans: scanHoje, removedKeys: removedScanKeys })
+  }).then(function(r){
+    if(!(r && r.ok)) return;
+    // Só agora sabemos que o servidor tem esses bipes: registra pra não reenviar
+    // sempre, e pra saber quais ainda faltam se a rede cair.
+    var novo = false;
+    chavesEnviadas.forEach(function(k){ if(scansConfirmados.indexOf(k)===-1){ scansConfirmados.push(k); novo=true; } });
+    if(novo){
+      if(scansConfirmados.length > 8000) scansConfirmados = scansConfirmados.slice(-6000);
+      sv('expv5_scans_confirmados', scansConfirmados);
+    }
   }).catch(function(){});
 
   if(activeState){
@@ -167,8 +194,10 @@ function syncToServer(confirmadoPeloBling){
   }
 }
 
-function loadFromServer(cb){
-  apiFetch('/sync/data')
+function loadFromServer(cb, completo){
+  // Por padrão baixa só a janela recente. O histórico inteiro só vem quando a tela
+  // de Histórico pede (completo=true) — antes vinha em TODO ciclo de 30s.
+  apiFetch('/sync/data' + (completo ? '?full=1' : ''))
   .then(function(r){return r.json();})
   .then(function(d){
     var serverPkgs=d.packages||[];
@@ -201,7 +230,7 @@ function loadFromServer(cb){
             localMap[sp.blingId].colT=sp.colT;
             localMap[sp.blingId].obs=sp.obs;
           }
-        } else if(sp.date && sp.date < limiteHistorico){
+        } else if(!completo && sp.date && sp.date < limiteHistorico){
           // Mais antigo que a janela: IGNORA. O servidor guarda o histórico e não
           // apaga o que não veio (merge por pedido), então o celular não precisa
           // carregar nem devolver dias antigos — era isso que inchava cada

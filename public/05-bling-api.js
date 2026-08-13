@@ -244,6 +244,18 @@ function buscarPedido(){
     return;
   }
   
+  // Não achou no cache. Com a janela leve, um pedido/bipe antigo pode simplesmente
+  // não estar neste aparelho — então busca o conjunto COMPLETO no servidor e tenta
+  // de novo, ANTES de cair no Bling (que só procura por número).
+  if(typeof histCompletoCarregado!=='undefined' && !histCompletoCarregado && typeof loadFromServer==='function'){
+    toast('🔍 Buscando no histórico...','warn');
+    loadFromServer(function(){
+      histCompletoCarregado = true;
+      buscarPedido();          // repete a busca já com o histórico completo
+    }, true);
+    return;
+  }
+
   // Não achou local — busca no Bling
   toast('🔍 Buscando...','warn');
   apiFetch('/bling/pedidos/vendas?numero='+encodeURIComponent(termo)+'&limite=1')

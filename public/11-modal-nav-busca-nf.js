@@ -1,4 +1,5 @@
 // ═══ MODAL — fechar com botão Voltar Android ═══
+var histCompletoCarregado = false;   // evita rebaixar o conjunto completo toda vez
 function closeTopModal(){
   var modals=document.querySelectorAll('.modal-overlay');
   if(modals.length>0){
@@ -73,14 +74,23 @@ function showPage(page){
   if(page==='dia'){
     if(!diaSelectedDate) updateDiaLabel();
     renderDia();
+    // A aba Dia deixa escolher QUALQUER data pelas setas e pelo calendário, e lê
+    // os lotes do cache local. Com a janela leve, um aparelho novo não teria os
+    // dias antigos — busca o conjunto completo uma vez e redesenha.
+    if(!histCompletoCarregado){
+      loadFromServer(function(){ histCompletoCarregado = true; renderDia(); }, true);
+    }
   }
   if(page==='historico'){
+    histCompletoCarregado = true;
     // Busca dados atualizados do servidor antes de renderizar
     console.log('📂 Carregando histórico do servidor...');
+    // completo=true: só AQUI o histórico inteiro é baixado (antes vinha em todo
+    // ciclo de 30s, junto com milhares de registros que a tela nem usava).
     loadFromServer(function(){
       console.log('✅ Histórico carregado');
       renderHistorico();
-    });
+    }, true);
   }
   if(page==='romaneio'){
     // Auto-refresh: se passaram mais de 2 minutos desde a última busca, atualiza
