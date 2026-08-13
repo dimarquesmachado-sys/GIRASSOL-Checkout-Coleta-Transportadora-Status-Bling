@@ -83,40 +83,11 @@ function getPhotoFromServer(key, cb){
 // completo (ele mescla e nunca apaga por ausência), então o aparelho não precisa
 // carregar nem devolver tudo — era o que inchava cada sincronização.
 var SYNC_DIAS = 3;
-// Poda o que já está salvo no aparelho. Sem isso, quem está com milhares de
-// pacotes no cache continuaria carregando (e enviando) tudo.
-(function(){
-  try{
-    var l=new Date(); l.setDate(l.getDate()-SYNC_DIAS);
-    var lim=l.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
-    var antes=packages.length;
-    packages=packages.filter(function(p){ return !p.date || p.date >= lim; });
-    if(packages.length!==antes){
-      sv('expv5_pkgs',packages);
-      console.log('🧹 cache podado: '+antes+' → '+packages.length+' pacotes (janela de '+SYNC_DIAS+' dias)');
-    }
-  }catch(e){}
-})();
 var baseConfiavel = false;
 // Bipe que o servidor já tem recebe a marca `_sv` no próprio registro.
 // (Antes era uma LISTA separada de chaves, que era truncada ao passar de 8.000 —
 // as chaves descartadas voltavam a contar como pendentes e o histórico inteiro
 // era reenviado de novo, em ciclo. A marca no registro não trunca nunca.)
-// MIGRAÇÃO (uma vez): a versão anterior guardava as confirmações numa lista
-// separada. Quem atualizar tem os bipes SEM a marca `_sv`, e sem isso reenviaria
-// todo o histórico no primeiro envio — justamente a carga que estamos cortando.
-(function(){
-  try{
-    var antigos = ld('expv5_scans_confirmados', null);
-    if(!antigos || !antigos.length) return;
-    var mapa={}; antigos.forEach(function(k){ mapa[k]=true; });
-    var n=0;
-    scans.forEach(function(x){ if(!x._sv && mapa[scanKeyOf(x)]){ x._sv=1; n++; } });
-    if(n) svScans();
-    try{ localStorage.removeItem('expv5_scans_confirmados'); }catch(e){}
-    console.log('🔁 migração: '+n+' bipe(s) marcados como já sincronizados');
-  }catch(e){}
-})();
 function marcarSincronizados(lista){
   var mudou=false;
   lista.forEach(function(x){ if(x && !x._sv){ x._sv=1; mudou=true; } });
@@ -385,6 +356,36 @@ function renderActiveUsers(activeUsers){
 // ═══ INIT ═══
 function initApp(){
   packages=ld('expv5_pkgs',[]); scans=ld('expv5_scans',[]);
+
+  // AQUI, e não no carregamento do arquivo: em 02-state.js `packages` e `scans`
+  // nascem vazios e só são preenchidos nesta linha acima. Rodando antes, a poda e
+  // a migração operavam sobre arrays vazios e não faziam nada.
+  (function(){
+    try{
+      var l=new Date(); l.setDate(l.getDate()-SYNC_DIAS);
+      var lim=l.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+      // Poda o cache de pacotes: o servidor guarda o histórico e o devolve sob
+      // demanda, então o aparelho não precisa carregar milhares de registros.
+      var antes=packages.length;
+      packages=packages.filter(function(p){ return !p.date || p.date >= lim; });
+      if(packages.length!==antes){
+        sv('expv5_pkgs',packages);
+        console.log('🧹 cache podado: '+antes+' → '+packages.length+' pacotes (janela de '+SYNC_DIAS+' dias)');
+      }
+      // Migração única: a versão anterior guardava as confirmações numa lista
+      // separada. Sem trazer essa informação para o campo `_sv`, o aparelho
+      // reenviaria todo o histórico no primeiro envio depois de atualizar.
+      var antigos = ld('expv5_scans_confirmados', null);
+      if(antigos && antigos.length){
+        var mapa={}; antigos.forEach(function(k){ mapa[k]=true; });
+        var n=0;
+        scans.forEach(function(x){ if(!x._sv && mapa[scanKeyOf(x)]){ x._sv=1; n++; } });
+        if(n) svScans();
+        try{ localStorage.removeItem('expv5_scans_confirmados'); }catch(e){}
+        console.log('🔁 migração: '+n+' bipe(s) marcados como já sincronizados');
+      }
+    }catch(e){ console.warn('poda/migração:', e.message); }
+  })();
   
   // ═══ PEDIDOS PENDENTES DE DIAS ANTERIORES → APARECEM HOJE ═══
   // Se ainda está pendente (não foi bipado), atualiza date para hoje
