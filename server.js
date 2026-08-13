@@ -1311,7 +1311,10 @@ app.get('/admin/backup', (req, res) => {
     packages: sharedPackages,
     scans: sharedScans,
     despachoFila: despachoFila,
-    despachoFalhas: despachoFalhas
+    despachoFalhas: despachoFalhas,
+    // As lápides também vivem só em /data: sem elas no backup, uma restauração
+    // traria de volta os pedidos que foram removidos de propósito.
+    pacotesRemovidos: pacotesRemovidos
   });
 });
 
