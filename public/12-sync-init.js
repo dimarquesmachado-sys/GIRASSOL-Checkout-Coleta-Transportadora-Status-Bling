@@ -102,6 +102,21 @@ var baseConfiavel = false;
 // (Antes era uma LISTA separada de chaves, que era truncada ao passar de 8.000 —
 // as chaves descartadas voltavam a contar como pendentes e o histórico inteiro
 // era reenviado de novo, em ciclo. A marca no registro não trunca nunca.)
+// MIGRAÇÃO (uma vez): a versão anterior guardava as confirmações numa lista
+// separada. Quem atualizar tem os bipes SEM a marca `_sv`, e sem isso reenviaria
+// todo o histórico no primeiro envio — justamente a carga que estamos cortando.
+(function(){
+  try{
+    var antigos = ld('expv5_scans_confirmados', null);
+    if(!antigos || !antigos.length) return;
+    var mapa={}; antigos.forEach(function(k){ mapa[k]=true; });
+    var n=0;
+    scans.forEach(function(x){ if(!x._sv && mapa[scanKeyOf(x)]){ x._sv=1; n++; } });
+    if(n) svScans();
+    try{ localStorage.removeItem('expv5_scans_confirmados'); }catch(e){}
+    console.log('🔁 migração: '+n+' bipe(s) marcados como já sincronizados');
+  }catch(e){}
+})();
 function marcarSincronizados(lista){
   var mudou=false;
   lista.forEach(function(x){ if(x && !x._sv){ x._sv=1; mudou=true; } });
