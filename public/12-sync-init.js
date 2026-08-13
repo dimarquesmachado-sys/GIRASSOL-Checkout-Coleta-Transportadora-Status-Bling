@@ -248,6 +248,14 @@ function loadFromServer(cb){
       serverPkgs.forEach(function(sp){
         if(localPkgMap[sp.blingId]&&sp.date===today){
           var lp=localPkgMap[sp.blingId];
+          // Ciclo NOVO (o servidor tem data mais recente): adota por inteiro. Sem
+          // isso o colTs da coleta antiga daqui segurava o pedido como coletado.
+          if(sp.date && lp.date && sp.date > lp.date){
+            lp.status=sp.status; lp.date=sp.date; lp.colT=sp.colT||null;
+            lp.colTs=sp.colTs||0; lp.obs=sp.obs||'';
+            if(sp.urgente===true) lp.urgente=true;
+            return;
+          }
           // Quem tem a coleta mais RECENTE vence (mesma regra do servidor). O
           // ranking fixo antigo fazia 'coletado' ganhar sempre de 'problema',
           // então uma correção feita em outro celular nunca chegava aqui.
@@ -261,21 +269,26 @@ function loadFromServer(cb){
           if(sp.urgente===true) lp.urgente=true;   // FLEX detectado por outro aparelho
         }
       });
-      // Lápides do servidor: pedido removido lá some daqui também, senão este
-      // celular continuaria mostrando (e deixando bipar) um pedido que já saiu.
-      if(Array.isArray(d.removidos)&&d.removidos.length){
-        var tomb={}; d.removidos.forEach(function(id){tomb[String(id)]=true;});
-        var antesT=packages.length;
-        packages=packages.filter(function(p){
-          return !(tomb[String(p.blingId)] && p.status==='pendente' && colSession.indexOf(p.etiqueta)===-1);
-        });
-        if(packages.length!==antesT) console.log('👻 '+(antesT-packages.length)+' removido(s) no servidor saíram daqui também');
-      }
       sv('expv5_pkgs',packages);
     }
 
     // Atualiza indicador de quem está fazendo expedição
     if(d.activeUsers) renderActiveUsers(d.activeUsers);
+    // Lápides do servidor: pedido removido lá some daqui também, senão este
+    // celular continuaria mostrando (e deixando bipar) um pedido que já saiu.
+    // FORA do if de serverPkgs: quando a remoção zera a lista, o servidor devolve
+    // packages vazio COM a lápide, e o tratamento não podia ser pulado.
+    if(Array.isArray(d.removidos)&&d.removidos.length){
+      var tomb={}; d.removidos.forEach(function(id){tomb[String(id)]=true;});
+      var antesT=packages.length;
+      packages=packages.filter(function(p){
+        return !(tomb[String(p.blingId)] && p.status==='pendente' && colSession.indexOf(p.etiqueta)===-1);
+      });
+      if(packages.length!==antesT){
+        console.log('👻 '+(antesT-packages.length)+' removido(s) no servidor saíram daqui também');
+        sv('expv5_pkgs',packages);
+      }
+    }
     baseConfiavel = true;  // a partir daqui é seguro publicar
     if(cb) cb(true);   // baixou com sucesso
   })
