@@ -126,9 +126,15 @@ function clearDay(){
 
 // ═══ BUSCA NF ═══
 // A NF não vem no pedido — precisa consultar endpoint separado /nfe
+var nfBuscaEmAndamento = false;
 function detectNF(pkgsSemNF, onDone){
   // Busca NF para todos os pedidos sem NF — EM LOTE (muito mais rápido)
   if(pkgsSemNF.length===0){ if(onDone) onDone(); return; }
+  // Trava: o pull roda de 10 em 10 min e o operador ainda pode clicar em "Buscar
+  // no Bling". Sem isso, várias buscas de NF rodavam ao mesmo tempo, empilhando
+  // chamadas ao Bling e deixando o app lento pra todo mundo.
+  if(nfBuscaEmAndamento){ console.log('🧾 detectNF já em andamento — ignorando'); if(onDone) onDone(); return; }
+  nfBuscaEmAndamento = true;
   console.log('🧾 detectNF batch para '+pkgsSemNF.length+' pedidos sem NF');
   
   var pedidos = pkgsSemNF.map(function(p){ return { blingId: p.blingId, numero: p.numero }; });
@@ -154,6 +160,7 @@ function detectNF(pkgsSemNF, onDone){
       }
     });
     
+    nfBuscaEmAndamento = false;
     sv('expv5_pkgs', packages);
     syncToServer();
     renderMktGrid();
@@ -161,6 +168,7 @@ function detectNF(pkgsSemNF, onDone){
     if(onDone) onDone();
   })
   .catch(function(e){
+    nfBuscaEmAndamento = false;
     console.error('❌ detectNF batch erro:', e.message);
     if(onDone) onDone();
   });
