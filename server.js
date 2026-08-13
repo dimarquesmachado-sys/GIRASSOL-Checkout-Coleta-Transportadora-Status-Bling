@@ -201,7 +201,20 @@ function loadTokensFromDisk() {
   return false;
 }
 
+// Uma renovação por vez. Sem isso, várias chamadas que pegassem o token vencido
+// ao mesmo tempo disparavam refreshes simultâneos com o MESMO refresh token —
+// o Bling rotaciona esse token, então o segundo recebia invalid_grant e a
+// integração podia cair no meio do expediente. Agora todos esperam a mesma.
+let refreshEmAndamento = null;
 async function refreshAccessToken() {
+  if (refreshEmAndamento) return refreshEmAndamento;
+  refreshEmAndamento = (async () => {
+    try { return await _refreshAccessToken(); }
+    finally { refreshEmAndamento = null; }
+  })();
+  return refreshEmAndamento;
+}
+async function _refreshAccessToken() {
   if (!refreshToken || !CLIENT_ID || !CLIENT_SECRET) {
     console.warn('⚠ Sem refresh token ou credenciais para renovar');
     return false;
@@ -250,7 +263,11 @@ async function blingFetch(url, options = {}, retries = 3) {
       await refreshAccessToken();
     }
 
+    // Timeout em TODAS as chamadas: node-fetch não tem padrão, então uma conexão
+    // pendurada segurava o await pra sempre (e junto a fila de despacho e a
+    // busca de NF, que rodam em série).
     const r = await fetch(url, {
+      timeout: options.timeout || 30000,
       ...options,
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -958,25 +975,51 @@ function saveRemovidos() {
 loadRemovidos();
 
 function loadSharedFromDisk() {
-  try {
-    if (fs.existsSync(PACKAGES_FILE)) {
-      sharedPackages = JSON.parse(fs.readFileSync(PACKAGES_FILE, 'utf8')) || [];
-      console.log('📂 '+sharedPackages.length+' packages carregados do disco');
-    }
-  } catch(e) { console.warn('⚠ Erro ao ler packages do disco:', e.message); }
-  try {
-    if (fs.existsSync(SCANS_FILE)) {
-      sharedScans = JSON.parse(fs.readFileSync(SCANS_FILE, 'utf8')) || [];
-      console.log('📂 '+sharedScans.length+' scans carregados do disco');
-    }
-  } catch(e) { console.warn('⚠ Erro ao ler scans do disco:', e.message); }
+  sharedPackages = lerComBackup(PACKAGES_FILE, 'packages');
+  sharedScans    = lerComBackup(SCANS_FILE, 'scans');
+  console.log('💾 Disco: ' + sharedPackages.length + ' pacote(s), ' + sharedScans.length + ' scan(s)');
 }
 
+// Grava em arquivo temporário, guarda a versão anterior em .bak e só então
+// renomeia. Antes era escrita direta: uma queda no meio (deploy, restart, disco
+// cheio) deixava o JSON cortado e, no boot seguinte, o app subia com a lista
+// VAZIA — e o primeiro sync consolidava esse vazio. Mesma técnica já usada na
+// fila de despacho.
+function gravarSeguro(arquivo, dados, rotulo) {
+  const tmp = arquivo + '.tmp';
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(dados));
+    try { if (fs.existsSync(arquivo)) fs.copyFileSync(arquivo, arquivo + '.bak'); } catch (e) {}
+    fs.renameSync(tmp, arquivo);
+    return true;
+  } catch (e) {
+    console.error('❌ Erro ao salvar ' + rotulo + ':', e.message);
+    return false;
+  }
+}
 function saveSharedToDisk() {
-  try { fs.writeFileSync(PACKAGES_FILE, JSON.stringify(sharedPackages)); }
-  catch(e) { console.warn('⚠ Erro ao salvar packages:', e.message); }
-  try { fs.writeFileSync(SCANS_FILE, JSON.stringify(sharedScans)); }
-  catch(e) { console.warn('⚠ Erro ao salvar scans:', e.message); }
+  gravarSeguro(PACKAGES_FILE, sharedPackages, 'packages');
+  gravarSeguro(SCANS_FILE, sharedScans, 'scans');
+}
+// Lê o arquivo e, se estiver corrompido, cai no .bak antes de desistir.
+function lerComBackup(arquivo, rotulo) {
+  try {
+    if (fs.existsSync(arquivo)) return JSON.parse(fs.readFileSync(arquivo, 'utf8')) || [];
+    return [];
+  } catch (e) {
+    console.error('❌ ' + rotulo + ' ilegível (' + e.message + ') — tentando o backup');
+    try {
+      const b = JSON.parse(fs.readFileSync(arquivo + '.bak', 'utf8')) || [];
+      console.warn('♻ ' + rotulo + ' recuperado do backup: ' + b.length + ' registro(s)');
+      // Regrava o principal AGORA, direto, pra não copiar o corrompido por cima
+      // do backup bom na próxima gravação normal.
+      try { fs.writeFileSync(arquivo, JSON.stringify(b)); } catch (e3) {}
+      return b;
+    } catch (e2) {
+      console.error('❌ Backup de ' + rotulo + ' também ilegível — começando vazio');
+      return [];
+    }
+  }
 }
 
 // Remove scans com mais de 45 dias para não estourar memória/disco (evita OOM)
