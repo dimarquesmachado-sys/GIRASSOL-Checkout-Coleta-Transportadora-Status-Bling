@@ -250,14 +250,25 @@ function buscarPedido(){
   if(typeof histCompletoCarregado!=='undefined' && !histCompletoCarregado && typeof loadFromServer==='function'){
     toast('🔍 Buscando no histórico...','warn');
     loadFromServer(function(ok){
-      if(!ok){ toast('Não consegui carregar o histórico agora','err'); return; }
-      histCompletoCarregado = true;
-      buscarPedido();          // repete a busca já com o histórico completo
+      if(ok){
+        histCompletoCarregado = true;
+        buscarPedido();        // repete a busca já com o histórico completo
+      } else {
+        // Download falhou: NÃO deixa o operador sem resposta — segue para a busca
+        // no Bling, que é o comportamento de antes. (E a flag continua falsa, pra
+        // tentar o histórico de novo numa próxima busca.)
+        console.warn('⚠ histórico não carregou — buscando direto no Bling');
+        buscarNoBling(termo, input);
+      }
     }, true);
     return;
   }
 
   // Não achou local — busca no Bling
+  buscarNoBling(termo, input);
+}
+
+function buscarNoBling(termo, input){
   toast('🔍 Buscando...','warn');
   apiFetch('/bling/pedidos/vendas?numero='+encodeURIComponent(termo)+'&limite=1')
   .then(function(r){return r.ok?r.json():null;})
