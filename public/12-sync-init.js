@@ -125,7 +125,10 @@ function syncToServer(confirmadoPeloBling){
   // A lista de fantasmas SÓ vai quando a busca foi confirmada — o servidor ignora
   // sem confirmação, e mandar assim fazia a fila local ser limpa à toa.
   var removidosEnviados = confirmadoPeloBling ? pkgsRemovidos.slice(0, 500) : [];
-  var scanHoje = stripPhotos(scans);
+  // Envia só os bipes recentes — o servidor mescla e nunca apaga o que não veio,
+  // então mandar os 10 mil de todo o histórico a cada 30s era peso puro (mesma
+  // causa do incidente de 13/08, que eu tinha corrigido só do lado dos pedidos).
+  var scanHoje = stripPhotos(scans.filter(function(s){ return !s.date || s.date >= limiteEnvio; }));
 
   // Inclui estado ativo: quem está fazendo expedição de qual loja
   var activeState = activeMkt
@@ -167,8 +170,10 @@ function syncToServer(confirmadoPeloBling){
   }
 }
 
-function loadFromServer(cb){
-  apiFetch('/sync/data')
+function loadFromServer(cb, completo){
+  // Por padrão baixa só a janela recente. O histórico inteiro só vem quando a tela
+  // de Histórico pede (completo=true) — antes vinha em TODO ciclo de 30s.
+  apiFetch('/sync/data' + (completo ? '?full=1' : ''))
   .then(function(r){return r.json();})
   .then(function(d){
     var serverPkgs=d.packages||[];
