@@ -78,17 +78,19 @@ function showPage(page){
     // os lotes do cache local. Com a janela leve, um aparelho novo não teria os
     // dias antigos — busca o conjunto completo uma vez e redesenha.
     if(!histCompletoCarregado){
-      loadFromServer(function(){ histCompletoCarregado = true; renderDia(); }, true);
+      // Só marca como carregado se o download REALMENTE deu certo — senão a tela
+      // ficaria com histórico incompleto sem nunca tentar de novo nesta sessão.
+      loadFromServer(function(ok){ if(ok){ histCompletoCarregado = true; renderDia(); } }, true);
     }
   }
   if(page==='historico'){
-    histCompletoCarregado = true;
     // Busca dados atualizados do servidor antes de renderizar
     console.log('📂 Carregando histórico do servidor...');
     // completo=true: só AQUI o histórico inteiro é baixado (antes vinha em todo
     // ciclo de 30s, junto com milhares de registros que a tela nem usava).
-    loadFromServer(function(){
-      console.log('✅ Histórico carregado');
+    loadFromServer(function(ok){
+      if(ok){ histCompletoCarregado = true; console.log('✅ Histórico carregado'); }
+      else console.warn('⚠ Histórico: download falhou — mostrando o que há em cache');
       renderHistorico();
     }, true);
   }
