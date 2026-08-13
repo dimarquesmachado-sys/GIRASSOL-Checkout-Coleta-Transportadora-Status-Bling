@@ -384,7 +384,10 @@ function adicionarPedidoBling(blingId){
     });
   }
   sv('expv5_pkgs',packages);
-  syncToServer();
+  // O Bling devolveu ESTE pedido agora: autoriza o servidor a aceitá-lo mesmo se
+  // ele tiver lápide (foi removido antes e voltou).
+  ultimosIdsBling = [String(o.id)];
+  syncToServer(true);
   renderMktGrid();
   fecharModal();
   toast('✅ Pedido '+o.numero+' adicionado!','ok');
@@ -493,7 +496,9 @@ function pullFromBlingMkt(mkt){
       });
       sv('expv5_pkgs',packages);
       if(novos>0){
-        syncToServer();
+        // IDs que ESTA busca do marketplace devolveu — mesma lógica do pull geral.
+        ultimosIdsBling = (data.data||[]).map(function(o){return String(o.id);});
+        syncToServer(true);
         toast(novos+' pedido(s) novo(s) em '+(MKT[mkt]||{n:mkt}).n+'!','ok');
         renderMktGrid();
         renderPkgList();
