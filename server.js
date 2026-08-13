@@ -936,6 +936,26 @@ let sharedScans    = [];
 
 const PACKAGES_FILE = '/data/shared-packages.json';
 const SCANS_FILE    = '/data/shared-scans.json';
+const REMOVIDOS_FILE = '/data/pacotes-removidos.json';
+
+// ── LÁPIDES DE PEDIDOS REMOVIDOS ─────────────────────────────────────────────
+// { blingId: timestamp }. Como a AUSÊNCIA numa lista não apaga mais nada, é esta
+// lista que autoriza a remoção — e ela também impede que um celular atrasado
+// recadastre o fantasma no sync seguinte (ele voltaria a aparecer pra bipagem).
+let pacotesRemovidos = {};
+const REMOVIDO_TTL = 7 * 24 * 60 * 60 * 1000;
+function loadRemovidos() {
+  try { if (fs.existsSync(REMOVIDOS_FILE)) pacotesRemovidos = JSON.parse(fs.readFileSync(REMOVIDOS_FILE, 'utf8')) || {}; }
+  catch (e) { console.warn('⚠ Erro ao ler removidos:', e.message); }
+  const lim = Date.now() - REMOVIDO_TTL;
+  Object.keys(pacotesRemovidos).forEach(k => { if (pacotesRemovidos[k] < lim) delete pacotesRemovidos[k]; });
+}
+function saveRemovidos() {
+  const tmp = REMOVIDOS_FILE + '.tmp';
+  try { fs.writeFileSync(tmp, JSON.stringify(pacotesRemovidos)); fs.renameSync(tmp, REMOVIDOS_FILE); }
+  catch (e) { console.warn('⚠ Erro ao salvar removidos:', e.message); }
+}
+loadRemovidos();
 
 function loadSharedFromDisk() {
   try {
@@ -1062,7 +1082,10 @@ const activeUsers = new Map(); // user → {user, mkt, ts}
 app.get('/sync/data', requireAuth, (req, res) => {
   const now = Date.now();
   const active = [...activeUsers.values()].filter(u => now - u.ts < 1800000);
-  res.json({ packages: sharedPackages, scans: sharedScans, activeUsers: active });
+  // Devolve também as lápides: sem isso, o celular com cache antigo continuava
+  // mostrando (e podendo bipar) um pedido que já foi removido no servidor.
+  res.json({ packages: sharedPackages, scans: sharedScans, activeUsers: active,
+    removidos: Object.keys(pacotesRemovidos) });
 });
 
 app.post('/sync/active', requireAuth, (req, res) => {
@@ -1074,26 +1097,101 @@ app.post('/sync/active', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── MERGE DE PEDIDOS (13/08) ──────────────────────────────────────────────────
+// ANTES: o servidor guardava a lista do ÚLTIMO celular que sincronizasse. Dois
+// estoquistas bipando junto = o trabalho de um sobrescrevia o do outro (o clássico
+// "marquei coletado e voltou pra pendente").
+// AGORA: junta pedido a pedido. Ausência NUNCA apaga: a remoção só acontece com a
+// lista explícita de fantasmas confirmados pelo Bling.
+const RANK_STATUS = { pendente: 0, problema: 1, coletado: 2 };
+function mesclarPacote(atual, novo, confirmado) {
+  // Dia diferente = possível novo ciclo do pedido (voltou pro Verificado hoje
+  // depois de coletado ontem). SÓ aceitamos essa troca quando o Bling confirmou
+  // a busca: o app promove localmente a data de pendentes antigos para hoje, e
+  // sem essa trava um celular desatualizado substituiria o registro coletado de
+  // ontem por uma cópia de hoje sem colTs, corrompendo o histórico.
+  const ehVazio = (v) => (v === undefined || v === null || v === '' || v === '—' ||
+                          (Array.isArray(v) && v.length === 0));
+  if (novo.date && atual.date && novo.date !== atual.date) {
+    if (!confirmado) return atual;
+    if (novo.date < atual.date) return atual;
+    // Novo ciclo: o estado (status/colTs) é o do ciclo novo, mas os campos de
+    // identificação que vierem vazios herdam o valor já conhecido — a resposta
+    // resumida do Bling costuma vir sem NF, tracking ou número da loja.
+    const nc = Object.assign({}, novo);
+    Object.keys(atual).forEach(k => {
+      if (['status','colT','colTs','obs','date'].indexOf(k) !== -1) return;
+      if (ehVazio(nc[k]) && !ehVazio(atual[k])) nc[k] = atual[k];
+    });
+    return nc;
+  }
+  const r = Object.assign({}, atual);
+  // Campo preenchido nunca é apagado por vazio (NF, tracking, destinatário...).
+  // '—' é o marcador de "sem contato" do pull e conta como vazio.
+  Object.keys(novo).forEach(k => { if (!ehVazio(novo[k])) r[k] = novo[k]; });
+  // FLEX: `false` não é vazio, então um celular desatualizado desmarcaria o
+  // urgente e o pedido sumiria do card FLEX. Só rebaixa com busca confirmada.
+  if (atual.urgente === true && novo.urgente !== true && !confirmado) r.urgente = true;
+  // Status: quem tem a coleta mais RECENTE vence (colTs em ms). Assim uma correção
+  // posterior ("problema" depois de "coletado") também é respeitada.
+  const tA = atual.colTs || 0, tB = novo.colTs || 0;
+  if (tA || tB) {
+    const vencedor = tB >= tA ? novo : atual;
+    r.status = vencedor.status; r.colT = vencedor.colT; r.colTs = vencedor.colTs;
+    // A observação pertence ao evento: vem do MESMO vencedor.
+    r.obs = vencedor.obs || '';
+  } else {
+    r.status = (RANK_STATUS[novo.status] || 0) >= (RANK_STATUS[atual.status] || 0) ? novo.status : atual.status;
+  }
+  return r;
+}
+
 app.post('/sync/packages', requireAuth, (req, res) => {
-  const { packages, confirmado } = req.body;
-  if(Array.isArray(packages)){
-    // FREIO ANTI-APAGAMENTO (11/08): esta rota substitui a lista INTEIRA do
-    // servidor pela do aparelho. Um celular com lista incompleta (guardado há
-    // dias, localStorage truncado, ou busca no Bling que veio parcial) apagava
-    // pedidos que os outros celulares tinham registrado.
-    // Redução normal do dia a dia continua passando; só recusa uma queda brusca.
-    // confirmado=true: a redução veio de uma busca BEM-SUCEDIDA no Bling (o cliente
-    // removeu fantasmas de propósito). Nesse caso o freio não se aplica, senão os
-    // fantasmas voltariam do servidor e poderiam ser expedidos indevidamente.
-    const atual = sharedPackages.length;
-    if (!confirmado && atual >= 20 && packages.length < Math.floor(atual * 0.5)) {
-      console.warn('⚠ /sync/packages RECUSADO: aparelho enviou ' + packages.length +
-                   ' pacote(s) contra ' + atual + ' no servidor (usuário: ' + (req.user || '?') + ')');
-      return res.status(409).json({ ok: false, recusado: true,
-        motivo: 'envio muito menor que o estado atual do servidor', atual, recebido: packages.length });
+  const { packages, removidos, confirmado } = req.body;
+  if (Array.isArray(packages)) {
+    const idx = new Map();
+    sharedPackages.forEach(p => { if (p && p.blingId != null) idx.set(String(p.blingId), p); });
+
+    // "Voltou de verdade" = o ID veio na RESPOSTA DO BLING desta busca (idsBling),
+    // não apenas na carga do celular. A carga inclui cache local e histórico, então
+    // usá-la deixaria um aparelho antigo ressuscitar o fantasma.
+    const doBling = new Set(Array.isArray(req.body.idsBling) ? req.body.idsBling.map(String) : []);
+    const voltouDeVerdade = (k) => !!confirmado && doBling.has(k);
+
+    let novos = 0, atualizados = 0, bloqueados = 0;
+    packages.forEach(p => {
+      if (!p || p.blingId == null) return;
+      const k = String(p.blingId);
+      if (pacotesRemovidos[k] && (Date.now() - pacotesRemovidos[k]) > REMOVIDO_TTL) delete pacotesRemovidos[k];
+      if (pacotesRemovidos[k]) {
+        if (!voltouDeVerdade(k)) { bloqueados++; return; }   // celular atrasado: não ressuscita
+        delete pacotesRemovidos[k];                          // Bling confirmou: pedido voltou
+        saveRemovidos();
+      }
+      const atual = idx.get(k);
+      if (atual) { idx.set(k, mesclarPacote(atual, p, !!confirmado)); atualizados++; }
+      else { idx.set(k, p); novos++; }
+    });
+
+    // Remoção SÓ com lista explícita e busca confirmada pelo Bling.
+    let removidosOk = 0;
+    if (confirmado && Array.isArray(removidos)) {
+      removidos.forEach(id => {
+        const k = String(id);
+        if (doBling.has(k)) return;          // o Bling devolveu o pedido: não remove
+        if (idx.delete(k)) removidosOk++;
+        pacotesRemovidos[k] = Date.now();
+      });
+      if (removidosOk || removidos.length) saveRemovidos();
     }
-    sharedPackages = packages;
+
+    sharedPackages = Array.from(idx.values());
     saveSharedToDisk();
+    if (novos || removidosOk || bloqueados) {
+      console.log('🔄 sync/packages: +' + novos + ' novos, ' + atualizados + ' atualizados, ' +
+                  removidosOk + ' removidos, ' + bloqueados + ' bloqueados (lápide) — total ' + sharedPackages.length);
+    }
+    return res.json({ ok: true, total: sharedPackages.length, removidos: removidosOk });
   }
   res.json({ ok: true });
 });
@@ -1213,7 +1311,10 @@ app.get('/admin/backup', (req, res) => {
     packages: sharedPackages,
     scans: sharedScans,
     despachoFila: despachoFila,
-    despachoFalhas: despachoFalhas
+    despachoFalhas: despachoFalhas,
+    // As lápides também vivem só em /data: sem elas no backup, uma restauração
+    // traria de volta os pedidos que foram removidos de propósito.
+    pacotesRemovidos: pacotesRemovidos
   });
 });
 

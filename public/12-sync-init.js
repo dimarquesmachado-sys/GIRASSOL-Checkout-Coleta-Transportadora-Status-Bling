@@ -80,6 +80,10 @@ function getPhotoFromServer(key, cb){
 // souber o que existe lá, publicar a base local pode apagar o trabalho dos outros
 // aparelhos (vale para o envio do startup E para o timer de 30s).
 var baseConfiavel = false;
+// Pedidos que o Bling confirmou que saíram (fantasmas). O servidor só remove o
+// que estiver nesta lista — ausência na lista enviada não apaga mais nada.
+var pkgsRemovidos = ld('expv5_pkgs_removidos',[]);   // sobrevive ao recarregar
+var ultimosIdsBling = [];   // IDs que a última busca no Bling devolveu
 // Pacotes do servidor mais antigos que a janela: ficam SÓ em memória (não vão pro
 // localStorage, pra não estourar a cota), mas voltam no envio pra não sumirem do servidor.
 var packagesHistorico = [];
@@ -93,6 +97,11 @@ function syncToServer(confirmadoPeloBling){
   // confirmadoPeloBling=true => a redução veio de uma busca BEM-SUCEDIDA no Bling
   // (fantasma removido de propósito); o servidor então não aplica o freio.
   var pkgHoje = packagesHistorico.length ? packages.concat(packagesHistorico) : packages;
+  // Vai em TODO envio, não só no do pull: se aquele POST falhar, os timers de 30s
+  // continuariam mandando sem a lista e a remoção se perderia.
+  // A lista de fantasmas SÓ vai quando a busca foi confirmada — o servidor ignora
+  // sem confirmação, e mandar assim fazia a fila local ser limpa à toa.
+  var removidosEnviados = confirmadoPeloBling ? pkgsRemovidos.slice(0, 500) : [];
   var scanHoje = stripPhotos(scans);
 
   // Inclui estado ativo: quem está fazendo expedição de qual loja
@@ -102,7 +111,15 @@ function syncToServer(confirmadoPeloBling){
 
   apiFetch('/sync/packages', {
     method: 'POST',
-    body: JSON.stringify({ packages: pkgHoje, confirmado: !!confirmadoPeloBling })
+    body: JSON.stringify({ packages: pkgHoje, confirmado: !!confirmadoPeloBling,
+                           removidos: removidosEnviados, idsBling: ultimosIdsBling })
+  }).then(function(r){
+    // Só tira da lista o que o servidor confirmou ter recebido. Se a rede falhar,
+    // os fantasmas continuam pendentes e vão junto no próximo envio.
+    if(r && r.ok && removidosEnviados.length){
+      pkgsRemovidos = pkgsRemovidos.filter(function(id){ return removidosEnviados.indexOf(id) === -1; });
+      sv('expv5_pkgs_removidos', pkgsRemovidos);
+    }
   }).catch(function(){});
 
   apiFetch('/sync/scans', {
@@ -230,14 +247,26 @@ function loadFromServer(cb){
       packages.forEach(function(p){localPkgMap[p.blingId]=p;});
       serverPkgs.forEach(function(sp){
         if(localPkgMap[sp.blingId]&&sp.date===today){
-          // Atualiza status se o servidor tem status mais avançado
-          var statusOrder={pendente:0,problema:1,coletado:2};
-          var localStatus=statusOrder[localPkgMap[sp.blingId].status]||0;
-          var serverStatus=statusOrder[sp.status]||0;
-          if(serverStatus>localStatus){
-            localPkgMap[sp.blingId].status=sp.status;
-            localPkgMap[sp.blingId].colT=sp.colT;
+          var lp=localPkgMap[sp.blingId];
+          // Ciclo NOVO (o servidor tem data mais recente): adota por inteiro. Sem
+          // isso o colTs da coleta antiga daqui segurava o pedido como coletado.
+          if(sp.date && lp.date && sp.date > lp.date){
+            lp.status=sp.status; lp.date=sp.date; lp.colT=sp.colT||null;
+            lp.colTs=sp.colTs||0; lp.obs=sp.obs||'';
+            if(sp.urgente===true) lp.urgente=true;
+            return;
           }
+          // Quem tem a coleta mais RECENTE vence (mesma regra do servidor). O
+          // ranking fixo antigo fazia 'coletado' ganhar sempre de 'problema',
+          // então uma correção feita em outro celular nunca chegava aqui.
+          var tL=lp.colTs||0, tS=sp.colTs||0;
+          if(tL||tS){
+            if(tS>tL){ lp.status=sp.status; lp.colT=sp.colT; lp.colTs=sp.colTs; lp.obs=sp.obs||''; }
+          } else {
+            var ordem={pendente:0,problema:1,coletado:2};
+            if((ordem[sp.status]||0)>(ordem[lp.status]||0)){ lp.status=sp.status; lp.colT=sp.colT; }
+          }
+          if(sp.urgente===true) lp.urgente=true;   // FLEX detectado por outro aparelho
         }
       });
       sv('expv5_pkgs',packages);
@@ -245,6 +274,21 @@ function loadFromServer(cb){
 
     // Atualiza indicador de quem está fazendo expedição
     if(d.activeUsers) renderActiveUsers(d.activeUsers);
+    // Lápides do servidor: pedido removido lá some daqui também, senão este
+    // celular continuaria mostrando (e deixando bipar) um pedido que já saiu.
+    // FORA do if de serverPkgs: quando a remoção zera a lista, o servidor devolve
+    // packages vazio COM a lápide, e o tratamento não podia ser pulado.
+    if(Array.isArray(d.removidos)&&d.removidos.length){
+      var tomb={}; d.removidos.forEach(function(id){tomb[String(id)]=true;});
+      var antesT=packages.length;
+      packages=packages.filter(function(p){
+        return !(tomb[String(p.blingId)] && p.status==='pendente' && colSession.indexOf(p.etiqueta)===-1);
+      });
+      if(packages.length!==antesT){
+        console.log('👻 '+(antesT-packages.length)+' removido(s) no servidor saíram daqui também');
+        sv('expv5_pkgs',packages);
+      }
+    }
     baseConfiavel = true;  // a partir daqui é seguro publicar
     if(cb) cb(true);   // baixou com sucesso
   })

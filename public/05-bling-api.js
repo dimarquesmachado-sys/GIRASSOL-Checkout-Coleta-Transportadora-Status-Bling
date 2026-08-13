@@ -384,7 +384,10 @@ function adicionarPedidoBling(blingId){
     });
   }
   sv('expv5_pkgs',packages);
-  syncToServer();
+  // O Bling devolveu ESTE pedido agora: autoriza o servidor a aceitá-lo mesmo se
+  // ele tiver lápide (foi removido antes e voltou).
+  ultimosIdsBling = [String(o.id)];
+  syncToServer(true);
   renderMktGrid();
   fecharModal();
   toast('✅ Pedido '+o.numero+' adicionado!','ok');
@@ -493,7 +496,9 @@ function pullFromBlingMkt(mkt){
       });
       sv('expv5_pkgs',packages);
       if(novos>0){
-        syncToServer();
+        // IDs que ESTA busca do marketplace devolveu — mesma lógica do pull geral.
+        ultimosIdsBling = (data.data||[]).map(function(o){return String(o.id);});
+        syncToServer(true);
         toast(novos+' pedido(s) novo(s) em '+(MKT[mkt]||{n:mkt}).n+'!','ok');
         renderMktGrid();
         renderPkgList();
@@ -554,6 +559,12 @@ function pullFromBling(){
       // que o initApp ressuscita pra hoje todo dia. Coletados/problema são preservados.
       if(buscaOk && colSession.length===0){
         var antesF=packages.length;
+        // Registra os IDs ANTES de filtrar: como a ausência não apaga mais nada no
+        // servidor, sem essa lista os fantasmas voltariam no próximo download.
+        packages.forEach(function(p){
+          if(p.status==='pendente'&&p.date===todayStr()&&pkgsRemovidos.indexOf(p.blingId)===-1) pkgsRemovidos.push(p.blingId);
+        });
+        sv('expv5_pkgs_removidos', pkgsRemovidos);
         packages=packages.filter(function(p){return !(p.status==='pendente'&&p.date===todayStr());});
         if(packages.length!==antesF){
           sv('expv5_pkgs',packages);
@@ -724,8 +735,27 @@ function pullFromBling(){
     // ou com erro, os pedidos que não vieram continuam existindo no Bling — remover
     // aqui os apagaria da tela e, no sync seguinte, do servidor.
     if(buscaOk){
+      // Quais pedidos de HOJE existiam antes, pra saber quais o Bling confirmou
+      // que sumiram. NUNCA marca como fantasma um pedido que está na COLETA EM
+      // ANDAMENTO (colSession): o estoquista já bipou e ainda não fechou o lote —
+      // removê-lo apagaria a bipagem em curso e impediria finalizar.
+      var naColeta={}; (typeof colSession!=='undefined'?colSession:[]).forEach(function(et){ naColeta[et]=true; });
+      var idsAntes={}; packages.forEach(function(p){ if(p.date===today && !naColeta[p.etiqueta]) idsAntes[p.blingId]=true; });
+      // Pacotes da COLETA EM ANDAMENTO que o Bling não devolveu: são PRESERVADOS.
+      // Sem isso o rebuild os apagava e o estoquista não conseguia fechar o lote.
+      var idsNovos={}; newPkgs.forEach(function(p){ idsNovos[p.blingId]=true; });
+      var daColeta=packages.filter(function(p){ return p.date===today && naColeta[p.etiqueta] && !idsNovos[p.blingId]; });
+      if(daColeta.length) console.log('🔒 '+daColeta.length+' pacote(s) da coleta em andamento preservados no rebuild');
       packages=packages.filter(function(p){return p.date!==today;});
-      packages=newPkgs.concat(expedidosRecentes).concat(packages);
+      packages=newPkgs.concat(daColeta).concat(expedidosRecentes).concat(packages);
+      var idsDepois={}; packages.forEach(function(p){ idsDepois[p.blingId]=true; });
+      Object.keys(idsAntes).forEach(function(id){
+        if(!idsDepois[id] && pkgsRemovidos.indexOf(id)===-1) pkgsRemovidos.push(id);
+      });
+      if(pkgsRemovidos.length){
+        sv('expv5_pkgs_removidos', pkgsRemovidos);
+        console.log('👻 '+pkgsRemovidos.length+' pedido(s) saíram do Bling — serão removidos do servidor');
+      }
     } else {
       // Busca incompleta: só acrescenta/atualiza o que veio, sem remover nada.
       var idsRecebidos={}; newPkgs.forEach(function(p){idsRecebidos[p.blingId]=true;});
@@ -742,6 +772,9 @@ function pullFromBling(){
     sv('expv5_pkgs',packages);
     // buscaOk=true => o Bling confirmou a lista; se pedidos sumiram foi remoção
     // legítima de fantasma. Marca confirmado p/ o servidor não aplicar o freio.
+    // Manda também os IDs que o BLING devolveu: é isso que autoriza o servidor a
+    // considerar um pedido "de volta" (a carga do celular inclui cache/histórico).
+    if(buscaOk===true) ultimosIdsBling = newPkgs.map(function(p){return String(p.blingId);});
     syncToServer(buscaOk === true); // sincroniza packages para outros dispositivos (desktop)
     toast(newPkgs.length+' pedidos carregados','ok');
     renderMktGrid(); updateBadge();
