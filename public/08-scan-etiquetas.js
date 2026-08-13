@@ -98,11 +98,10 @@ function handleScan(rawCode,photo){
     }
     return false;
   }
-  // REVERTIDO (13/08): a checagem de ambiguidade varria a lista INTEIRA a cada
-  // leitura — e a câmera lê várias vezes por segundo. Com milhares de pacotes o
-  // app ficou impossível de usar no galpão. Volta o laço original, que PARA no
-  // primeiro pedido que serve. A proteção contra código ambíguo será refeita de
-  // outro jeito (sem custo por leitura), fora do horário de operação.
+  // 13/08: o laço volta a PARAR no primeiro pedido que serve — varrer a lista
+  // inteira a cada leitura (a câmera lê várias vezes por segundo) travou o app
+  // no galpão. A proteção contra código ambíguo continua existindo, mas só é
+  // paga QUANDO ALGO CASA (uma vez por bipe), não a cada quadro da câmera.
   var pkg=null, wrongPkg=null, already=null;
   for(var i=0;i<packages.length;i++){
     var p=packages[i];
@@ -112,6 +111,25 @@ function handleScan(rawCode,photo){
     var mktMatch=activeMkt==='flex'?p.urgente:(p.mkt===activeMkt&&!p.urgente);
     if(mktMatch){if(p.status==='pendente'){pkg=p;break;}}
     else if(activeMkt!=='flex'&&p.mkt!==activeMkt&&p.status==='pendente'){wrongPkg=p;}
+  }
+  // AMBIGUIDADE — só entra aqui se ALGO casou (1x por bipe, não por quadro).
+  // Se o mesmo código serve a dois pedidos diferentes do dia, a ordem da lista
+  // decidiria qual sai despachado: bloqueia e manda conferir a etiqueta.
+  var escolhido = pkg || already || wrongPkg;
+  if(escolhido){
+    var vistos={}, distintos=0, nums=[];
+    for(var j=0;j<packages.length;j++){
+      var q=packages[j];
+      if(q.date!==today||!match(q)) continue;
+      var kq=String(q.blingId||q.etiqueta);
+      if(!vistos[kq]){ vistos[kq]=true; distintos++; if(nums.length<4) nums.push(q.numero); }
+      if(distintos>1) break;   // já basta pra saber que é ambíguo
+    }
+    if(distintos>1){
+      console.warn('⛔ Código ambíguo "'+code+'" casou com mais de um pedido: '+nums.join(', '));
+      showFb('⛔ Código ambíguo — casou com '+distintos+' pedidos ('+nums.join(', ')+'). Confira a etiqueta.','err');
+      beepError(); return;
+    }
   }
 
   // inSession: verifica pela etiqueta canônica
