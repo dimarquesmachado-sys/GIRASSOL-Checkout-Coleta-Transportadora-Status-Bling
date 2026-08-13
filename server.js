@@ -987,13 +987,22 @@ function loadSharedFromDisk() {
 // fila de despacho.
 function gravarSeguro(arquivo, dados, rotulo) {
   const tmp = arquivo + '.tmp';
+  const bak = arquivo + '.bak';
   try {
     fs.writeFileSync(tmp, JSON.stringify(dados));
-    try { if (fs.existsSync(arquivo)) fs.copyFileSync(arquivo, arquivo + '.bak'); } catch (e) {}
+    // O antigo vira backup por RENOMEAÇÃO, não por cópia: copiar podia falhar no
+    // meio (disco cheio, I/O) e deixar o .bak truncado — aí o principal seria
+    // promovido assim mesmo e ficaríamos sem socorro nenhum. Renomear é atômico.
+    try { if (fs.existsSync(arquivo)) fs.renameSync(arquivo, bak); } catch (e) {
+      console.warn('⚠ Não consegui preservar o backup de ' + rotulo + ': ' + e.message);
+    }
     fs.renameSync(tmp, arquivo);
     return true;
   } catch (e) {
     console.error('❌ Erro ao salvar ' + rotulo + ':', e.message);
+    // Se caiu entre renomear o antigo e promover o novo, o principal não existe:
+    // devolve o backup para o lugar em vez de deixar o arquivo sumido.
+    try { if (!fs.existsSync(arquivo) && fs.existsSync(bak)) fs.renameSync(bak, arquivo); } catch (e2) {}
     return false;
   }
 }
@@ -1005,6 +1014,14 @@ function saveSharedToDisk() {
 function lerComBackup(arquivo, rotulo) {
   try {
     if (fs.existsSync(arquivo)) return JSON.parse(fs.readFileSync(arquivo, 'utf8')) || [];
+    // Principal SUMIU (queda entre renomear o antigo e promover o novo): o .bak
+    // tem o estado anterior. Antes isso devolvia lista vazia.
+    if (fs.existsSync(arquivo + '.bak')) {
+      const b = JSON.parse(fs.readFileSync(arquivo + '.bak', 'utf8')) || [];
+      console.warn('♻ ' + rotulo + ' ausente — recuperado do backup: ' + b.length + ' registro(s)');
+      try { fs.writeFileSync(arquivo, JSON.stringify(b)); } catch (e0) {}
+      return b;
+    }
     return [];
   } catch (e) {
     console.error('❌ ' + rotulo + ' ilegível (' + e.message + ') — tentando o backup');
