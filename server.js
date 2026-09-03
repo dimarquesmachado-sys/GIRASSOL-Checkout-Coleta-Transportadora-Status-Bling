@@ -325,7 +325,7 @@ function registrar429(retryAfter) {
 // Reagenda a fila para o fim da pausa (mantendo o setInterval de 5 min como rede
 // de segurança). Sem isso, um lote fechado durante uma pausa de 15s ficava em
 // Verificado por quase 5 minutos com o Bling já liberado.
-let retomadaAgendada = null, retomadaPara = 0;
+let retomadaAgendada = null, retomadaPara = 0, retomadaPerdida = false;
 function agendarRetomadaDespacho() {
   const alvo = blingPausaAte;
   // Se a pausa foi ESTENDIDA por um 429 concorrente, reprograma: manter o timer
@@ -338,6 +338,9 @@ function agendarRetomadaDespacho() {
   const falta = Math.max(1000, alvo - Date.now() + 500);
   retomadaAgendada = setTimeout(() => {
     retomadaAgendada = null; retomadaPara = 0;
+    // Se uma rodada ainda está correndo, esta retomada se perde na trava —
+    // marca para o finally reagendar UMA vez.
+    if (despachoRodando) { retomadaPerdida = true; return; }
     processarFilaDespacho();
   }, falta);
   if (retomadaAgendada.unref) retomadaAgendada.unref();
@@ -736,6 +739,13 @@ app.all('/bling/*', requireAuth, async (req, res) => {
     const statusOut = r.status === 401 ? 502 : r.status;
     res.status(statusOut).json(data);
   } catch (err) {
+    // Em pausa: devolve 503 com o tempo QUE FALTA, pra quem chamou esperar o
+    // prazo real em vez de uma tabela fixa (que podia esgotar antes da liberação).
+    if (blingPausado()) {
+      const faltam = blingSegundosRestantes();
+      console.warn('⏸ Proxy recusado: Bling em pausa (' + faltam + 's)');
+      return res.status(503).json({ error: 'Bling em pausa por limite de requisições', pausaSegundos: faltam });
+    }
     console.error('Erro proxy Bling:', err.message);
     res.status(500).json({ error: err.message });
   }
@@ -896,9 +906,17 @@ async function processarFilaDespacho() {
     // Se o timer de retomada disparou enquanto esta rodada ainda lia o corpo de um
     // 429, ele voltou sem fazer nada (trava ativa). Reagenda aqui para a fila não
     // ficar esperando o ciclo de 5 min.
-    if (despachoFila.length && !retomadaAgendada) {
-      if (blingPausado()) agendarRetomadaDespacho();
-      else setTimeout(processarFilaDespacho, 1000).unref?.();
+    // Reagenda imediato SÓ se uma retomada foi realmente perdida pela trava.
+    // Sem essa condição, qualquer rodada com item pendente (ex: erro permanente
+    // 400) reagendava a cada 1s — martelando o Bling, justo o oposto do freio.
+    if (blingPausado()) {
+      if (despachoFila.length) agendarRetomadaDespacho();
+    } else if (retomadaPerdida && despachoFila.length) {
+      retomadaPerdida = false;
+      const t = setTimeout(processarFilaDespacho, 1000);
+      if (t.unref) t.unref();
+    } else {
+      retomadaPerdida = false;   // o ciclo de 5 min cuida do resto
     }
   }
   if (reprocessar) setTimeout(processarFilaDespacho, 100);
