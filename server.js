@@ -357,6 +357,15 @@ async function blingFetch(url, options = {}, retries = 3) {
     });
 
     if (r.status === 429) {
+      // Registra o MOTIVO uma vez por pausa. O Bling tem dois limites diferentes —
+      // por segundo (recupera em instantes) e o total do DIA (só zera à meia-noite)
+      // — e sem o corpo da resposta não dá pra saber em qual esbarramos.
+      if (!blingPausado()) {
+        try {
+          const corpo = await r.text();
+          if (corpo) console.warn('ℹ️ Motivo do 429 (Bling): ' + corpo.substring(0, 300));
+        } catch (e) { /* corpo indisponível: segue com a pausa mesmo assim */ }
+      }
       // NÃO retenta em cima: aciona a pausa global e devolve o erro. Quem chamou
       // decide (a fila de despacho, por exemplo, tenta de novo na rodada seguinte).
       registrar429(r.headers && r.headers.get && r.headers.get('retry-after'));
