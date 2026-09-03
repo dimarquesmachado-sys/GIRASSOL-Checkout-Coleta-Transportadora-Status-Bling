@@ -357,29 +357,31 @@ function despacharNoServidor(blingIds){
 function updateBlingStatus(id){
   // Bling v3: PATCH /pedidos/vendas/{id}/situacoes/{idSituacao} sem body
   console.log('🚚 Movendo para DESPACHADOS: #'+id);
-  apiFetch('/bling/pedidos/vendas/'+id+'/situacoes/743515',{method:'PATCH'})
-  .then(function(r){
-    if(r.ok){
-      console.log('✅ DESPACHADO: #'+id);
-    } else {
+  // Plano B local (só entra quando o servidor não conseguiu enfileirar). As esperas
+  // precisam ser MAIORES que a pausa do freio de 429 no servidor, que começa em 15s:
+  // com a repetição antiga de 3s, a tentativa morria antes de chegar ao Bling e o
+  // pedido ficava em Verificado sem ninguém saber.
+  var ESPERAS = [20000, 60000, 180000];   // 20s, 1min, 3min
+  function tentarDespacho(tentativa){
+    apiFetch('/bling/pedidos/vendas/'+id+'/situacoes/743515',{method:'PATCH'})
+    .then(function(r){
+      if(r.ok){ console.log('✅ DESPACHADO: #'+id+(tentativa?' (tentativa '+(tentativa+1)+')':'')); return; }
       return r.text().then(function(txt){
-        console.warn('⚠ Falha PATCH blingId='+id+' status='+r.status+' resp='+txt.substring(0,200));
-        // Retry após 3s — sem body (PATCH na situação não precisa de body)
-        setTimeout(function(){
-          apiFetch('/bling/pedidos/vendas/'+id+'/situacoes/743515',{method:'PATCH'})
-          .then(function(r2){
-            if(r2.ok){
-              console.log('✅ Retry OK #'+id);
-            } else {
-              return r2.text().then(function(txt2){
-                console.error('❌ Retry falhou #'+id+': status='+r2.status+' resp='+txt2.substring(0,200));
-              });
-            }
-          })
-          .catch(function(e){console.error('❌ Retry erro #'+id+':',e.message);});
-        },3000);
+        var espera = ESPERAS[tentativa];
+        if(espera==null){
+          console.error('❌ Despacho #'+id+' falhou após '+ESPERAS.length+' tentativas: status='+r.status+' resp='+txt.substring(0,200));
+          return;
+        }
+        console.warn('⚠ Falha PATCH blingId='+id+' status='+r.status+' — nova tentativa em '+(espera/1000)+'s: '+txt.substring(0,150));
+        setTimeout(function(){ tentarDespacho(tentativa+1); }, espera);
       });
-    }
-  })
-  .catch(function(e){console.error('❌ updateBlingStatus erro:',e.message);});
+    })
+    .catch(function(e){
+      var espera = ESPERAS[tentativa];
+      if(espera==null){ console.error('❌ Despacho #'+id+' erro final:',e.message); return; }
+      console.warn('⚠ Erro no despacho #'+id+' ('+e.message+') — nova tentativa em '+(espera/1000)+'s');
+      setTimeout(function(){ tentarDespacho(tentativa+1); }, espera);
+    });
+  }
+  tentarDespacho(0);
 }
