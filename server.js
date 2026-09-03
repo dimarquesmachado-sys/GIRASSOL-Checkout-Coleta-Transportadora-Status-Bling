@@ -342,6 +342,13 @@ async function blingFetch(url, options = {}, retries = 3) {
       await refreshAccessToken();
     }
 
+    // Revalida a pausa AQUI: entre a checagem inicial e este ponto pode ter havido
+    // espera pela renovação do token (ou uma repetição após 401), e nesse intervalo
+    // outra chamada pode ter acionado o freio. Sem isso, começaríamos tráfego novo
+    // dentro do prazo pedido pelo Bling — justo o caso concorrente que o freio trata.
+    if (blingPausado()) {
+      throw new Error('Bling em pausa por limite de requisições — liberando em ' + blingSegundosRestantes() + 's');
+    }
     // Timeout em TODAS as chamadas: node-fetch não tem padrão, então uma conexão
     // pendurada segurava o await pra sempre (e junto a fila de despacho e a
     // busca de NF, que rodam em série).
@@ -360,15 +367,19 @@ async function blingFetch(url, options = {}, retries = 3) {
       // Registra o MOTIVO uma vez por pausa. O Bling tem dois limites diferentes —
       // por segundo (recupera em instantes) e o total do DIA (só zera à meia-noite)
       // — e sem o corpo da resposta não dá pra saber em qual esbarramos.
-      if (!blingPausado()) {
+      const jaEstavaPausado = blingPausado();
+      // A pausa entra AGORA, a partir do status e dos cabeçalhos. Ler o corpo antes
+      // atrasaria isso por até 30s (timeout) e, nesse intervalo, as outras rotinas
+      // continuariam disparando — recriando a avalanche que o freio evita.
+      registrar429(r.headers && r.headers.get && r.headers.get('retry-after'));
+      if (!jaEstavaPausado) {
+        // Só para diagnóstico: o Bling tem limite por segundo e cota diária, e o
+        // corpo é o único lugar que diz em qual esbarramos.
         try {
           const corpo = await r.text();
           if (corpo) console.warn('ℹ️ Motivo do 429 (Bling): ' + corpo.substring(0, 300));
-        } catch (e) { /* corpo indisponível: segue com a pausa mesmo assim */ }
+        } catch (e) { /* corpo indisponível: a pausa já está valendo */ }
       }
-      // NÃO retenta em cima: aciona a pausa global e devolve o erro. Quem chamou
-      // decide (a fila de despacho, por exemplo, tenta de novo na rodada seguinte).
-      registrar429(r.headers && r.headers.get && r.headers.get('retry-after'));
       throw new Error('Bling recusou por limite de requisições (429)');
     }
 
