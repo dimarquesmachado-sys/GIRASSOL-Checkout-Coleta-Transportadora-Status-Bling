@@ -270,14 +270,47 @@ let bling429Seguidos = 0;
 const PAUSA_ESCALA = [15000, 30000, 60000, 120000, 300000]; // 15s → 5min
 function blingPausado() { return Date.now() < blingPausaAte; }
 function blingSegundosRestantes() { return Math.ceil((blingPausaAte - Date.now()) / 1000); }
+// Retry-After aceita segundos ("120") OU data absoluta ("Thu, 03 Sep 2026 20:00:00 GMT").
+// Só o parseInt ignorava a segunda forma e voltávamos a chamar antes da liberação.
+function retryAfterMs(valor) {
+  if (!valor) return 0;
+  const seg = parseInt(valor, 10);
+  if (!isNaN(seg) && String(seg) === String(valor).trim()) return seg * 1000;
+  const t = Date.parse(valor);
+  return isNaN(t) ? 0 : Math.max(0, t - Date.now());
+}
 function registrar429(retryAfter) {
+  const agora = Date.now();
+  const espera429 = retryAfterMs(retryAfter);
+  // 429 que chega DURANTE uma pausa é resposta de chamada que já estava em voo
+  // quando a pausa começou — não é uma nova rodada de falha. Antes, cada uma
+  // dessas incrementava a escala (15s virava 5min de uma vez) e podia ENCURTAR um
+  // Retry-After longo já registrado. Agora só agrega, nunca reduz o prazo.
+  if (blingPausado()) {
+    if (espera429 > 0) blingPausaAte = Math.max(blingPausaAte, agora + espera429);
+    return;
+  }
   bling429Seguidos++;
   let espera = PAUSA_ESCALA[Math.min(bling429Seguidos - 1, PAUSA_ESCALA.length - 1)];
-  const ra = parseInt(retryAfter, 10);              // o Bling pode dizer quanto esperar
-  if (ra > 0) espera = Math.max(espera, ra * 1000);
-  blingPausaAte = Date.now() + espera;
+  if (espera429 > espera) espera = espera429;
+  blingPausaAte = agora + espera;
   console.warn('⏸ Bling recusou por limite (429) — pausando TODAS as chamadas por ' +
-               Math.round(espera / 1000) + 's (429 seguidos: ' + bling429Seguidos + ')');
+               Math.round(espera / 1000) + 's (rodadas seguidas: ' + bling429Seguidos + ')');
+  // Assim que a pausa acabar, tenta a fila logo — sem esperar o ciclo de 5 min.
+  agendarRetomadaDespacho();
+}
+// Reagenda a fila para o fim da pausa (mantendo o setInterval de 5 min como rede
+// de segurança). Sem isso, um lote fechado durante uma pausa de 15s ficava em
+// Verificado por quase 5 minutos com o Bling já liberado.
+let retomadaAgendada = null;
+function agendarRetomadaDespacho() {
+  if (retomadaAgendada) return;
+  const falta = Math.max(1000, blingPausaAte - Date.now() + 500);
+  retomadaAgendada = setTimeout(() => {
+    retomadaAgendada = null;
+    processarFilaDespacho();
+  }, falta);
+  if (retomadaAgendada.unref) retomadaAgendada.unref();
 }
 function registrarSucessoBling() {
   if (bling429Seguidos > 0) {
@@ -732,6 +765,7 @@ async function processarFilaDespacho() {
   if (blingPausado()) {
     console.log('⏸ Fila de despacho adiada: Bling em pausa (' + blingSegundosRestantes() + 's) — ' +
                 despachoFila.length + ' pendente(s)');
+    agendarRetomadaDespacho();   // volta assim que liberar, não só no ciclo de 5 min
     return;
   }
   despachoRodando = true;
