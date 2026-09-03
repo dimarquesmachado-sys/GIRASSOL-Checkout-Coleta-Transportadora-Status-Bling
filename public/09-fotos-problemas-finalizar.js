@@ -370,6 +370,17 @@ function updateBlingStatus(id){
       if(r.ok){ console.log('✅ DESPACHADO: #'+id+(tentativa?' (tentativa '+(tentativa+1)+')':'')); return; }
       return r.text().then(function(txt){
         var espera = ESPERAS[tentativa];
+        // Se o servidor informou QUANTO falta da pausa (503 com pausaSegundos),
+        // espera esse tempo real +5s. Tabela fixa podia esgotar antes da liberação
+        // quando o Bling pede um prazo longo (ex: cota diária).
+        var pausa = 0;
+        try { pausa = (JSON.parse(txt) || {}).pausaSegundos || 0; } catch(e) {}
+        if(pausa > 0){
+          espera = Math.max(espera || 0, (pausa + 5) * 1000);
+          console.warn('⏸ Bling em pausa ('+pausa+'s) — despacho #'+id+' aguarda o prazo informado');
+          setTimeout(function(){ tentarDespacho(tentativa); }, espera);   // não gasta tentativa
+          return;
+        }
         if(espera==null){
           console.error('❌ Despacho #'+id+' falhou após '+ESPERAS.length+' tentativas: status='+r.status+' resp='+txt.substring(0,200));
           return;
