@@ -257,7 +257,40 @@ setInterval(async () => {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ── FREIO GLOBAL DE 429 (03/09) ───────────────────────────────────────────────
+// O limite de requisições é da CONTA do Bling, não deste serviço. Quando outra
+// rotina (ex: um backfill) estoura o teto, este app levava 429 e RETENTAVA por
+// conta própria, em cada chamada — a fila de despacho sozinha fazia ~70 tentativas
+// a cada 5 min, todas recusadas. Isso não recupera nada e ainda ajuda a manter o
+// limite estourado (chegamos à tentativa 18 do mesmo pedido).
+// Agora o primeiro 429 PAUSA todas as chamadas por um tempo crescente, e um
+// sucesso libera. Recuar é o que faz a cota voltar.
+let blingPausaAte = 0;
+let bling429Seguidos = 0;
+const PAUSA_ESCALA = [15000, 30000, 60000, 120000, 300000]; // 15s → 5min
+function blingPausado() { return Date.now() < blingPausaAte; }
+function blingSegundosRestantes() { return Math.ceil((blingPausaAte - Date.now()) / 1000); }
+function registrar429(retryAfter) {
+  bling429Seguidos++;
+  let espera = PAUSA_ESCALA[Math.min(bling429Seguidos - 1, PAUSA_ESCALA.length - 1)];
+  const ra = parseInt(retryAfter, 10);              // o Bling pode dizer quanto esperar
+  if (ra > 0) espera = Math.max(espera, ra * 1000);
+  blingPausaAte = Date.now() + espera;
+  console.warn('⏸ Bling recusou por limite (429) — pausando TODAS as chamadas por ' +
+               Math.round(espera / 1000) + 's (429 seguidos: ' + bling429Seguidos + ')');
+}
+function registrarSucessoBling() {
+  if (bling429Seguidos > 0) {
+    console.log('▶ Bling respondeu de novo — pausa liberada');
+    bling429Seguidos = 0; blingPausaAte = 0;
+  }
+}
+
 async function blingFetch(url, options = {}, retries = 3) {
+  // Em pausa: nem tenta. Falhar rápido aqui é o que deixa a cota se recuperar.
+  if (blingPausado()) {
+    throw new Error('Bling em pausa por limite de requisições — liberando em ' + blingSegundosRestantes() + 's');
+  }
   for (let i = 0; i < retries; i++) {
     if (tokenExpires > 0 && Date.now() > tokenExpires - 60 * 1000) {
       await refreshAccessToken();
@@ -278,10 +311,10 @@ async function blingFetch(url, options = {}, retries = 3) {
     });
 
     if (r.status === 429) {
-      const waitMs = i === 0 ? 2000 : Math.pow(2, i) * 1000;
-      console.warn(`⚠ Rate limit (429) — aguardando ${waitMs}ms`);
-      await sleep(waitMs);
-      continue;
+      // NÃO retenta em cima: aciona a pausa global e devolve o erro. Quem chamou
+      // decide (a fila de despacho, por exemplo, tenta de novo na rodada seguinte).
+      registrar429(r.headers && r.headers.get && r.headers.get('retry-after'));
+      throw new Error('Bling recusou por limite de requisições (429)');
     }
 
     if (r.status === 401 && i < retries - 1) {
@@ -290,6 +323,7 @@ async function blingFetch(url, options = {}, retries = 3) {
       if (ok) continue;
     }
 
+    if (r.ok) registrarSucessoBling();
     return r;
   }
   throw new Error('Máximo de tentativas atingido');
@@ -323,7 +357,8 @@ app.get('/health', (req, res) => {
     usuarios_configurados: parseUsers().length,
     pacotes: sharedPackages.length,
     scans: sharedScans.length,
-    despacho_pendente: despachoFila.length
+    despacho_pendente: despachoFila.length,
+    bling_em_pausa: blingPausado() ? blingSegundosRestantes() + 's' : false
   });
 });
 
@@ -692,11 +727,22 @@ function saveDespachoFila() {
 
 async function processarFilaDespacho() {
   if (despachoRodando || despachoFila.length === 0) return;
+  // Pausa global ativa: pula a rodada inteira sem gastar tentativa. Antes, cada
+  // um dos pedidos da fila queimava 3 chamadas recusadas a cada 5 minutos.
+  if (blingPausado()) {
+    console.log('⏸ Fila de despacho adiada: Bling em pausa (' + blingSegundosRestantes() + 's) — ' +
+                despachoFila.length + ' pendente(s)');
+    return;
+  }
   despachoRodando = true;
   let reprocessar = false;
   try {
     const lote = despachoFila.slice(); // snapshot: uma passada por rodada
     for (const item of lote) {
+      if (blingPausado()) {   // entrou em pausa no meio: para a rodada aqui
+        console.log('⏸ Rodada de despacho interrompida — Bling em pausa');
+        break;
+      }
       if (!despachoFila.some(x => x.id === item.id)) continue; // já saiu da fila
       let sucesso = false, erro = '', transitorio = false;
       try {
