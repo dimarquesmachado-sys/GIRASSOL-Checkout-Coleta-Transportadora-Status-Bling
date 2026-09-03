@@ -265,8 +265,27 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // limite estourado (chegamos à tentativa 18 do mesmo pedido).
 // Agora o primeiro 429 PAUSA todas as chamadas por um tempo crescente, e um
 // sucesso libera. Recuar é o que faz a cota voltar.
+// A pausa é gravada em disco: um Retry-After longo (cota diária) era zerado por
+// qualquer deploy/restart do Render, e 5s depois do boot a fila voltava a chamar
+// o Bling antes do prazo — recriando a sequência de 429 a cada reinício.
+const PAUSA_FILE = '/data/bling-pausa.json';
 let blingPausaAte = 0;
 let bling429Seguidos = 0;
+function salvarPausa() {
+  try { fs.writeFileSync(PAUSA_FILE, JSON.stringify({ ate: blingPausaAte, seguidos: bling429Seguidos })); }
+  catch (e) { /* pausa continua valendo em memória */ }
+}
+function carregarPausa() {
+  try {
+    if (!fs.existsSync(PAUSA_FILE)) return;
+    const d = JSON.parse(fs.readFileSync(PAUSA_FILE, 'utf8')) || {};
+    if (d.ate && d.ate > Date.now()) {
+      blingPausaAte = d.ate; bling429Seguidos = d.seguidos || 1;
+      console.warn('⏸ Pausa do Bling retomada do disco: mais ' +
+                   Math.ceil((blingPausaAte - Date.now()) / 1000) + 's');
+    }
+  } catch (e) {}
+}
 const PAUSA_ESCALA = [15000, 30000, 60000, 120000, 300000]; // 15s → 5min
 function blingPausado() { return Date.now() < blingPausaAte; }
 function blingSegundosRestantes() { return Math.ceil((blingPausaAte - Date.now()) / 1000); }
@@ -289,7 +308,7 @@ function registrar429(retryAfter) {
   if (blingPausado()) {
     if (espera429 > 0) {
       const novo = Math.max(blingPausaAte, agora + espera429);
-      if (novo > blingPausaAte) { blingPausaAte = novo; agendarRetomadaDespacho(); }
+      if (novo > blingPausaAte) { blingPausaAte = novo; salvarPausa(); agendarRetomadaDespacho(); }
     }
     return;
   }
@@ -297,6 +316,7 @@ function registrar429(retryAfter) {
   let espera = PAUSA_ESCALA[Math.min(bling429Seguidos - 1, PAUSA_ESCALA.length - 1)];
   if (espera429 > espera) espera = espera429;
   blingPausaAte = agora + espera;
+  salvarPausa();
   console.warn('⏸ Bling recusou por limite (429) — pausando TODAS as chamadas por ' +
                Math.round(espera / 1000) + 's (rodadas seguidas: ' + bling429Seguidos + ')');
   // Assim que a pausa acabar, tenta a fila logo — sem esperar o ciclo de 5 min.
@@ -329,7 +349,7 @@ function registrarSucessoBling() {
   // liberaria o tráfego antes do prazo que o próprio Bling pediu.
   if (blingPausado()) return;
   console.log('▶ Bling respondeu de novo — pausa liberada');
-  bling429Seguidos = 0; blingPausaAte = 0;
+  bling429Seguidos = 0; blingPausaAte = 0; salvarPausa();
 }
 
 async function blingFetch(url, options = {}, retries = 3) {
@@ -389,7 +409,11 @@ async function blingFetch(url, options = {}, retries = 3) {
       if (ok) continue;
     }
 
-    if (r.ok) registrarSucessoBling();
+    // Qualquer resposta que NÃO seja 429 prova que o Bling processou a chamada —
+    // inclusive um 400 (ex: "mesma situação", que a fila trata como concluído).
+    // Antes só o 2xx zerava a escalada, então uma sequência de 400 mantinha o
+    // contador alto e um 429 muito posterior já entrava com pausa grande.
+    registrarSucessoBling();
     return r;
   }
   throw new Error('Máximo de tentativas atingido');
@@ -869,6 +893,13 @@ async function processarFilaDespacho() {
     // A trava é liberada UMA vez, aqui. Agendar o reprocessamento depois evita
     // liberar uma trava que já pertence a outra rodada.
     despachoRodando = false;
+    // Se o timer de retomada disparou enquanto esta rodada ainda lia o corpo de um
+    // 429, ele voltou sem fazer nada (trava ativa). Reagenda aqui para a fila não
+    // ficar esperando o ciclo de 5 min.
+    if (despachoFila.length && !retomadaAgendada) {
+      if (blingPausado()) agendarRetomadaDespacho();
+      else setTimeout(processarFilaDespacho, 1000).unref?.();
+    }
   }
   if (reprocessar) setTimeout(processarFilaDespacho, 100);
 }
@@ -1480,6 +1511,7 @@ limparScansAntigos();   // remove scans antigos (evita OOM)
 setInterval(limparScansAntigos, 6 * 60 * 60 * 1000);
 
 // Fila de despacho: retoma o que sobrou de um restart/deploy e retenta o que falhou
+carregarPausa();
 loadDespachoFila();
 if (despachoFila.length) {
   console.log('♻ Retomando ' + despachoFila.length + ' despacho(s) pendente(s) do disco');
