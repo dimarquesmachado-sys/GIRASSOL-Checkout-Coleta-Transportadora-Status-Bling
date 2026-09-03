@@ -361,7 +361,9 @@ function updateBlingStatus(id){
   // precisam ser MAIORES que a pausa do freio de 429 no servidor, que começa em 15s:
   // com a repetição antiga de 3s, a tentativa morria antes de chegar ao Bling e o
   // pedido ficava em Verificado sem ninguém saber.
-  var ESPERAS = [20000, 60000, 180000];   // 20s, 1min, 3min
+  // Cobre até a pausa MÁXIMA do freio (300s): com [20,60,180] a última tentativa
+  // caía em t=260s e ainda pegava a pausa, e o pedido era abandonado.
+  var ESPERAS = [20000, 60000, 180000, 420000];   // 20s, 1min, 3min, 7min
   function tentarDespacho(tentativa){
     apiFetch('/bling/pedidos/vendas/'+id+'/situacoes/743515',{method:'PATCH'})
     .then(function(r){
