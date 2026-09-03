@@ -287,7 +287,10 @@ function registrar429(retryAfter) {
   // dessas incrementava a escala (15s virava 5min de uma vez) e podia ENCURTAR um
   // Retry-After longo já registrado. Agora só agrega, nunca reduz o prazo.
   if (blingPausado()) {
-    if (espera429 > 0) blingPausaAte = Math.max(blingPausaAte, agora + espera429);
+    if (espera429 > 0) {
+      const novo = Math.max(blingPausaAte, agora + espera429);
+      if (novo > blingPausaAte) { blingPausaAte = novo; agendarRetomadaDespacho(); }
+    }
     return;
   }
   bling429Seguidos++;
@@ -302,21 +305,31 @@ function registrar429(retryAfter) {
 // Reagenda a fila para o fim da pausa (mantendo o setInterval de 5 min como rede
 // de segurança). Sem isso, um lote fechado durante uma pausa de 15s ficava em
 // Verificado por quase 5 minutos com o Bling já liberado.
-let retomadaAgendada = null;
+let retomadaAgendada = null, retomadaPara = 0;
 function agendarRetomadaDespacho() {
-  if (retomadaAgendada) return;
-  const falta = Math.max(1000, blingPausaAte - Date.now() + 500);
+  const alvo = blingPausaAte;
+  // Se a pausa foi ESTENDIDA por um 429 concorrente, reprograma: manter o timer
+  // no prazo antigo faria a fila tentar cedo demais e levar 429 de novo.
+  if (retomadaAgendada) {
+    if (alvo <= retomadaPara) return;      // já agendado para o fim (ou depois)
+    clearTimeout(retomadaAgendada);
+  }
+  retomadaPara = alvo;
+  const falta = Math.max(1000, alvo - Date.now() + 500);
   retomadaAgendada = setTimeout(() => {
-    retomadaAgendada = null;
+    retomadaAgendada = null; retomadaPara = 0;
     processarFilaDespacho();
   }, falta);
   if (retomadaAgendada.unref) retomadaAgendada.unref();
 }
 function registrarSucessoBling() {
-  if (bling429Seguidos > 0) {
-    console.log('▶ Bling respondeu de novo — pausa liberada');
-    bling429Seguidos = 0; blingPausaAte = 0;
-  }
+  if (bling429Seguidos === 0) return;
+  // Um 2xx que chega DURANTE a pausa é de chamada que já estava em voo quando o
+  // 429 apareceu — não prova que a cota voltou. Encerrar a pausa por causa dele
+  // liberaria o tráfego antes do prazo que o próprio Bling pediu.
+  if (blingPausado()) return;
+  console.log('▶ Bling respondeu de novo — pausa liberada');
+  bling429Seguidos = 0; blingPausaAte = 0;
 }
 
 async function blingFetch(url, options = {}, retries = 3) {
