@@ -272,8 +272,14 @@ const PAUSA_FILE = '/data/bling-pausa.json';
 let blingPausaAte = 0;
 let bling429Seguidos = 0;
 function salvarPausa() {
-  try { fs.writeFileSync(PAUSA_FILE, JSON.stringify({ ate: blingPausaAte, seguidos: bling429Seguidos })); }
-  catch (e) { /* pausa continua valendo em memória */ }
+  // Temporário + rename, igual à fila de despacho: escrever direto no arquivo
+  // final podia deixá-lo truncado numa queda, e aí o boot seguinte ignorava o
+  // JSON inválido e voltava a chamar o Bling antes do prazo.
+  const tmp = PAUSA_FILE + '.tmp';
+  try {
+    fs.writeFileSync(tmp, JSON.stringify({ ate: blingPausaAte, seguidos: bling429Seguidos }));
+    fs.renameSync(tmp, PAUSA_FILE);
+  } catch (e) { /* pausa continua valendo em memória */ }
 }
 function carregarPausa() {
   try {
@@ -1075,8 +1081,21 @@ app.get('/admin/migrar-verificados', async (req, res) => {
         const d = await r.json();
         const orders = d.data || [];
         if(orders.length === 0) { hasMore = false; break; }
+        if(blingPausado()) {
+          migrationLog.push(`⏸ Interrompido antes da página ${page}: Bling em pausa (${blingSegundosRestantes()}s).`);
+          hasMore = false; break;
+        }
         migrationLog.push(`Página ${page}: ${orders.length} pedidos encontrados`);
         for(const o of orders) {
+          // Freio ativo: PARA a migração. Antes, cada pedido caía no catch e
+          // contava como erro — uma pausa de 15s pulava ~10 pedidos sem sequer
+          // consultar o Bling, e um prazo longo varria o lote inteiro anunciando
+          // conclusão sem ter despachado nada.
+          if(blingPausado()) {
+            migrationLog.push(`⏸ Interrompido: Bling em pausa (${blingSegundosRestantes()}s). ${total} despachado(s) até aqui — rode de novo após a liberação.`);
+            hasMore = false;
+            break;
+          }
           try {
             await sleep(1500);
             let ok = false;
