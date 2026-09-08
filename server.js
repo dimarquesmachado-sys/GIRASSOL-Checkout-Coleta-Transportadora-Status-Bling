@@ -361,6 +361,28 @@ function registrarSucessoBling() {
   bling429Seguidos = 0; blingPausaAte = 0; salvarPausa();
 }
 
+// ── RITMO GLOBAL (04/09) ──────────────────────────────────────────────────────
+// O Bling informou o limite exato na resposta 429: {"limit":3,"period":"second"}.
+// Cada rotina espaçava as próprias chamadas (a busca de NF, por exemplo, usava
+// 120ms entre pedidos = até 16/s contando as 2 consultas de cada um), mas ninguém
+// olhava o TOTAL. Agora TODA chamada passa por aqui e sai no mínimo 350ms depois
+// da anterior — no máximo ~2,8/s, abaixo do teto, some quantas rotinas houver.
+// 400ms => no máximo 2,5 chamadas/s, com folga sob o teto de 3. Margem de
+// propósito: a medição de janela deslizante mostrou 350ms encostando no limite,
+// e um 429 custa mais caro que os milissegundos economizados.
+const BLING_INTERVALO_MS = 400;
+let blingUltimaChamada = 0;
+let blingFilaRitmo = Promise.resolve();
+function aguardarRitmo() {
+  const p = blingFilaRitmo.then(async () => {
+    const espera = blingUltimaChamada + BLING_INTERVALO_MS - Date.now();
+    if (espera > 0) await sleep(espera);
+    blingUltimaChamada = Date.now();
+  });
+  blingFilaRitmo = p.catch(() => {});
+  return p;
+}
+
 async function blingFetch(url, options = {}, retries = 3) {
   // Em pausa: nem tenta. Falhar rápido aqui é o que deixa a cota se recuperar.
   if (blingPausado()) {
@@ -371,6 +393,9 @@ async function blingFetch(url, options = {}, retries = 3) {
       await refreshAccessToken();
     }
 
+    // Respeita o ritmo global ANTES de sair: é isso que garante o teto de 3/s
+    // mesmo com várias rotinas (pull, NF, despacho, proxy) rodando juntas.
+    await aguardarRitmo();
     // Revalida a pausa AQUI: entre a checagem inicial e este ponto pode ter havido
     // espera pela renovação do token (ou uma repetição após 401), e nesse intervalo
     // outra chamada pode ter acionado o freio. Sem isso, começaríamos tráfego novo
@@ -558,7 +583,10 @@ app.get('/nf-pedido/:blingId', requireAuth, async (req, res) => {
 // despachar/buscar lentos pra todo mundo.
 const nfCache = new Map();        // blingId -> {numero, chave, ts}
 const nfSemNota = new Map();      // blingId -> ts da última confirmação "sem NF"
-const NF_COOLDOWN = 12 * 60 * 1000;      // sem NF: só repergunta depois disso
+// 04/09: com 222 pedidos sem NF, reperguntar de 12 em 12 min consumia a cota o
+// dia inteiro. Pedido sem nota costuma demorar horas para ser faturado — 2h é
+// tempo de sobra, e derruba o volume de consultas em ~90%.
+const NF_COOLDOWN = 2 * 60 * 60 * 1000;  // sem NF: só repergunta depois disso
 const NF_TTL = 4 * 60 * 60 * 1000;       // NF em cache vale 4h (nota pode ser cancelada/substituída)
 const NF_CACHE_MAX = 5000;
 // Orçamento GLOBAL de consultas: vale para o servidor inteiro, não por requisição.
@@ -636,7 +664,8 @@ app.post('/nfs-batch', requireAuth, async (req, res) => {
           nfGuardar(nfSemNota, k, Date.now());   // Bling confirmou: ainda sem NF
           semNota++;
         }
-        await sleep(120); // respeita o limite de requisições do Bling
+        // Sem sleep próprio: o ritmo global (350ms entre QUALQUER chamada) já
+        // garante o teto. Espaçar aqui de novo só deixaria a rodada mais lenta.
       }
     });
     console.log('✅ NFs: ' + Object.keys(result).length + '/' + ids.length +
