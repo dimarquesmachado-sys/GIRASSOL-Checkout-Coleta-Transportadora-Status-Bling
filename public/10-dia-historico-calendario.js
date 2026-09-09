@@ -422,14 +422,21 @@ function highlight(text, q){
 // varria a lista inteira de pedidos (4 pontos diferentes): com ~4.400 bipes e
 // ~8.500 pedidos dava dezenas de milhões de comparações A CADA TECLA digitada na
 // busca do Histórico. O cache é refeito quando a lista de pedidos muda.
-var _pkgIdx=null, _pkgIdxLen=-1;
+// O cache é atrelado à IDENTIDADE do array, não ao tamanho: pullFromBling
+// substitui `packages` por objetos novos e o total pode continuar igual (um
+// pedido sai, outro entra; ou só a NF/rastreio muda). Comparar só o tamanho
+// serviria pacote velho — NF e rastreio desatualizados no Histórico, e a busca
+// deixando de achar o que acabou de chegar.
+var _pkgIdx=null, _pkgIdxRef=null;
 function pkgPorEtiqueta(){
-  if(_pkgIdx && _pkgIdxLen===packages.length) return _pkgIdx;
+  if(_pkgIdx && _pkgIdxRef===packages) return _pkgIdx;
   var m={};
   for(var i=0;i<packages.length;i++){ var p=packages[i]; if(p && p.etiqueta && !m[p.etiqueta]) m[p.etiqueta]=p; }
-  _pkgIdx=m; _pkgIdxLen=packages.length;
+  _pkgIdx=m; _pkgIdxRef=packages;
   return m;
 }
+// Mutação NO MESMO array (push/splice, sem trocar a referência) também invalida.
+function invalidarIndicePkgs(){ _pkgIdx=null; _pkgIdxRef=null; }
 
 function renderHistorico(){
   var today=todayStr();
