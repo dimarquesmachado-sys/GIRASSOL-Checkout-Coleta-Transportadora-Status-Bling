@@ -1,6 +1,8 @@
 // ═══ SCAN ═══
 var scanRecuperando=false;        // true enquanto a recuperação de rastreio roda
-var scanRecuperadoPara='';        // código que JÁ teve uma recuperação — só uma por leitura
+var scanRecuperadoPara='';        // código que já teve recuperação
+var scanRecuperadoEm=0;           // quando — a marca EXPIRA, ver abaixo
+var SCAN_RECUP_TTL=3*60*1000;     // 3 min
 // ── Comparação numérica SEGURA (correção 11/08) ────────────────────────────
 // Antes usávamos parseInt() nos dois lados. Isso truncava código alfanumérico:
 // parseInt('2607096UKDGTQ0') = 2607096 — e QUALQUER outro pedido Shopee do mesmo
@@ -173,19 +175,26 @@ function handleScan(rawCode,photo){
     if(scanRecuperando){ showFb('Buscando rastreio... aguarde','warn'); return; }
     // Falta o detalhe do pedido quando não há rastreio OU não há os códigos de
     // envio (o QR do ML casa por codigosBip, não por numeracao).
+    // `codigosBip` (shipment/pack do QR) só é usado pelo Mercado Livre — exigir
+    // esse campo dos outros marketplaces colocaria quase todos os pedidos do dia
+    // na fila a cada leitura inválida, travando a bipagem por minutos.
     var semDetalhe = packages.filter(function(p){
-      return p.date===today && p.status==='pendente' &&
-             (!p.numeracao || !(p.codigosBip && p.codigosBip.length));
+      if(p.date!==today || p.status!=='pendente') return false;
+      if(!p.numeracao) return true;
+      return p.mkt==='ml' && !(p.codigosBip && p.codigosBip.length);
     });
-    // UMA recuperação por código: sem isso, código inválido ou pedido que
-    // realmente não tem rastreio entraria em laço, consultando o Bling sem parar.
-    var jaTentou = (scanRecuperadoPara === code);
+    // UMA recuperação por código — mas a marca EXPIRA em 3 min. Sem prazo, uma
+    // recuperação que caísse numa pausa do Bling marcaria o código como "já
+    // tentei" para sempre: mesmo com o Bling normalizado, aquela etiqueta nunca
+    // mais buscaria o detalhe. Com o prazo, o laço continua impossível (uma
+    // tentativa a cada 3 min) e a falha transitória se recupera sozinha.
+    var jaTentou = (scanRecuperadoPara === code) && (Date.now() - scanRecuperadoEm < SCAN_RECUP_TTL);
     // E não abre uma segunda fila por cima do enriquecimento do pull — as duas
     // juntas dobrariam as chamadas e estourariam o limite do Bling.
     var pullEnriquecendo = (typeof enriquecendoDetalhe!=='undefined' && enriquecendoDetalhe);
     if(semDetalhe.length>0 && !jaTentou && !pullEnriquecendo && typeof detectFlexML==='function'){
       scanRecuperando = true;
-      scanRecuperadoPara = code;
+      scanRecuperadoPara = code; scanRecuperadoEm = Date.now();
       showFb('Buscando rastreio de '+semDetalhe.length+' pedido(s)...','warn');
       console.log('🔁 Código não casou — completando detalhe de '+semDetalhe.length+' pedido(s) e tentando de novo');
       var _destrava = setTimeout(function(){ scanRecuperando=false; }, 90000);
