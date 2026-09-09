@@ -1,7 +1,8 @@
 // ═══ SCAN ═══
 var scanRecuperando=false;        // true enquanto a recuperação de rastreio roda
-var scanRecuperadoPara='';        // código que já teve recuperação
-var scanRecuperadoEm=0;           // quando — a marca EXPIRA, ver abaixo
+// Cooldown POR CÓDIGO. Antes era um marcador único: alternar duas etiquetas
+// (A, B, A) zerava a marca e permitia recuperações ilimitadas contra o Bling.
+var scanRecupPor={};              // codigo -> timestamp da última recuperação
 var SCAN_RECUP_TTL=3*60*1000;     // 3 min
 // ── Comparação numérica SEGURA (correção 11/08) ────────────────────────────
 // Antes usávamos parseInt() nos dois lados. Isso truncava código alfanumérico:
@@ -188,13 +189,25 @@ function handleScan(rawCode,photo){
     // tentei" para sempre: mesmo com o Bling normalizado, aquela etiqueta nunca
     // mais buscaria o detalhe. Com o prazo, o laço continua impossível (uma
     // tentativa a cada 3 min) e a falha transitória se recupera sozinha.
-    var jaTentou = (scanRecuperadoPara === code) && (Date.now() - scanRecuperadoEm < SCAN_RECUP_TTL);
+    var jaTentou = (Date.now() - (scanRecupPor[code]||0)) < SCAN_RECUP_TTL;
     // E não abre uma segunda fila por cima do enriquecimento do pull — as duas
     // juntas dobrariam as chamadas e estourariam o limite do Bling.
     var pullEnriquecendo = (typeof enriquecendoDetalhe!=='undefined' && enriquecendoDetalhe);
+    // O pull ainda está buscando os detalhes: a etiqueta pode casar daqui a
+    // instantes. Não alarmar o operador — espera o fim da fila e repete a leitura.
+    if(pullEnriquecendo && typeof onFimEnriquecimento!=='undefined'){
+      showFb('Carregando dados dos pedidos... aguarde','warn');
+      if(!onFimEnriquecimento){
+        onFimEnriquecimento = function(){ lastCode=''; handleScan(rawCode, photo); };
+      }
+      return;
+    }
     if(semDetalhe.length>0 && !jaTentou && !pullEnriquecendo && typeof detectFlexML==='function'){
       scanRecuperando = true;
-      scanRecuperadoPara = code; scanRecuperadoEm = Date.now();
+      scanRecupPor[code] = Date.now();
+      // poda simples pra o mapa não crescer sem fim ao longo do dia
+      var _ks=Object.keys(scanRecupPor);
+      if(_ks.length>300){ _ks.slice(0,100).forEach(function(k){ delete scanRecupPor[k]; }); }
       showFb('Buscando rastreio de '+semDetalhe.length+' pedido(s)...','warn');
       console.log('🔁 Código não casou — completando detalhe de '+semDetalhe.length+' pedido(s) e tentando de novo');
       var _destrava = setTimeout(function(){ scanRecuperando=false; }, 90000);
