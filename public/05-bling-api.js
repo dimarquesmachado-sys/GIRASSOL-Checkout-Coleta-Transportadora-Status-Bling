@@ -16,23 +16,35 @@ function capturarCodigosBip(order){
     return nums.filter(function(v,i,a){return a.indexOf(v)===i;}); // remove duplicatas
   }catch(e){ return []; }
 }
+// FONTE ÚNICA da verdade sobre o que é um rastreio utilizável. Antes essa regra
+// vivia só aqui dentro, e a bipagem checava apenas "campo vazio" — então um GUID,
+// um JSON ou "[object Object]" preservado pelo merge contava como preenchido e o
+// pedido nunca era recuperado, deixando a etiqueta sem casar para sempre.
+function rastreioValido(v){
+  var s=v?String(v).trim():'';
+  if(!s) return false;
+  if(s.toLowerCase().indexOf('object')!==-1) return false;
+  if(s.indexOf('{')!==-1) return false;
+  if(/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(s)) return false;
+  return true;
+}
 // Busca tracking individual para marketplaces que não trazem rastreio na listagem
 function detectTrackingPkgs(pkgs){
   var i=0;
+  inicioFilaDetalhe();
   function next(){
-    if(i>=pkgs.length) return;
+    if(i>=pkgs.length){ fimFilaDetalhe(); return; }
     var pkg=pkgs[i++];
     // Se já tem tracking VÁLIDO (não é "object" e não é GUID) → pula
-    var nAtual=pkg.numeracao?String(pkg.numeracao):'';
-    var ehObject=nAtual.toLowerCase().indexOf('object')!==-1;
-    var ehGuid=/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(nAtual.trim());
-    var ehJson=nAtual.indexOf('{')!==-1;
-    if(nAtual&&!ehObject&&!ehGuid&&!ehJson){next();return;}
+    if(rastreioValido(pkg.numeracao)){next();return;}
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
-      .then(function(r){if(!r.ok)return null;return r.json();})
+      .then(function(r){
+        if(!r.ok){ console.warn('⚠ Sem detalhe do pedido #'+pkg.numero+' (HTTP '+r.status+') — ficará sem rastreio'); return null; }
+        return r.json();
+      })
       .then(function(d){
-        if(!d) return;
+        if(!d){ next(); return; }   // erro num pedido não pode parar a fila
         var order=d.data||d;
 
         var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
@@ -123,16 +135,54 @@ function detectTrackingPkgs(pkgs){
   next();
 }
 
+// CONTADOR de filas de detalhe (detectFlexML e detectTrackingPkgs). Uma flag
+// simples não bastava: o pull encadeia a 2ª fila no onDone da 1ª, e limpar no fim
+// de cada uma abria uma janela em que a bipagem começava uma 3ª fila sobre os
+// mesmos pedidos. Com contador, a trava só cai quando TODAS terminam — e nunca
+// fica presa quando ninguém encadeia nada.
+var filasDetalhe=0;
+var enriquecendoDetalhe=false;
+// LISTA de retornos (não um só): duas etiquetas lidas durante o enriquecimento
+// precisam ser repetidas AS DUAS. Com um único callback, a segunda leitura sumia
+// em silêncio e o pacote podia ficar fora da coleta sem ninguém perceber.
+var aoFimEnriquecimento=[];
+function inicioFilaDetalhe(){ filasDetalhe++; enriquecendoDetalhe=true; }
+function fimFilaDetalhe(){
+  filasDetalhe=Math.max(0,filasDetalhe-1);
+  if(filasDetalhe>0) return;
+  enriquecendoDetalhe=false;
+  if(aoFimEnriquecimento.length){
+    var fs=aoFimEnriquecimento.slice(); aoFimEnriquecimento=[];
+    fs.forEach(function(f){ try{ f(); }catch(e){ console.error('retorno pós-enriquecimento:',e.message); } });
+  }
+}
 function detectFlexML(mlPkgs, onDone){
   var i=0;
+  inicioFilaDetalhe();
   function next(){
-    if(i>=mlPkgs.length){if(onDone)onDone();return;}
+    if(i>=mlPkgs.length){
+      // onDone PRIMEIRO (pode encadear a 2ª fila, que já incrementa o contador),
+      // e só então encerro a minha — assim a trava não pisca entre as duas.
+      if(onDone) onDone();
+      fimFilaDetalhe();
+      return;
+    }
     var pkg=mlPkgs[i++];
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
-      .then(function(r){if(!r.ok) return null; return r.json();})
+      .then(function(r){
+        // NÃO engolir a falha: sem o detalhe, o pedido fica SEM rastreio e a
+        // etiqueta não casa na bipagem — foi o que aconteceu no dia em que o
+        // Bling recusou chamadas por limite, e ninguém ficou sabendo.
+        if(!r.ok){ console.warn('⚠ Sem detalhe do pedido #'+pkg.numero+' (HTTP '+r.status+') — ficará sem rastreio'); return null; }
+        return r.json();
+      })
       .then(function(d){
-        if(!d) return;
+        // CAUSA RAIZ (09/09): aqui era `if(!d) return;` — sem next(). Um único
+        // pedido com erro (429, timeout) ABANDONAVA A FILA INTEIRA, e todos os
+        // seguintes ficavam sem rastreio. Era isso que deixava vários pacotes
+        // impossíveis de bipar depois de uma recusa do Bling.
+        if(!d){ next(); return; }
         var order=d.data||d;
         var svcNome=((order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||'').toLowerCase();
         var svcVol=((order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico)||'').toLowerCase();
@@ -535,7 +585,16 @@ function pullFromBlingMkt(mkt){
         if(mkt==='ml') return !p.numLoja; // ML: busca numLoja (número loja virtual)
         return !p.numeracao&&(mkt==='tiktok'||mkt==='shopee'||mkt==='amazon'||mkt==='magalu');
       });
-      if(semTrack.length>0) setTimeout(function(){detectTrackingPkgs(semTrack);},800);
+      if(semTrack.length>0){
+        // Marca a trava JÁ, não só quando a fila começar: nos 800ms de espera a
+        // bipagem enxergava "ninguém enriquecendo" e abria uma fila paralela
+        // sobre os mesmos pedidos, dobrando as consultas.
+        inicioFilaDetalhe();
+        setTimeout(function(){
+          fimFilaDetalhe();               // devolve a reserva; a fila abaixo assume a sua
+          detectTrackingPkgs(semTrack);
+        },800);
+      }
     });
   })
   .catch(function(){});

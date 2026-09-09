@@ -1,4 +1,10 @@
 // ═══ SCAN ═══
+var scanRecuperando=false;        // true enquanto a recuperação de rastreio roda
+// Cooldown POR CÓDIGO. Antes era um marcador único: alternar duas etiquetas
+// (A, B, A) zerava a marca e permitia recuperações ilimitadas contra o Bling.
+var scanRecupPor={};              // codigo -> timestamp da última recuperação
+var scanPendentes=[];             // códigos lidos durante o enriquecimento, a repetir
+var SCAN_RECUP_TTL=3*60*1000;     // 3 min
 // ── Comparação numérica SEGURA (correção 11/08) ────────────────────────────
 // Antes usávamos parseInt() nos dois lados. Isso truncava código alfanumérico:
 // parseInt('2607096UKDGTQ0') = 2607096 — e QUALQUER outro pedido Shopee do mesmo
@@ -159,6 +165,74 @@ function handleScan(rawCode,photo){
         showMagaluPicker(magaluPend,code,photo);
         return;
       }
+    }
+    // ═══ AUTO-RECUPERAÇÃO DO RASTREIO (09/09) ═══
+    // O rastreio de cada pedido vem de uma consulta ao Bling feita pedido a pedido
+    // (detectFlexML). Se essa consulta falhar — como no dia em que o Bling recusou
+    // chamadas por limite — o pedido fica SEM o código e a etiqueta não casa,
+    // mesmo com o pacote presente na lista. Antes disso só sobrava o operador
+    // digitar. Agora: completa os rastreios que faltam e tenta o mesmo código de novo.
+    // Enquanto a recuperação roda, a câmera segue lendo a mesma etiqueta: não
+    // alarmar o operador com "não encontrado" antes da busca terminar.
+    if(scanRecuperando){ showFb('Buscando rastreio... aguarde','warn'); return; }
+    // Falta o detalhe do pedido quando não há rastreio OU não há os códigos de
+    // envio (o QR do ML casa por codigosBip, não por numeracao).
+    // `codigosBip` (shipment/pack do QR) só é usado pelo Mercado Livre — exigir
+    // esse campo dos outros marketplaces colocaria quase todos os pedidos do dia
+    // na fila a cada leitura inválida, travando a bipagem por minutos.
+    // Usa a MESMA regra de rastreio válido do enriquecimento: um GUID, um JSON ou
+    // "[object Object]" preservado pelo merge contava como preenchido, e o pedido
+    // nunca era recuperado — a etiqueta ficava sem casar para sempre.
+    var temTrack = (typeof rastreioValido==='function')
+      ? function(p){ return rastreioValido(p.numeracao); }
+      : function(p){ return !!p.numeracao; };
+    var semDetalhe = packages.filter(function(p){
+      if(p.date!==today || p.status!=='pendente') return false;
+      if(!temTrack(p)) return true;
+      return p.mkt==='ml' && !(p.codigosBip && p.codigosBip.length);
+    });
+    // UMA recuperação por código — mas a marca EXPIRA em 3 min. Sem prazo, uma
+    // recuperação que caísse numa pausa do Bling marcaria o código como "já
+    // tentei" para sempre: mesmo com o Bling normalizado, aquela etiqueta nunca
+    // mais buscaria o detalhe. Com o prazo, o laço continua impossível (uma
+    // tentativa a cada 3 min) e a falha transitória se recupera sozinha.
+    var jaTentou = (Date.now() - (scanRecupPor[code]||0)) < SCAN_RECUP_TTL;
+    // E não abre uma segunda fila por cima do enriquecimento do pull — as duas
+    // juntas dobrariam as chamadas e estourariam o limite do Bling.
+    var pullEnriquecendo = (typeof enriquecendoDetalhe!=='undefined' && enriquecendoDetalhe);
+    // O pull ainda está buscando os detalhes: a etiqueta pode casar daqui a
+    // instantes. Não alarmar o operador — espera o fim da fila e repete a leitura.
+    if(pullEnriquecendo && typeof aoFimEnriquecimento!=='undefined'){
+      // Enfileira ESTA leitura (deduplicada por código) pra ser repetida quando o
+      // enriquecimento acabar. Antes só a primeira era guardada: a segunda
+      // etiqueta lida na janela sumia sem aviso e podia ficar fora da coleta.
+      if(scanPendentes.indexOf(code)===-1){
+        scanPendentes.push(code);
+        aoFimEnriquecimento.push(function(){
+          var ix=scanPendentes.indexOf(code); if(ix!==-1) scanPendentes.splice(ix,1);
+          lastCode='';                       // é a MESMA leitura, de propósito
+          handleScan(rawCode, photo);
+        });
+      }
+      showFb('Carregando dados... '+scanPendentes.length+' leitura(s) na fila','warn');
+      return;
+    }
+    if(semDetalhe.length>0 && !jaTentou && !pullEnriquecendo && typeof detectFlexML==='function'){
+      scanRecuperando = true;
+      scanRecupPor[code] = Date.now();
+      // poda simples pra o mapa não crescer sem fim ao longo do dia
+      var _ks=Object.keys(scanRecupPor);
+      if(_ks.length>300){ _ks.slice(0,100).forEach(function(k){ delete scanRecupPor[k]; }); }
+      showFb('Buscando rastreio de '+semDetalhe.length+' pedido(s)...','warn');
+      console.log('🔁 Código não casou — completando detalhe de '+semDetalhe.length+' pedido(s) e tentando de novo');
+      var _destrava = setTimeout(function(){ scanRecuperando=false; }, 90000);
+      detectFlexML(semDetalhe, function(){
+        clearTimeout(_destrava);
+        scanRecuperando = false;
+        lastCode = '';               // ignora o debounce: é a MESMA leitura, de propósito
+        handleScan(rawCode, photo);
+      });
+      return;
     }
     showFb('Código não encontrado: '+code.substring(0,50),'warn');
     beepError(); return;
