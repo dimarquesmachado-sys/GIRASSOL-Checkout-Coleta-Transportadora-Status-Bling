@@ -127,14 +127,10 @@ function exportCSV(){
   a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
   a.download='expedicao_'+getDiaDate()+'.csv'; a.click();
 }
-function clearDay(){
-  if(!confirm('Limpar registros de hoje?')) return;
-  packages=packages.filter(function(p){return p.date!==todayStr();});
-  scans=scans.filter(function(s){return s.date!==todayStr();});
-  sv('expv5_pkgs',packages); svScans();
-  renderMktGrid(); updateBadge(); renderDia();
-  toast('Limpo','warn');
-}
+// clearDay REMOVIDA (auditoria 09/09): apagava TODOS os pacotes e bipagens do
+// dia sem registrar lápide — o sync seguinte ressuscitaria os scans e o cache
+// local ficaria inconsistente. Não havia botão nem chamada para ela (conferido
+// no index.html e nos módulos). Nenhum registro foi excluído; só o código morto.
 
 // ═══ BUSCA NF ═══
 // A NF não vem no pedido — precisa consultar endpoint separado /nfe
