@@ -1,5 +1,6 @@
 // ═══ SCAN ═══
-var scanRecuperando=false;   // evita repetir a recuperação em laço
+var scanRecuperando=false;        // true enquanto a recuperação de rastreio roda
+var scanRecuperadoPara='';        // código que JÁ teve uma recuperação — só uma por leitura
 // ── Comparação numérica SEGURA (correção 11/08) ────────────────────────────
 // Antes usávamos parseInt() nos dois lados. Isso truncava código alfanumérico:
 // parseInt('2607096UKDGTQ0') = 2607096 — e QUALQUER outro pedido Shopee do mesmo
@@ -167,18 +168,32 @@ function handleScan(rawCode,photo){
     // chamadas por limite — o pedido fica SEM o código e a etiqueta não casa,
     // mesmo com o pacote presente na lista. Antes disso só sobrava o operador
     // digitar. Agora: completa os rastreios que faltam e tenta o mesmo código de novo.
-    var semTrack = packages.filter(function(p){
-      return p.date===today && p.status==='pendente' && !p.numeracao;
+    // Enquanto a recuperação roda, a câmera segue lendo a mesma etiqueta: não
+    // alarmar o operador com "não encontrado" antes da busca terminar.
+    if(scanRecuperando){ showFb('Buscando rastreio... aguarde','warn'); return; }
+    // Falta o detalhe do pedido quando não há rastreio OU não há os códigos de
+    // envio (o QR do ML casa por codigosBip, não por numeracao).
+    var semDetalhe = packages.filter(function(p){
+      return p.date===today && p.status==='pendente' &&
+             (!p.numeracao || !(p.codigosBip && p.codigosBip.length));
     });
-    if(semTrack.length>0 && !scanRecuperando && typeof detectFlexML==='function'){
+    // UMA recuperação por código: sem isso, código inválido ou pedido que
+    // realmente não tem rastreio entraria em laço, consultando o Bling sem parar.
+    var jaTentou = (scanRecuperadoPara === code);
+    // E não abre uma segunda fila por cima do enriquecimento do pull — as duas
+    // juntas dobrariam as chamadas e estourariam o limite do Bling.
+    var pullEnriquecendo = (typeof enriquecendoDetalhe!=='undefined' && enriquecendoDetalhe);
+    if(semDetalhe.length>0 && !jaTentou && !pullEnriquecendo && typeof detectFlexML==='function'){
       scanRecuperando = true;
-      showFb('Buscando rastreio de '+semTrack.length+' pedido(s)...','warn');
-      console.log('🔁 Código não casou — completando rastreio de '+semTrack.length+' pedido(s) e tentando de novo');
-      var _destrava = setTimeout(function(){ scanRecuperando=false; }, 90000); // não trava pra sempre
-      detectFlexML(semTrack, function(){
+      scanRecuperadoPara = code;
+      showFb('Buscando rastreio de '+semDetalhe.length+' pedido(s)...','warn');
+      console.log('🔁 Código não casou — completando detalhe de '+semDetalhe.length+' pedido(s) e tentando de novo');
+      var _destrava = setTimeout(function(){ scanRecuperando=false; }, 90000);
+      detectFlexML(semDetalhe, function(){
         clearTimeout(_destrava);
         scanRecuperando = false;
-        handleScan(rawCode, photo);   // repete a MESMA leitura, agora com os rastreios
+        lastCode = '';               // ignora o debounce: é a MESMA leitura, de propósito
+        handleScan(rawCode, photo);
       });
       return;
     }
