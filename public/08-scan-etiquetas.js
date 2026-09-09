@@ -1,4 +1,5 @@
 // ═══ SCAN ═══
+var scanRecuperando=false;   // evita repetir a recuperação em laço
 // ── Comparação numérica SEGURA (correção 11/08) ────────────────────────────
 // Antes usávamos parseInt() nos dois lados. Isso truncava código alfanumérico:
 // parseInt('2607096UKDGTQ0') = 2607096 — e QUALQUER outro pedido Shopee do mesmo
@@ -159,6 +160,27 @@ function handleScan(rawCode,photo){
         showMagaluPicker(magaluPend,code,photo);
         return;
       }
+    }
+    // ═══ AUTO-RECUPERAÇÃO DO RASTREIO (09/09) ═══
+    // O rastreio de cada pedido vem de uma consulta ao Bling feita pedido a pedido
+    // (detectFlexML). Se essa consulta falhar — como no dia em que o Bling recusou
+    // chamadas por limite — o pedido fica SEM o código e a etiqueta não casa,
+    // mesmo com o pacote presente na lista. Antes disso só sobrava o operador
+    // digitar. Agora: completa os rastreios que faltam e tenta o mesmo código de novo.
+    var semTrack = packages.filter(function(p){
+      return p.date===today && p.status==='pendente' && !p.numeracao;
+    });
+    if(semTrack.length>0 && !scanRecuperando && typeof detectFlexML==='function'){
+      scanRecuperando = true;
+      showFb('Buscando rastreio de '+semTrack.length+' pedido(s)...','warn');
+      console.log('🔁 Código não casou — completando rastreio de '+semTrack.length+' pedido(s) e tentando de novo');
+      var _destrava = setTimeout(function(){ scanRecuperando=false; }, 90000); // não trava pra sempre
+      detectFlexML(semTrack, function(){
+        clearTimeout(_destrava);
+        scanRecuperando = false;
+        handleScan(rawCode, photo);   // repete a MESMA leitura, agora com os rastreios
+      });
+      return;
     }
     showFb('Código não encontrado: '+code.substring(0,50),'warn');
     beepError(); return;
