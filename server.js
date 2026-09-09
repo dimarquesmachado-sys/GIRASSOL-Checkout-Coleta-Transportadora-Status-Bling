@@ -314,7 +314,13 @@ function registrar429(retryAfter) {
   if (blingPausado()) {
     if (espera429 > 0) {
       const novo = Math.max(blingPausaAte, agora + espera429);
-      if (novo > blingPausaAte) { blingPausaAte = novo; salvarPausa(); agendarRetomadaDespacho(); }
+      if (novo > blingPausaAte) {
+        blingPausaAte = novo; salvarPausa(); agendarRetomadaDespacho();
+        // Avisa o porteiro do prazo MAIOR: sem isto, os outros serviços ficariam
+        // com o prazo curto do primeiro 429 e voltariam a consumir a conta
+        // enquanto este app ainda respeita a pausa longa.
+        ritmoAvisar('aviso-429', { retry_after_s: Math.ceil((novo - agora) / 1000) });
+      }
     }
     return;
   }
@@ -388,6 +394,8 @@ const RITMO_CONTA = process.env.BLING_RITMO_CONTA || 'girassol';
 const RITMO_ATIVO = !!(RITMO_URL && RITMO_KEY);
 const RITMO_TIMEOUT = 1000;      // falha aberto: não pode travar a operação
 let ritmoAvisado = false;        // loga a indisponibilidade uma vez, não a cada chamada
+let ritmoForaAte = 0;            // circuito aberto: porteiro indisponível, não insistir
+const RITMO_CIRCUITO_MS = 30000; // sonda de novo depois disso
 
 async function ritmoChamar(rota, params) {
   const qs = new URLSearchParams(Object.assign({ conta: RITMO_CONTA }, params || {})).toString();
@@ -405,31 +413,55 @@ async function ritmoChamar(rota, params) {
 // Pede permissão ao porteiro. Devolve true se conseguiu, false se deve usar o
 // ritmo local (porteiro fora do ar). Se a conta estiver em pausa, aciona o freio
 // local — assim as duas defesas ficam alinhadas.
+// Devolve true (pode chamar), false (porteiro fora — usar ritmo local) ou LANÇA
+// erro quando a conta está em pausa / o porteiro está segurando a fila.
+// A falha aberta é reservada a erro de TRANSPORTE (rede, timeout, status ruim,
+// resposta malformada). Recusa VÁLIDA do porteiro nunca vira liberação: é
+// justamente na contenção da cota que a coordenação precisa valer.
 async function pedirPermissao() {
-  const limite = Date.now() + 15000;   // teto de espera nesta chamada
+  if (Date.now() < ritmoForaAte) return false;   // circuito aberto: nem tenta
+  const limite = Date.now() + 15000;             // teto de espera nesta chamada
   while (Date.now() < limite) {
     let resp;
     try {
       resp = await ritmoChamar('permissao', { prioridade: 'operacao' });
-      ritmoAvisado = false;
     } catch (e) {
+      // Abre o circuito: sem isso, um porteiro que aceita conexão mas não
+      // responde faria CADA chamada da fila esperar 1s de timeout (100 chamadas
+      // = 100s só pra atravessar o porteiro).
+      ritmoForaAte = Date.now() + RITMO_CIRCUITO_MS;
       if (!ritmoAvisado) {
-        console.warn('⚠ Porteiro indisponível (' + e.message + ') — usando o ritmo local');
+        console.warn('⚠ Porteiro indisponível (' + e.message + ') — ritmo local por ' +
+                     (RITMO_CIRCUITO_MS / 1000) + 's');
         ritmoAvisado = true;
       }
-      return false;   // falha aberto
+      return false;
     }
-    if (resp && resp.ok) return true;
-    if (resp && resp.pausa_s > 0) {
+    ritmoAvisado = false;
+    // Validação ESTRITA: só `true` de verdade libera. Resposta degradada
+    // ({"ok":"false"}, {}, texto) não pode furar nem o ritmo local.
+    if (resp && resp.ok === true) return true;
+    if (resp && typeof resp.pausa_s === 'number' && resp.pausa_s > 0) {
       // A conta está em pausa (429 recente em QUALQUER serviço): respeita aqui também.
       const ate = Date.now() + resp.pausa_s * 1000;
       if (ate > blingPausaAte) { blingPausaAte = ate; salvarPausa(); agendarRetomadaDespacho(); }
       throw new Error('Bling em pausa (porteiro): ' + (resp.motivo || resp.pausa_s + 's'));
     }
-    await sleep(Math.min(Math.max(resp && resp.esperar_ms || 100, 50), 2000));
+    if (resp && resp.ok === false && typeof resp.esperar_ms === 'number') {
+      await sleep(Math.min(Math.max(resp.esperar_ms, 50), 2000));
+      continue;
+    }
+    // Formato desconhecido: trata como porteiro indisponível (falha aberta),
+    // em vez de ficar 15s segurando a fila a cada chamada.
+    ritmoForaAte = Date.now() + RITMO_CIRCUITO_MS;
+    console.warn('⚠ Porteiro respondeu em formato inesperado — ritmo local por ' +
+                 (RITMO_CIRCUITO_MS / 1000) + 's');
+    return false;
   }
-  console.warn('⚠ Porteiro não liberou em 15s — seguindo com o ritmo local');
-  return false;
+  // Porteiro SAUDÁVEL segurando a fila há 15s: é contenção real da cota
+  // compartilhada. Falhar aberto aqui furaria a coordenação justo quando ela
+  // importa — então esta chamada falha como erro transitório e é retomada depois.
+  throw new Error('Porteiro não liberou em 15s (cota compartilhada em contenção)');
 }
 
 function aguardarRitmo() {
