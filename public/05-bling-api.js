@@ -35,7 +35,7 @@ function detectTrackingPkgs(pkgs){
         return r.json();
       })
       .then(function(d){
-        if(!d) return;
+        if(!d){ next(); return; }   // erro num pedido não pode parar a fila
         var order=d.data||d;
 
         var vol = order.transporte&&order.transporte.volumes&&order.transporte.volumes[0];
@@ -126,10 +126,12 @@ function detectTrackingPkgs(pkgs){
   next();
 }
 
+var enriquecendoDetalhe=false;   // true enquanto uma fila de detalhes está rodando
 function detectFlexML(mlPkgs, onDone){
   var i=0;
+  enriquecendoDetalhe=true;
   function next(){
-    if(i>=mlPkgs.length){if(onDone)onDone();return;}
+    if(i>=mlPkgs.length){enriquecendoDetalhe=false;if(onDone)onDone();return;}
     var pkg=mlPkgs[i++];
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
@@ -141,7 +143,11 @@ function detectFlexML(mlPkgs, onDone){
         return r.json();
       })
       .then(function(d){
-        if(!d) return;
+        // CAUSA RAIZ (09/09): aqui era `if(!d) return;` — sem next(). Um único
+        // pedido com erro (429, timeout) ABANDONAVA A FILA INTEIRA, e todos os
+        // seguintes ficavam sem rastreio. Era isso que deixava vários pacotes
+        // impossíveis de bipar depois de uma recusa do Bling.
+        if(!d){ next(); return; }
         var order=d.data||d;
         var svcNome=((order.transporte&&order.transporte.servico&&order.transporte.servico.nome)||'').toLowerCase();
         var svcVol=((order.transporte&&order.transporte.volumes&&order.transporte.volumes[0]&&order.transporte.volumes[0].servico)||'').toLowerCase();
