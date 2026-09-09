@@ -358,7 +358,7 @@ function agendarRetomadaDespacho() {
   }, falta);
   if (retomadaAgendada.unref) retomadaAgendada.unref();
 }
-function registrarSucessoBling() {
+function registrarSucessoBling(ficha) {
   if (bling429Seguidos === 0) return;
   // Um 2xx que chega DURANTE a pausa é de chamada que já estava em voo quando o
   // 429 apareceu — não prova que a cota voltou. Encerrar a pausa por causa dele
@@ -366,7 +366,10 @@ function registrarSucessoBling() {
   if (blingPausado()) return;
   console.log('▶ Bling respondeu de novo — pausa liberada');
   bling429Seguidos = 0; blingPausaAte = 0; salvarPausa();
-  ritmoAvisar('aviso-ok', {});
+  // A ficha é obrigatória: sem ela o porteiro ignora o aviso — e faz certo, porque
+  // é ela que prova que este sucesso veio de permissão POSTERIOR ao último 429
+  // (e não de uma chamada antiga que só chegou agora). O porteiro a consome.
+  if (ficha) ritmoAvisar('aviso-ok', { ficha });
 }
 
 // ── RITMO GLOBAL (04/09) ──────────────────────────────────────────────────────
@@ -419,7 +422,7 @@ async function ritmoChamar(rota, params) {
 // resposta malformada). Recusa VÁLIDA do porteiro nunca vira liberação: é
 // justamente na contenção da cota que a coordenação precisa valer.
 async function pedirPermissao() {
-  if (Date.now() < ritmoForaAte) return false;   // circuito aberto: nem tenta
+  if (Date.now() < ritmoForaAte) return null;    // circuito aberto: nem tenta
   const limite = Date.now() + 15000;             // teto de espera nesta chamada
   while (Date.now() < limite) {
     let resp;
@@ -435,12 +438,15 @@ async function pedirPermissao() {
                      (RITMO_CIRCUITO_MS / 1000) + 's');
         ritmoAvisado = true;
       }
-      return false;
+      return null;
     }
     ritmoAvisado = false;
     // Validação ESTRITA: só `true` de verdade libera. Resposta degradada
     // ({"ok":"false"}, {}, texto) não pode furar nem o ritmo local.
-    if (resp && resp.ok === true) return true;
+    // Devolve a FICHA desta autorização (string) — é ela que, no sucesso, prova
+    // ao porteiro que a chamada veio de uma permissão POSTERIOR ao último 429.
+    // Autorizado sem ficha vira '' (libera, mas não terá aviso-ok).
+    if (resp && resp.ok === true) return typeof resp.ficha === 'string' && resp.ficha ? resp.ficha : '';
     if (resp && typeof resp.pausa_s === 'number' && resp.pausa_s > 0) {
       // A conta está em pausa (429 recente em QUALQUER serviço): respeita aqui também.
       const ate = Date.now() + resp.pausa_s * 1000;
@@ -456,7 +462,7 @@ async function pedirPermissao() {
     ritmoForaAte = Date.now() + RITMO_CIRCUITO_MS;
     console.warn('⚠ Porteiro respondeu em formato inesperado — ritmo local por ' +
                  (RITMO_CIRCUITO_MS / 1000) + 's');
-    return false;
+    return null;
   }
   // Porteiro SAUDÁVEL segurando a fila há 15s: é contenção real da cota
   // compartilhada. Falhar aberto aqui furaria a coordenação justo quando ela
@@ -467,13 +473,16 @@ async function pedirPermissao() {
 function aguardarRitmo() {
   const p = blingFilaRitmo.then(async () => {
     if (RITMO_ATIVO) {
-      const liberado = await pedirPermissao();
-      if (liberado) { blingUltimaChamada = Date.now(); return; }
+      // null = porteiro indisponível (falha aberta) → ritmo local.
+      // string = autorizado; o valor é a FICHA desta permissão (pode ser '').
+      const ficha = await pedirPermissao();
+      if (ficha !== null) { blingUltimaChamada = Date.now(); return ficha; }
       // porteiro fora: cai no ritmo local abaixo
     }
     const espera = blingUltimaChamada + BLING_INTERVALO_MS - Date.now();
     if (espera > 0) await sleep(espera);
     blingUltimaChamada = Date.now();
+    return null;
   });
   blingFilaRitmo = p.catch(() => {});
   return p;
@@ -497,7 +506,7 @@ async function blingFetch(url, options = {}, retries = 3) {
 
     // Respeita o ritmo global ANTES de sair: é isso que garante o teto de 3/s
     // mesmo com várias rotinas (pull, NF, despacho, proxy) rodando juntas.
-    await aguardarRitmo();
+    const fichaRitmo = await aguardarRitmo();
     // Revalida a pausa AQUI: entre a checagem inicial e este ponto pode ter havido
     // espera pela renovação do token (ou uma repetição após 401), e nesse intervalo
     // outra chamada pode ter acionado o freio. Sem isso, começaríamos tráfego novo
@@ -549,7 +558,7 @@ async function blingFetch(url, options = {}, retries = 3) {
     // inclusive um 400 (ex: "mesma situação", que a fila trata como concluído).
     // Antes só o 2xx zerava a escalada, então uma sequência de 400 mantinha o
     // contador alto e um 429 muito posterior já entrava com pausa grande.
-    registrarSucessoBling();
+    registrarSucessoBling(fichaRitmo);
     return r;
   }
   throw new Error('Máximo de tentativas atingido');
