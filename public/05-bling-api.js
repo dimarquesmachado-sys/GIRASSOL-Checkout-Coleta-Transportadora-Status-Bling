@@ -16,6 +16,18 @@ function capturarCodigosBip(order){
     return nums.filter(function(v,i,a){return a.indexOf(v)===i;}); // remove duplicatas
   }catch(e){ return []; }
 }
+// FONTE ÚNICA da verdade sobre o que é um rastreio utilizável. Antes essa regra
+// vivia só aqui dentro, e a bipagem checava apenas "campo vazio" — então um GUID,
+// um JSON ou "[object Object]" preservado pelo merge contava como preenchido e o
+// pedido nunca era recuperado, deixando a etiqueta sem casar para sempre.
+function rastreioValido(v){
+  var s=v?String(v).trim():'';
+  if(!s) return false;
+  if(s.toLowerCase().indexOf('object')!==-1) return false;
+  if(s.indexOf('{')!==-1) return false;
+  if(/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(s)) return false;
+  return true;
+}
 // Busca tracking individual para marketplaces que não trazem rastreio na listagem
 function detectTrackingPkgs(pkgs){
   var i=0;
@@ -24,11 +36,7 @@ function detectTrackingPkgs(pkgs){
     if(i>=pkgs.length){ fimFilaDetalhe(); return; }
     var pkg=pkgs[i++];
     // Se já tem tracking VÁLIDO (não é "object" e não é GUID) → pula
-    var nAtual=pkg.numeracao?String(pkg.numeracao):'';
-    var ehObject=nAtual.toLowerCase().indexOf('object')!==-1;
-    var ehGuid=/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(nAtual.trim());
-    var ehJson=nAtual.indexOf('{')!==-1;
-    if(nAtual&&!ehObject&&!ehGuid&&!ehJson){next();return;}
+    if(rastreioValido(pkg.numeracao)){next();return;}
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
       .then(function(r){
@@ -134,13 +142,19 @@ function detectTrackingPkgs(pkgs){
 // fica presa quando ninguém encadeia nada.
 var filasDetalhe=0;
 var enriquecendoDetalhe=false;
-var onFimEnriquecimento=null;    // a bipagem registra aqui pra repetir a leitura no fim
+// LISTA de retornos (não um só): duas etiquetas lidas durante o enriquecimento
+// precisam ser repetidas AS DUAS. Com um único callback, a segunda leitura sumia
+// em silêncio e o pacote podia ficar fora da coleta sem ninguém perceber.
+var aoFimEnriquecimento=[];
 function inicioFilaDetalhe(){ filasDetalhe++; enriquecendoDetalhe=true; }
 function fimFilaDetalhe(){
   filasDetalhe=Math.max(0,filasDetalhe-1);
   if(filasDetalhe>0) return;
   enriquecendoDetalhe=false;
-  if(typeof onFimEnriquecimento==='function'){ var f=onFimEnriquecimento; onFimEnriquecimento=null; f(); }
+  if(aoFimEnriquecimento.length){
+    var fs=aoFimEnriquecimento.slice(); aoFimEnriquecimento=[];
+    fs.forEach(function(f){ try{ f(); }catch(e){ console.error('retorno pós-enriquecimento:',e.message); } });
+  }
 }
 function detectFlexML(mlPkgs, onDone){
   var i=0;
@@ -571,7 +585,16 @@ function pullFromBlingMkt(mkt){
         if(mkt==='ml') return !p.numLoja; // ML: busca numLoja (número loja virtual)
         return !p.numeracao&&(mkt==='tiktok'||mkt==='shopee'||mkt==='amazon'||mkt==='magalu');
       });
-      if(semTrack.length>0) setTimeout(function(){detectTrackingPkgs(semTrack);},800);
+      if(semTrack.length>0){
+        // Marca a trava JÁ, não só quando a fila começar: nos 800ms de espera a
+        // bipagem enxergava "ninguém enriquecendo" e abria uma fila paralela
+        // sobre os mesmos pedidos, dobrando as consultas.
+        inicioFilaDetalhe();
+        setTimeout(function(){
+          fimFilaDetalhe();               // devolve a reserva; a fila abaixo assume a sua
+          detectTrackingPkgs(semTrack);
+        },800);
+      }
     });
   })
   .catch(function(){});
