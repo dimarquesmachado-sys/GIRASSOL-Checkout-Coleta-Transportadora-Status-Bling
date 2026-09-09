@@ -227,6 +227,7 @@ function loadFromServer(cb, completo){
           // retenção dos scans) — sem crescer o localStorage indefinidamente,
           // o que faria sv() estourar a cota e parar de salvar em silêncio.
           packages.push(sp);
+          if(typeof invalidarIndicePkgs==='function') invalidarIndicePkgs();
         }
       });
       sv('expv5_pkgs',packages);
