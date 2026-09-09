@@ -30,7 +30,10 @@ function detectTrackingPkgs(pkgs){
     if(nAtual&&!ehObject&&!ehGuid&&!ehJson){next();return;}
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
-      .then(function(r){if(!r.ok)return null;return r.json();})
+      .then(function(r){
+        if(!r.ok){ console.warn('⚠ Sem detalhe do pedido #'+pkg.numero+' (HTTP '+r.status+') — ficará sem rastreio'); return null; }
+        return r.json();
+      })
       .then(function(d){
         if(!d) return;
         var order=d.data||d;
@@ -130,7 +133,13 @@ function detectFlexML(mlPkgs, onDone){
     var pkg=mlPkgs[i++];
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
-      .then(function(r){if(!r.ok) return null; return r.json();})
+      .then(function(r){
+        // NÃO engolir a falha: sem o detalhe, o pedido fica SEM rastreio e a
+        // etiqueta não casa na bipagem — foi o que aconteceu no dia em que o
+        // Bling recusou chamadas por limite, e ninguém ficou sabendo.
+        if(!r.ok){ console.warn('⚠ Sem detalhe do pedido #'+pkg.numero+' (HTTP '+r.status+') — ficará sem rastreio'); return null; }
+        return r.json();
+      })
       .then(function(d){
         if(!d) return;
         var order=d.data||d;
