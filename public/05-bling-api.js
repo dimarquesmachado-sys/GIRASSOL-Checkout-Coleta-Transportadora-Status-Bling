@@ -19,8 +19,9 @@ function capturarCodigosBip(order){
 // Busca tracking individual para marketplaces que não trazem rastreio na listagem
 function detectTrackingPkgs(pkgs){
   var i=0;
+  inicioFilaDetalhe();
   function next(){
-    if(i>=pkgs.length) return;
+    if(i>=pkgs.length){ fimFilaDetalhe(); return; }
     var pkg=pkgs[i++];
     // Se já tem tracking VÁLIDO (não é "object" e não é GUID) → pula
     var nAtual=pkg.numeracao?String(pkg.numeracao):'';
@@ -126,12 +127,32 @@ function detectTrackingPkgs(pkgs){
   next();
 }
 
-var enriquecendoDetalhe=false;   // true enquanto uma fila de detalhes está rodando
+// CONTADOR de filas de detalhe (detectFlexML e detectTrackingPkgs). Uma flag
+// simples não bastava: o pull encadeia a 2ª fila no onDone da 1ª, e limpar no fim
+// de cada uma abria uma janela em que a bipagem começava uma 3ª fila sobre os
+// mesmos pedidos. Com contador, a trava só cai quando TODAS terminam — e nunca
+// fica presa quando ninguém encadeia nada.
+var filasDetalhe=0;
+var enriquecendoDetalhe=false;
+var onFimEnriquecimento=null;    // a bipagem registra aqui pra repetir a leitura no fim
+function inicioFilaDetalhe(){ filasDetalhe++; enriquecendoDetalhe=true; }
+function fimFilaDetalhe(){
+  filasDetalhe=Math.max(0,filasDetalhe-1);
+  if(filasDetalhe>0) return;
+  enriquecendoDetalhe=false;
+  if(typeof onFimEnriquecimento==='function'){ var f=onFimEnriquecimento; onFimEnriquecimento=null; f(); }
+}
 function detectFlexML(mlPkgs, onDone){
   var i=0;
-  enriquecendoDetalhe=true;
+  inicioFilaDetalhe();
   function next(){
-    if(i>=mlPkgs.length){enriquecendoDetalhe=false;if(onDone)onDone();return;}
+    if(i>=mlPkgs.length){
+      // onDone PRIMEIRO (pode encadear a 2ª fila, que já incrementa o contador),
+      // e só então encerro a minha — assim a trava não pisca entre as duas.
+      if(onDone) onDone();
+      fimFilaDetalhe();
+      return;
+    }
     var pkg=mlPkgs[i++];
     setTimeout(function(){
       apiFetch('/bling/pedidos/vendas/'+pkg.blingId)
