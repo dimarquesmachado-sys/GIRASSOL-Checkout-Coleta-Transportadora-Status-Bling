@@ -3,6 +3,7 @@ var scanRecuperando=false;        // true enquanto a recuperação de rastreio r
 // Cooldown POR CÓDIGO. Antes era um marcador único: alternar duas etiquetas
 // (A, B, A) zerava a marca e permitia recuperações ilimitadas contra o Bling.
 var scanRecupPor={};              // codigo -> timestamp da última recuperação
+var scanPendentes=[];             // códigos lidos durante o enriquecimento, a repetir
 var SCAN_RECUP_TTL=3*60*1000;     // 3 min
 // ── Comparação numérica SEGURA (correção 11/08) ────────────────────────────
 // Antes usávamos parseInt() nos dois lados. Isso truncava código alfanumérico:
@@ -179,9 +180,15 @@ function handleScan(rawCode,photo){
     // `codigosBip` (shipment/pack do QR) só é usado pelo Mercado Livre — exigir
     // esse campo dos outros marketplaces colocaria quase todos os pedidos do dia
     // na fila a cada leitura inválida, travando a bipagem por minutos.
+    // Usa a MESMA regra de rastreio válido do enriquecimento: um GUID, um JSON ou
+    // "[object Object]" preservado pelo merge contava como preenchido, e o pedido
+    // nunca era recuperado — a etiqueta ficava sem casar para sempre.
+    var temTrack = (typeof rastreioValido==='function')
+      ? function(p){ return rastreioValido(p.numeracao); }
+      : function(p){ return !!p.numeracao; };
     var semDetalhe = packages.filter(function(p){
       if(p.date!==today || p.status!=='pendente') return false;
-      if(!p.numeracao) return true;
+      if(!temTrack(p)) return true;
       return p.mkt==='ml' && !(p.codigosBip && p.codigosBip.length);
     });
     // UMA recuperação por código — mas a marca EXPIRA em 3 min. Sem prazo, uma
@@ -195,11 +202,19 @@ function handleScan(rawCode,photo){
     var pullEnriquecendo = (typeof enriquecendoDetalhe!=='undefined' && enriquecendoDetalhe);
     // O pull ainda está buscando os detalhes: a etiqueta pode casar daqui a
     // instantes. Não alarmar o operador — espera o fim da fila e repete a leitura.
-    if(pullEnriquecendo && typeof onFimEnriquecimento!=='undefined'){
-      showFb('Carregando dados dos pedidos... aguarde','warn');
-      if(!onFimEnriquecimento){
-        onFimEnriquecimento = function(){ lastCode=''; handleScan(rawCode, photo); };
+    if(pullEnriquecendo && typeof aoFimEnriquecimento!=='undefined'){
+      // Enfileira ESTA leitura (deduplicada por código) pra ser repetida quando o
+      // enriquecimento acabar. Antes só a primeira era guardada: a segunda
+      // etiqueta lida na janela sumia sem aviso e podia ficar fora da coleta.
+      if(scanPendentes.indexOf(code)===-1){
+        scanPendentes.push(code);
+        aoFimEnriquecimento.push(function(){
+          var ix=scanPendentes.indexOf(code); if(ix!==-1) scanPendentes.splice(ix,1);
+          lastCode='';                       // é a MESMA leitura, de propósito
+          handleScan(rawCode, photo);
+        });
       }
+      showFb('Carregando dados... '+scanPendentes.length+' leitura(s) na fila','warn');
       return;
     }
     if(semDetalhe.length>0 && !jaTentou && !pullEnriquecendo && typeof detectFlexML==='function'){
