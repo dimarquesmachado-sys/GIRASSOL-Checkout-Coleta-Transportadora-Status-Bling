@@ -456,6 +456,7 @@ function adicionarPedidoBling(blingId){
       date:today,pulledAt:nowTS(),
       status:'pendente',colT:null,obs:'',blingId:o.id
     });
+  if(typeof invalidarIndicePkgs==='function') invalidarIndicePkgs();
   }
   sv('expv5_pkgs',packages);
   // O Bling devolveu ESTE pedido agora: autoriza o servidor a aceitá-lo mesmo se
@@ -559,6 +560,7 @@ function pullFromBlingMkt(mkt){
             dataPedido:o.data||'',date:today,pulledAt:nowTS(),
             status:'pendente',colT:null,obs:'',blingId:o.id
           });
+  if(typeof invalidarIndicePkgs==='function') invalidarIndicePkgs();
           novos++;
         } else {
           // Atualiza campos que podem ter chegado
