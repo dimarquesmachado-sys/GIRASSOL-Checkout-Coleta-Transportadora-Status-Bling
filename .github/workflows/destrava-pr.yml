@@ -144,6 +144,21 @@ jobs:
             done
             [ "$N" -gt 0 ] && echo "  ✅ $N conversa(s) resolvida(s)"
 
+            # ── 4b) se a MAIN andou, re-dispara o ciclo neste PR ─────────
+            #
+            # O ciclo so acorda com push novo na BRANCH ou revisao nova do Codex.
+            # Quando um conserto do proprio workflow entra na main depois da
+            # ultima revisao, nada re-dispara e o PR fica pendurado esperando um
+            # gatilho que nao vem (custou 50 min de PR parado no Devolucoes).
+            # So em push, e so aqui — a trava acima ja garantiu que nao ha
+            # apontamento novo esperando tratamento.
+            if [ "${{ github.event_name }}" = "push" ]; then
+              echo "  🔄 a main mudou — re-disparo o ciclo neste PR"
+              gh workflow run auto-merge-codex.yml -f pr="$PR" >/dev/null 2>&1 \
+                && echo "     ✅ ciclo re-disparado" \
+                || echo "     ⚠️ nao consegui re-disparar (segue o fluxo normal)"
+            fi
+
             # ── 5) e avisa se ficou pronto ───────────────────────────────
             #
             # ⚠️ So comenta se MUDOU alguma coisa — senao vira spam a cada
