@@ -227,6 +227,7 @@ function loadFromServer(cb, completo){
           // retenção dos scans) — sem crescer o localStorage indefinidamente,
           // o que faria sv() estourar a cota e parar de salvar em silêncio.
           packages.push(sp);
+          if(typeof invalidarIndicePkgs==='function') invalidarIndicePkgs();
         }
       });
       sv('expv5_pkgs',packages);
@@ -457,36 +458,29 @@ function initApp(){
     }
   });
 
-  // Auto-sync a cada 30s — envia E recebe dados entre dispositivos
+  // Auto-sync a cada 30s — envia E recebe dados entre dispositivos.
+  // ANTES eram DOIS setInterval de 30s: este e um segundo que só redesenhava o
+  // Histórico. Com o app ocioso os dois disparavam juntos, dobrando download,
+  // merge e gravação sem trazer nada novo — compensação órfã achada na auditoria
+  // de 09/09. O redesenho do Histórico passou pra cá, no mesmo download.
   setInterval(function(){
     syncToServer();
     loadFromServer(function(){
       renderMktGrid(); updateBadge();
       if(activeMkt) renderPkgList();
-    });
-  }, 30000);
-
-  // Auto-sync do servidor a cada 30 segundos (para ver dados de outros dispositivos)
-  setInterval(function(){
-    if(!activeMkt){ // Só se não estiver bipando
-      loadFromServer(function(){
-        // Atualiza histórico se estiver na aba — MAS só se o usuário não tiver um
-        // card de lote aberto (senão o re-render colapsaria o card enquanto ele lê).
-        if(document.getElementById('pageHist').style.display!=='none'){
-          // Não re-renderiza se o usuário tem QUALQUER card aberto (senão colapsaria
-          // enquanto ele lê). Cobre os 3 tipos: marketplace (diaToggle, margin-top:10px),
-          // lote (lote-pkgs-*) e lote-do-histórico (lh_*).
-          var temCardAberto=false;
-          var divs=document.querySelectorAll('#pageHist div[id]');
-          for(var i=0;i<divs.length;i++){
-            var d=divs[i];
-            var ehExp=(d.id.indexOf('lote-pkgs-')===0)||(d.id.indexOf('lh_')===0)||(d.style.marginTop==='10px');
-            if(ehExp && d.style.display==='block'){ temCardAberto=true; break; }
-          }
-          if(!temCardAberto) renderHistorico();
+      if(!activeMkt && document.getElementById('pageHist').style.display!=='none'){
+        // Não recolhe um card que o operador esteja lendo. Cobre os 3 tipos:
+        // marketplace (margin-top:10px), lote (lote-pkgs-*) e lote do histórico (lh_*).
+        var temCardAberto=false;
+        var divs=document.querySelectorAll('#pageHist div[id]');
+        for(var i=0;i<divs.length;i++){
+          var d=divs[i];
+          var ehExp=(d.id.indexOf('lote-pkgs-')===0)||(d.id.indexOf('lh_')===0)||(d.style.marginTop==='10px');
+          if(ehExp && d.style.display==='block'){ temCardAberto=true; break; }
         }
-      });
-    }
+        if(!temCardAberto) renderHistorico();
+      }
+    });
   }, 30000);
 
   // Auto-busca Bling a cada 10 minutos silenciosamente
