@@ -418,6 +418,23 @@ function highlight(text, q){
   return String(text).replace(re,'<span class="hist-highlight">$1</span>');
 }
 
+// Índice etiqueta → pacote, montado UMA vez por render. Antes, cada bipagem
+// varria a lista inteira de pedidos (4 pontos diferentes): com ~4.400 bipes e
+// ~8.500 pedidos dava dezenas de milhões de comparações A CADA TECLA na busca do
+// Histórico. O cache é atrelado à IDENTIDADE do array (o pull troca `packages`
+// por objetos novos e o total pode continuar igual — comparar tamanho serviria
+// NF e rastreio velhos).
+var _pkgIdx=null, _pkgIdxRef=null;
+function pkgPorEtiqueta(){
+  if(_pkgIdx && _pkgIdxRef===packages) return _pkgIdx;
+  var m={};
+  for(var i=0;i<packages.length;i++){ var p=packages[i]; if(p && p.etiqueta && !m[p.etiqueta]) m[p.etiqueta]=p; }
+  _pkgIdx=m; _pkgIdxRef=packages;
+  return m;
+}
+// Mutação NO MESMO array (push/unshift, sem trocar a referência) também invalida.
+function invalidarIndicePkgs(){ _pkgIdx=null; _pkgIdxRef=null; }
+
 function renderHistorico(){
   var today=todayStr();
   // Coleta todas as datas com scans OU pacotes
@@ -509,8 +526,7 @@ function renderHistContent(){
   // Filtro de busca textual
   if(q){
     pkgScans=pkgScans.filter(function(s){
-      var pkg=null;
-      for(var k=0;k<packages.length;k++){if(packages[k].etiqueta===s.etiqueta){pkg=packages[k];break;}}
+      var pkg=pkgPorEtiqueta()[s.etiqueta]||null;
       var campos=[s.numero,s.etiqueta,s.destinatario,pkg&&pkg.nf,pkg&&pkg.numLoja,pkg&&pkg.numeracao].join(' ').toUpperCase();
       return campos.indexOf(q)!==-1;
     });
@@ -567,7 +583,7 @@ function renderHistContent(){
     html+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:10px 14px">';
     pkgScans.forEach(function(s){
       var mktInfo=MKT[s.mkt]||{icon:'📦'};
-      var pkg=null; for(var k=0;k<packages.length;k++){if(packages[k].etiqueta===s.etiqueta){pkg=packages[k];break;}}
+      var pkg=pkgPorEtiqueta()[s.etiqueta]||null;
       var nf=pkg&&pkg.nf?pkg.nf:''; var numLoja=pkg&&pkg.numLoja?pkg.numLoja:''; var track=pkg&&pkg.numeracao?pkg.numeracao:'';
       var supaBase='https://wexikjzztxpfdbzjfnxl.supabase.co/storage/v1/object/public/expedicao/';
       var photoSrc=s.photo||(s.photoUrl?s.photoUrl:(supaBase+'scan_'+s.etiqueta+'_'+s.date));
@@ -628,7 +644,7 @@ function renderHistContent(){
         if(lotePkgs.length>0){
           html+='<div style="font-size:11px;color:var(--tm);font-family:var(--mono);margin-bottom:6px">📦 PACOTES DESTE LOTE ('+lotePkgs.length+')</div>';
           lotePkgs.forEach(function(s){
-            var pkg=null; for(var k=0;k<packages.length;k++){if(packages[k].etiqueta===s.etiqueta){pkg=packages[k];break;}}
+            var pkg=pkgPorEtiqueta()[s.etiqueta]||null;
             var nf=pkg&&pkg.nf?pkg.nf:''; var track=pkg&&pkg.numeracao?pkg.numeracao:'';
             var photoSrc=s.photo||(s.photoUrl?s.photoUrl:(supaBase+'scan_'+s.etiqueta+'_'+s.date));
             html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)">';
@@ -651,7 +667,7 @@ function renderHistContent(){
       html+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:10px 14px">';
       pkgScans.forEach(function(s){
         var mktInfo=MKT[s.mkt]||{icon:'📦'};
-        var pkg=null; for(var k=0;k<packages.length;k++){if(packages[k].etiqueta===s.etiqueta){pkg=packages[k];break;}}
+        var pkg=pkgPorEtiqueta()[s.etiqueta]||null;
         var nf=pkg&&pkg.nf?'NF '+pkg.nf:''; var track=pkg&&pkg.numeracao?pkg.numeracao:'';
         var supaBase='https://wexikjzztxpfdbzjfnxl.supabase.co/storage/v1/object/public/expedicao/';
         var photoSrc=s.photo||(s.photoUrl?s.photoUrl:(supaBase+'scan_'+s.etiqueta+'_'+s.date));
