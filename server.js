@@ -394,6 +394,7 @@ let blingFilaRitmo = Promise.resolve();
 const RITMO_URL = (process.env.BLING_RITMO_URL || '').replace(/\/$/, '');
 const RITMO_KEY = process.env.BLING_RITMO_KEY || '';
 const RITMO_CONTA = process.env.BLING_RITMO_CONTA || 'girassol';
+const RITMO_SERVICO = process.env.BLING_RITMO_SERVICO || 'expedicao';   // 13/10: nome no porteiro
 const RITMO_ATIVO = !!(RITMO_URL && RITMO_KEY);
 const RITMO_TIMEOUT = 1000;      // falha aberto: não pode travar a operação
 let ritmoAvisado = false;        // loga a indisponibilidade uma vez, não a cada chamada
@@ -401,7 +402,12 @@ let ritmoForaAte = 0;            // circuito aberto: porteiro indisponível, nã
 const RITMO_CIRCUITO_MS = 30000; // sonda de novo depois disso
 
 async function ritmoChamar(rota, params) {
-  const qs = new URLSearchParams(Object.assign({ conta: RITMO_CONTA }, params || {})).toString();
+  // 13/10: a Expedicao se identifica no porteiro (servico=expedicao) — sem isso ela aparecia como 'sem-nome' no
+  // /bling-ritmo/estado e nao dava pra separar o consumo dela das outras. O 429 vai como OPERACAO (todo o trafego daqui e
+  // do galpao), pra o porteiro nao confundir com rotina de fundo. Porteiro antigo ignora os dois parametros.
+  const base = { conta: RITMO_CONTA, servico: RITMO_SERVICO };
+  if (rota === 'aviso-429') base.prioridade = 'operacao';
+  const qs = new URLSearchParams(Object.assign(base, params || {})).toString();
   const r = await fetch(RITMO_URL + '/bling-ritmo/' + rota + '?' + qs, {
     method: rota === 'estado' ? 'GET' : 'POST',
     timeout: RITMO_TIMEOUT,
