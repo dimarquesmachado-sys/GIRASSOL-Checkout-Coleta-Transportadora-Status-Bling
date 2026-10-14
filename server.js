@@ -304,7 +304,9 @@ function retryAfterMs(valor) {
   const t = Date.parse(valor);
   return isNaN(t) ? 0 : Math.max(0, t - Date.now());
 }
-function registrar429(retryAfter) {
+// 14/10: a ficha da vez vai junto no aviso de 429 — sem ela o porteiro nao sabe se a conta estourou com ele no limite
+// ou por consumo de fora (o /girassol/porteiro mostrava os 429 da expedicao como 'sem ficha', sem como classificar)
+function registrar429(retryAfter, ficha) {
   const agora = Date.now();
   const espera429 = retryAfterMs(retryAfter);
   // 429 que chega DURANTE uma pausa é resposta de chamada que já estava em voo
@@ -319,7 +321,7 @@ function registrar429(retryAfter) {
         // Avisa o porteiro do prazo MAIOR: sem isto, os outros serviços ficariam
         // com o prazo curto do primeiro 429 e voltariam a consumir a conta
         // enquanto este app ainda respeita a pausa longa.
-        ritmoAvisar('aviso-429', { retry_after_s: Math.ceil((novo - agora) / 1000) });
+        ritmoAvisar('aviso-429', Object.assign({ retry_after_s: Math.ceil((novo - agora) / 1000) }, ficha ? { ficha } : {}));
       }
     }
     return;
@@ -329,7 +331,7 @@ function registrar429(retryAfter) {
   if (espera429 > espera) espera = espera429;
   blingPausaAte = agora + espera;
   salvarPausa();
-  ritmoAvisar('aviso-429', { retry_after_s: Math.round(espera / 1000) });
+  ritmoAvisar('aviso-429', Object.assign({ retry_after_s: Math.round(espera / 1000) }, ficha ? { ficha } : {}));
   console.warn('⏸ Bling recusou por limite (429) — pausando TODAS as chamadas por ' +
                Math.round(espera / 1000) + 's (rodadas seguidas: ' + bling429Seguidos + ')');
   // Assim que a pausa acabar, tenta a fila logo — sem esperar o ciclo de 5 min.
@@ -542,7 +544,7 @@ async function blingFetch(url, options = {}, retries = 3) {
       // A pausa entra AGORA, a partir do status e dos cabeçalhos. Ler o corpo antes
       // atrasaria isso por até 30s (timeout) e, nesse intervalo, as outras rotinas
       // continuariam disparando — recriando a avalanche que o freio evita.
-      registrar429(r.headers && r.headers.get && r.headers.get('retry-after'));
+      registrar429(r.headers && r.headers.get && r.headers.get('retry-after'), fichaRitmo);
       if (!jaEstavaPausado) {
         // Só para diagnóstico: o Bling tem limite por segundo e cota diária, e o
         // corpo é o único lugar que diz em qual esbarramos.
